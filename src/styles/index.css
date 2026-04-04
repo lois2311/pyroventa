@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: #111111;
+    color: #f3f4f6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scrollbar personalizado oscuro */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track  { background: #1a1a1a; }
+  ::-webkit-scrollbar-thumb  { background: #3a3a3a; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #f97316; }
+}
+
+@layer components {
+  /* Botones base */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-150 cursor-pointer select-none;
+    @apply disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-brand-500 text-white hover:bg-brand-600 active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-gray-300 hover:bg-surface-50 hover:text-white;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 active:scale-[0.98];
+  }
+  .btn-success {
+    @apply btn bg-green-600 text-white hover:bg-green-700 active:scale-[0.98];
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs rounded-md;
+  }
+  .btn-lg {
+    @apply px-6 py-3.5 text-base rounded-xl;
+  }
+
+  .btn-touch-safe {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-surface-400 border border-white/5 rounded-xl p-4;
+  }
+  .card-hover {
+    @apply card transition-all duration-150 hover:border-brand-500/40 hover:bg-surface-300 cursor-pointer;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full bg-surface-300 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm
+           placeholder-gray-500 outline-none transition-colors duration-150
+           focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30;
+  }
+
+  /* Badges de estado */
+  .badge-pending   { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400; }
+  .badge-paid      { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20  text-green-400; }
+  .badge-cancelled { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20    text-red-400; }
+
+  /* Skeleton loader */
+  .skeleton {
+    @apply animate-pulse bg-surface-50 rounded-lg;
+  }
+}
+
+/* Aviso para pantallas ultra compactas */
+@media (max-width: 359px) {
+  #compact-viewport-hint {
+    display: block !important;
+  }
+}
+
+/* Safe area padding para iPhones con notch/home indicator */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Animación de checkmark SVG */
+.checkmark-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.checkmark-path {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+}
+
+@keyframes stroke {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Teclado numérico — teclas */
+.numpad-key {
+  @apply flex items-center justify-center w-full aspect-square rounded-xl text-2xl font-semibold font-mono
+         bg-surface-50 hover:bg-surface-100 active:scale-95 cursor-pointer transition-all duration-100
+         border border-white/5 select-none;
+}
+.numpad-key:active {
+  background-color: rgba(249, 115, 22, 0.15);
+  border-color: rgba(249, 115, 22, 0.4);
+}
