@@ -1,9 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    {
-      "source": "/((?!api/|@vite/|@react-refresh|src/|assets/|node_modules/|.*\\..*).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/:path*", "destination": "/api" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
