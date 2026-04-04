@@ -11,7 +11,10 @@ import { requireAuth, requireAdmin } from './_lib/auth.js'
 export default async function handler(req, res) {
   if (handleCors(req, res)) return
 
-  const segments = (req.query.path || [])
+  // Extraer segmentos de ruta desde la URL (más confiable que req.query.path en Vercel)
+  const url = req.url || ''
+  const apiPath = url.split('?')[0].replace(/^\/api\/?/, '') // quitar /api/ del inicio
+  const segments = apiPath.split('/').filter(Boolean)
   const route = '/' + segments.join('/')
   const method = req.method
 
