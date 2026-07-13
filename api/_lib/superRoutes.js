@@ -2,15 +2,17 @@ import bcrypt from 'bcryptjs'
 import { supabaseAdmin } from './supabaseAdmin.js'
 import { requireSuperAdmin } from './auth.js'
 import { signToken } from './jwt.js'
-import { getTenantStatus } from './tenantStatus.js'
+import { getTenantStatus, bogotaDate } from './tenantStatus.js'
 import { slugify } from './slug.js'
+import { parseRange, bogotaDayBounds } from './range.js'
 
 // =====================================================
 // PyroVenta — Rutas del super admin (plataforma)
 // =====================================================
 
-// Hash dummy para igualar el tiempo de respuesta cuando el email no existe
-const DUMMY_HASH = bcrypt.hashSync('pyroventa-dummy', 10)
+// Hash bcrypt (costo 10) precomputado de 'pyroventa-dummy' — iguala el tiempo de
+// respuesta cuando el email no existe sin pagar el hash en cada cold start.
+const DUMMY_HASH = '$2b$10$cDwgjYniiWBg7KfhzC3lm.JZnXd7ujBEZeF4ow/0qkIhx.cn3bhPC'
 
 export async function superLogin(req, res) {
   const { email, password } = req.body || {}
@@ -37,9 +39,10 @@ export async function superTenantsList(req, res) {
     .from('tenants').select('*').order('created_at', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
 
-  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const hoy = bogotaDate()
+  const { start: todayStart } = bogotaDayBounds(hoy, hoy)
   const [{ data: todayInvoices }, { data: lastActivity }] = await Promise.all([
-    supabaseAdmin.from('invoices').select('tenant_id, total, status').gte('created_at', today.toISOString()),
+    supabaseAdmin.from('invoices').select('tenant_id, total, status').gte('created_at', todayStart),
     supabaseAdmin.rpc('tenant_last_activity'),
   ])
 
@@ -105,6 +108,13 @@ export async function superTenantsPatch(req, res, id) {
   if (license_start !== undefined) u.license_start = license_start
   if (license_end !== undefined)   u.license_end = license_end
   if (!Object.keys(u).length) return res.status(400).json({ error: 'Nada que actualizar' })
+  if (u.name !== undefined && !String(u.name).trim()) return res.status(400).json({ error: 'El nombre no puede estar vacío' })
+  if ((u.license_start ?? u.license_end) !== undefined) {
+    const { data: current } = await supabaseAdmin.from('tenants').select('license_start, license_end').eq('id', id).single()
+    const start = u.license_start ?? current?.license_start
+    const end   = u.license_end   ?? current?.license_end
+    if (start && end && end < start) return res.status(400).json({ error: 'license_end debe ser posterior a license_start' })
+  }
   const { data, error } = await supabaseAdmin.from('tenants').update(u).eq('id', id).select().single()
   if (error) return res.status(500).json({ error: error.message })
   return res.status(200).json(data)
@@ -127,15 +137,14 @@ export async function superTenantAdminCreate(req, res, tenantId) {
 
 export async function superMetrics(req, res) {
   const auth = await requireSuperAdmin(req, res); if (!auth) return
-  const { from, to } = req.query
-  const start = from ? new Date(from) : new Date(); start.setHours(0, 0, 0, 0)
-  const end = to ? new Date(to) : new Date(start); end.setHours(0, 0, 0, 0)
-  end.setDate(end.getDate() + 1)
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const bounds = bogotaDayBounds(range.from, range.to)
 
   const [{ data: tenants }, { data: invoices, error }] = await Promise.all([
     supabaseAdmin.from('tenants').select('id, name'),
     supabaseAdmin.from('invoices').select('tenant_id, total, status')
-      .gte('created_at', start.toISOString()).lt('created_at', end.toISOString()).eq('status', 'paid'),
+      .gte('created_at', bounds.start).lt('created_at', bounds.end).eq('status', 'paid'),
   ])
   if (error) return res.status(500).json({ error: error.message })
 
@@ -145,10 +154,13 @@ export async function superMetrics(req, res) {
     m[i.tenant_id].revenue += i.total || 0
     m[i.tenant_id].invoice_count++
   })
-  return res.status(200).json((tenants || []).map(t => ({
-    tenant_id: t.id,
-    tenant_name: t.name,
-    revenue: m[t.id]?.revenue || 0,
-    invoice_count: m[t.id]?.invoice_count || 0,
-  })).sort((a, b) => b.revenue - a.revenue))
+  return res.status(200).json({
+    from: range.from, to: range.to,
+    tenants: (tenants || []).map(t => ({
+      tenant_id: t.id,
+      tenant_name: t.name,
+      revenue: m[t.id]?.revenue || 0,
+      invoice_count: m[t.id]?.invoice_count || 0,
+    })).sort((a, b) => b.revenue - a.revenue),
+  })
 }

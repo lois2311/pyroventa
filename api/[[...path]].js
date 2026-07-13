@@ -5,6 +5,7 @@ import { signToken }       from './_lib/jwt.js'
 import { getTenantStatus } from './_lib/tenantStatus.js'
 import { superLogin, superTenantsList, superTenantsCreate, superTenantsPatch, superTenantAdminCreate, superMetrics } from './_lib/superRoutes.js'
 import { parseRange, bogotaDayBounds } from './_lib/range.js'
+import { tenantOwns } from './_lib/tenantOwns.js'
 
 // =====================================================
 // PyroVenta — API Router (catch-all)
@@ -26,7 +27,7 @@ export default async function handler(req, res) {
   if (route === '/auth/login' && method === 'POST') return authLogin(req, res)
 
   // ---- PÚBLICO (bootstrap de login por empresa) -----
-  if (segments[0] === 'public' && segments[1] === 'tenant' && segments[2] && method === 'GET') {
+  if (segments[0] === 'public' && segments[1] === 'tenant' && segments[2] && segments.length === 3 && method === 'GET') {
     return publicTenantGet(req, res, segments[2])
   }
 
@@ -249,6 +250,9 @@ async function productsGet(req, res) {
     result = result.map(p => ({ ...p, stock_quantity: sm[p.id] ?? 0 }))
   }
   result.sort((a, b) => (a.categories?.sort_order ?? 99) - (b.categories?.sort_order ?? 99) || a.name.localeCompare(b.name, 'es'))
+  // Respuesta por-tenant en URL compartida: private evita CDNs compartidos y
+  // Vary: Authorization separa las entradas por token (HTTP y Cache API del SW).
+  // Cualquier endpoint /api futuro con max-age > 0 debe replicar este par.
   // private: la respuesta es por tenant — NUNCA cachear en CDN compartido
   res.setHeader('Cache-Control', 'private, max-age=300')
   res.setHeader('Vary', 'Authorization')
@@ -259,6 +263,7 @@ async function productsCreate(req, res) {
   const auth = await requireAdmin(req, res); if (!auth) return
   const { name, category_id, description, presentations = [] } = req.body || {}
   if (!name) return res.status(400).json({ error: 'El nombre es requerido' })
+  if (!(await tenantOwns('categories', category_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
   const { data: product, error: pe } = await supabaseAdmin.from('products')
     .insert({ tenant_id: auth.tenantId, name, category_id, description }).select().single()
   if (pe) return res.status(500).json({ error: pe.message })
@@ -274,6 +279,7 @@ async function productsCreate(req, res) {
 async function productsUpdate(req, res, id) {
   const auth = await requireAdmin(req, res); if (!auth) return
   const { name, category_id, description, active, presentations } = req.body || {}
+  if (category_id !== undefined && !(await tenantOwns('categories', category_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
   const u = {}
   if (name !== undefined) u.name = name
   if (category_id !== undefined) u.category_id = category_id
@@ -372,6 +378,9 @@ async function sellersCreate(req, res) {
     .insert({ tenant_id: auth.tenantId, name, pin, role }).select().single()
   if (se) return res.status(500).json({ error: se.message })
   if (location_ids.length) {
+    for (const lid of location_ids) {
+      if (!(await tenantOwns('locations', lid, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+    }
     await supabaseAdmin.from('seller_locations')
       .insert(location_ids.map(lid => ({ tenant_id: auth.tenantId, seller_id: seller.id, location_id: lid })))
   }
@@ -388,6 +397,9 @@ async function sellersUpdate(req, res, id) {
   if (active !== undefined) u.active = active
   if (Object.keys(u).length) await supabaseAdmin.from('sellers').update(u).eq('id', id).eq('tenant_id', auth.tenantId)
   if (Array.isArray(location_ids)) {
+    for (const lid of location_ids) {
+      if (!(await tenantOwns('locations', lid, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+    }
     await supabaseAdmin.from('seller_locations').delete().eq('seller_id', id).eq('tenant_id', auth.tenantId)
     if (location_ids.length) {
       await supabaseAdmin.from('seller_locations')
@@ -424,6 +436,7 @@ async function registersCreate(req, res) {
   const auth = await requireAdmin(req, res); if (!auth) return
   const { name, location_id } = req.body || {}
   if (!name?.trim() || !location_id) return res.status(400).json({ error: 'name y location_id requeridos' })
+  if (!(await tenantOwns('locations', location_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
   const { data, error } = await supabaseAdmin.from('registers')
     .insert({ tenant_id: auth.tenantId, name: name.trim(), location_id, active: true }).select().single()
   if (error) return res.status(500).json({ error: error.message })
@@ -460,6 +473,7 @@ async function invoicesCreate(req, res) {
   const { data: loc } = await supabaseAdmin.from('locations')
     .select('id').eq('id', location_id).eq('tenant_id', auth.tenantId).single()
   if (!loc) return res.status(403).json({ error: 'Punto de venta no pertenece a esta empresa' })
+  if (!(await tenantOwns('sellers', seller_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
 
   const total = items.reduce((s, i) => s + (i.price * i.qty), 0)
   const { data: code, error: ce } = await supabaseAdmin.rpc('get_next_invoice_code', { p_location_id: location_id })
