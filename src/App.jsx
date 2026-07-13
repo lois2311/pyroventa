@@ -5,6 +5,8 @@ import TenantEntry  from './pages/TenantEntry.jsx'
 import VendedorPage from './pages/VendedorPage.jsx'
 import CajaPage     from './pages/CajaPage.jsx'
 import AdminPage    from './pages/AdminPage.jsx'
+import SuperLoginPage from './pages/SuperLoginPage.jsx'
+import SuperDashboard from './pages/SuperDashboard.jsx'
 import { ToastProvider } from './components/Toast.jsx'
 import NetworkBanner from './components/NetworkBanner.jsx'
 import LicenseBlock from './components/LicenseBlock.jsx'
@@ -59,6 +61,9 @@ export default function App() {
             <AdminPage />
           </RequireRole>
         } />
+
+        <Route path="/super/login" element={<SuperLoginPage />} />
+        <Route path="/super"       element={<SuperDashboard />} />
 
         {/* Redirect por defecto */}
         <Route path="*" element={<Navigate to="/login" replace />} />
