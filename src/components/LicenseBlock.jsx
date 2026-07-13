@@ -22,7 +22,7 @@ export default function LicenseBlock() {
   }
 
   return (
-    <div className="fixed inset-0 z-[1200] bg-black/90 backdrop-blur flex items-center justify-center p-6">
+    <div className="fixed inset-0 z-[10000] bg-black/90 backdrop-blur flex items-center justify-center p-6">
       <div className="card bg-surface-300 border-red-500/30 p-8 max-w-md text-center">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-500/15 border border-red-500/30 mb-4">
           <ShieldAlert className="w-7 h-7 text-red-400" />
