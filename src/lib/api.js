@@ -32,12 +32,19 @@ async function request(method, path, body, options = {}) {
 
       if (!res.ok) {
         let message = `Error HTTP ${res.status}`
+        let code = null
         try {
           const data = await res.json()
           message = data.error || data.message || message
+          code = data.code || null
         } catch { /* ignore parse errors */ }
         const err = new Error(message)
         err.status = res.status
+        err.code = code
+        // Licencia vencida / empresa suspendida → evento global para bloquear la app
+        if (res.status === 403 && ['LICENSE_EXPIRED', 'TENANT_SUSPENDED', 'LICENSE_NOT_STARTED'].includes(code)) {
+          window.dispatchEvent(new CustomEvent('pv:license-error', { detail: { code, message } }))
+        }
         // No reintentar errores de cliente (4xx) excepto 408/429
         if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
           throw err

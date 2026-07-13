@@ -6,7 +6,8 @@ export const useAuthStore = create(
     (set, get) => ({
       seller:   null,   // { id, name, role }
       location: null,   // { id, name, address, printer_config }
-      register: null,   // { id, name } — caja/registradora seleccionada (solo cajeros)
+      tenant:   null,   // { id, name, slug }
+      register: null,   // { id, name } — caja seleccionada (solo cajeros)
       token:    null,
 
       isAuthenticated: () => !!get().seller,
@@ -16,15 +17,17 @@ export const useAuthStore = create(
         return s && roles.includes(s.role)
       },
 
-      login: (seller, location, token) => {
+      login: (seller, location, tenant, token) => {
         localStorage.setItem('pv_token', token)
-        set({ seller, location, token, register: null })
+        if (tenant?.slug) localStorage.setItem('pv_tenant_slug', tenant.slug)
+        set({ seller, location, tenant, token, register: null })
       },
 
       setRegister: (register) => set({ register }),
 
       logout: () => {
         localStorage.removeItem('pv_token')
+        // pv_tenant_slug se conserva: el dispositivo sigue amarrado a la empresa
         set({ seller: null, location: null, register: null, token: null })
       },
 
@@ -40,6 +43,7 @@ export const useAuthStore = create(
       partialize: (state) => ({
         seller:   state.seller,
         location: state.location,
+        tenant:   state.tenant,
         register: state.register,
         token:    state.token,
       }),

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore.js'
 import LoginPage    from './pages/LoginPage.jsx'
+import TenantEntry  from './pages/TenantEntry.jsx'
 import VendedorPage from './pages/VendedorPage.jsx'
 import CajaPage     from './pages/CajaPage.jsx'
 import AdminPage    from './pages/AdminPage.jsx'
@@ -36,6 +37,7 @@ export default function App() {
       <CompactViewportHint />
       <NetworkBanner />
       <Routes>
+        <Route path="/c/:slug" element={<TenantEntry />} />
         <Route path="/login" element={<LoginPage />} />
 
         <Route path="/vender" element={
