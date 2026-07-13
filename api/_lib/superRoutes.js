@@ -9,6 +9,9 @@ import { slugify } from './slug.js'
 // PyroVenta — Rutas del super admin (plataforma)
 // =====================================================
 
+// Hash dummy para igualar el tiempo de respuesta cuando el email no existe
+const DUMMY_HASH = bcrypt.hashSync('pyroventa-dummy', 10)
+
 export async function superLogin(req, res) {
   const { email, password } = req.body || {}
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' })
@@ -17,7 +20,9 @@ export async function superLogin(req, res) {
     .from('super_admins').select('id, email, password_hash')
     .eq('email', String(email).toLowerCase().trim()).single()
 
-  if (!sa || !bcrypt.compareSync(password, sa.password_hash)) {
+  const hash = sa?.password_hash || DUMMY_HASH
+  const valid = bcrypt.compareSync(password, hash)
+  if (!sa || !valid) {
     return res.status(401).json({ error: 'Credenciales inválidas' })
   }
 
