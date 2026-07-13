@@ -9,6 +9,9 @@ import SellerStats         from '../components/SellerStats.jsx'
 import TopProducts         from '../components/TopProducts.jsx'
 import BulkUpload          from '../components/BulkUpload.jsx'
 import RegisterComparison  from '../components/RegisterComparison.jsx'
+import DateRangeBar        from '../components/DateRangeBar.jsx'
+import DailyTrend          from '../components/DailyTrend.jsx'
+import { exportToExcel }   from '../lib/exportExcel.js'
 import { useToast }        from '../components/Toast.jsx'
 
 // ---- Tabs -----------------------------------------------
@@ -26,7 +29,9 @@ export default function AdminPage() {
   const { error: toastError, success: toastSuccess } = useToast()
 
   const [tab,         setTab]         = useState('resumen')
-  const [date,        setDate]        = useState(new Date().toISOString().split('T')[0])
+  const hoy = new Date().toISOString().split('T')[0]
+  const [from, setFrom] = useState(hoy)
+  const [to,   setTo]   = useState(hoy)
   const [locationId,  setLocationId]  = useState('')
   const [locations,   setLocations]   = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -93,8 +98,9 @@ export default function AdminPage() {
 
           {tab === 'resumen' && (
             <ResumenTab
-              date={date}
-              setDate={setDate}
+              from={from}
+              to={to}
+              setRange={(f, t) => { setFrom(f); setTo(t) }}
               locationId={locationId}
               setLocationId={setLocationId}
               locations={locations}
@@ -130,7 +136,7 @@ export default function AdminPage() {
 // ===========================================================
 // TAB: Resumen
 // ===========================================================
-function ResumenTab({ date, setDate, locationId, setLocationId, locations }) {
+function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }) {
   const [daily,      setDaily]      = useState(null)
   const [sellers,    setSellers]    = useState([])
   const [locCompar,  setLocCompar]  = useState([])
@@ -144,7 +150,7 @@ function ResumenTab({ date, setDate, locationId, setLocationId, locations }) {
 
   const fetchAll = useCallback(() => {
     const locParam = locationId ? `&location_id=${locationId}` : ''
-    const q = `?date=${date}${locParam}`
+    const q = `?from=${from}&to=${to}${locParam}`
 
     setLoadDaily(true)
     api.get(`/reports/daily${q}`)
@@ -159,7 +165,7 @@ function ResumenTab({ date, setDate, locationId, setLocationId, locations }) {
       .finally(() => setLoadSell(false))
 
     setLoadLoc(true)
-    api.get(`/reports/locations?date=${date}`)
+    api.get(`/reports/locations?from=${from}&to=${to}`)
       .then(d => setLocCompar(d || []))
       .catch(() => {})
       .finally(() => setLoadLoc(false))
@@ -175,7 +181,32 @@ function ResumenTab({ date, setDate, locationId, setLocationId, locations }) {
       .then(d => setRegCompar(d || []))
       .catch(() => {})
       .finally(() => setLoadRegs(false))
-  }, [date, locationId])
+  }, [from, to, locationId])
+
+  const handleExport = () => {
+    const sheets = [
+      { name: 'Resumen', rows: daily ? [{
+          Desde: from, Hasta: to,
+          'Total vendido': daily.total_revenue, Facturas: daily.invoice_count,
+          'Ticket promedio': Math.round(daily.avg_ticket), Pendientes: daily.pending_count,
+          Canceladas: daily.cancelled_count, Efectivo: daily.by_pay_method.cash,
+          Transferencia: daily.by_pay_method.transfer, Tarjeta: daily.by_pay_method.card,
+        }] : [] },
+      { name: 'Por día', rows: (daily?.by_day || []).map(d => ({
+          Día: d.day, Facturas: d.invoice_count, Efectivo: d.cash,
+          Transferencia: d.transfer, Tarjeta: d.card, Total: d.total_revenue })) },
+      { name: 'Vendedores', rows: sellers.map(s => ({
+          Vendedor: s.seller_name, Facturas: s.count, Efectivo: s.by_method.cash,
+          Transferencia: s.by_method.transfer, Tarjeta: s.by_method.card, Total: s.total })) },
+      { name: 'Cajas', rows: regCompar.map(r => ({
+          Caja: r.register_name, Cajero: r.cashier_name || '', Facturas: r.count,
+          Efectivo: r.by_method.cash, Transferencia: r.by_method.transfer,
+          Tarjeta: r.by_method.card, Total: r.total })) },
+      { name: 'Productos', rows: topProds.flatMap(p => p.presentations.map(pr => ({
+          Producto: p.product_name, Presentación: pr.label, Cantidad: pr.qty, Total: pr.revenue }))) },
+    ]
+    exportToExcel(sheets, `pyroventa_${from}_${to}.xlsx`)
+  }
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
@@ -183,15 +214,7 @@ function ResumenTab({ date, setDate, locationId, setLocationId, locations }) {
     <div className="space-y-6 max-w-5xl">
       {/* Filtros */}
       <div className="flex items-end gap-3 flex-wrap">
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">Fecha</label>
-          <input
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            className="input w-40 text-sm"
-          />
-        </div>
+        <DateRangeBar from={from} to={to} onChange={setRange} />
         <div>
           <label className="block text-xs text-gray-600 mb-1">Punto de venta</label>
           <select
@@ -208,12 +231,24 @@ function ResumenTab({ date, setDate, locationId, setLocationId, locations }) {
         <button onClick={fetchAll} className="btn btn-ghost border border-white/10">
           ↻ Actualizar
         </button>
+        <button onClick={handleExport} className="btn btn-ghost border border-white/10">
+          ⬇ Exportar
+        </button>
       </div>
 
       <section>
-        <h2 className="font-syne font-semibold text-white mb-4">Métricas del día</h2>
+        <h2 className="font-syne font-semibold text-white mb-4">
+          {from === to ? 'Métricas del día' : `Métricas · ${from} → ${to}`}
+        </h2>
         <DailyMetrics data={daily} loading={loadDaily} />
       </section>
+
+      {daily?.by_day?.length > 1 && (
+        <section>
+          <h2 className="font-syne font-semibold text-white mb-4">📈 Ventas por día</h2>
+          <DailyTrend data={daily.by_day} loading={loadDaily} />
+        </section>
+      )}
 
       {/* Rankings lado a lado en desktop, apilados en móvil */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -224,13 +259,13 @@ function ResumenTab({ date, setDate, locationId, setLocationId, locations }) {
 
         <section>
           <h2 className="font-syne font-semibold text-white mb-4">🏆 Top Vendedores</h2>
-          <SellerStats data={sellers} loading={loadSell} date={date} locationId={locationId} />
+          <SellerStats data={sellers} loading={loadSell} from={from} to={to} locationId={locationId} />
         </section>
       </div>
 
       <section>
         <h2 className="font-syne font-semibold text-white mb-4">🖥 Rendimiento por Caja</h2>
-        <RegisterComparison data={regCompar} loading={loadRegs} />
+        <RegisterComparison data={regCompar} loading={loadRegs} from={from} to={to} locationId={locationId} />
       </section>
 
       {!locationId && (
@@ -818,7 +853,9 @@ function HistorialTab({ locations }) {
   const [invoices,   setInvoices]   = useState([])
   const [total,      setTotal]      = useState(0)
   const [loading,    setLoading]    = useState(false)
-  const [date,       setDate]       = useState(new Date().toISOString().split('T')[0])
+  const hoy = new Date().toISOString().split('T')[0]
+  const [from, setFrom] = useState(hoy)
+  const [to,   setTo]   = useState(hoy)
   const [locFilter,  setLocFilter]  = useState('')
   const [statusFilt, setStatusFilt] = useState('')
   const [expanded,   setExpanded]   = useState(null)
@@ -833,7 +870,7 @@ function HistorialTab({ locations }) {
 
   const fetchInvoices = useCallback(() => {
     setLoading(true)
-    const params = new URLSearchParams({ date })
+    const params = new URLSearchParams({ from, to })
     if (locFilter)  params.set('location_id', locFilter)
     if (statusFilt) params.set('status', statusFilt)
     params.set('limit', '100')
@@ -845,7 +882,7 @@ function HistorialTab({ locations }) {
       })
       .catch(err => toastError(err.message))
       .finally(() => setLoading(false))
-  }, [date, locFilter, statusFilt])
+  }, [from, to, locFilter, statusFilt])
 
   useEffect(() => { fetchInvoices() }, [fetchInvoices])
 
@@ -854,10 +891,7 @@ function HistorialTab({ locations }) {
       <h2 className="font-syne font-semibold text-white">Historial de facturas</h2>
 
       <div className="flex items-end gap-3 flex-wrap">
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">Fecha</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input w-40 text-sm" />
-        </div>
+        <DateRangeBar from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
         <div>
           <label className="block text-xs text-gray-600 mb-1">Punto de venta</label>
           <select value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input w-48 text-sm">
