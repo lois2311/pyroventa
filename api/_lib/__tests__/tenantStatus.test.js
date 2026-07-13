@@ -23,4 +23,7 @@ describe('getTenantStatus', () => {
   it('vigente → ok', () => {
     expect(getTenantStatus(base, dia('2026-06-15')).ok).toBe(true)
   })
+  it('31 dic 9:00 PM en Bogotá (2027-01-01T02:00:00Z) sigue vigente — la frontera es hora local de Colombia', () => {
+    expect(getTenantStatus(base, new Date('2027-01-01T02:00:00Z')).ok).toBe(true)
+  })
 })
