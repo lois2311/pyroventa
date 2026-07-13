@@ -3,6 +3,7 @@ import { handleCors }    from './_lib/cors.js'
 import { requireAuth, requireAdmin } from './_lib/auth.js'
 import { signToken }       from './_lib/jwt.js'
 import { getTenantStatus } from './_lib/tenantStatus.js'
+import { superLogin, superTenantsList, superTenantsCreate, superTenantsPatch, superTenantAdminCreate, superMetrics } from './_lib/superRoutes.js'
 
 // =====================================================
 // PyroVenta — API Router (catch-all)
@@ -27,6 +28,18 @@ export default async function handler(req, res) {
   if (segments[0] === 'public' && segments[1] === 'tenant' && segments[2] && method === 'GET') {
     return publicTenantGet(req, res, segments[2])
   }
+
+  // ---- SUPER ADMIN ----------------------------------
+  if (route === '/auth/super/login' && method === 'POST') return superLogin(req, res)
+  if (route === '/super/tenants' && method === 'GET')     return superTenantsList(req, res)
+  if (route === '/super/tenants' && method === 'POST')    return superTenantsCreate(req, res)
+  if (segments[0] === 'super' && segments[1] === 'tenants' && segments[2] && !segments[3] && method === 'PATCH') {
+    return superTenantsPatch(req, res, segments[2])
+  }
+  if (segments[0] === 'super' && segments[1] === 'tenants' && segments[2] && segments[3] === 'admin' && method === 'POST') {
+    return superTenantAdminCreate(req, res, segments[2])
+  }
+  if (route === '/super/metrics' && method === 'GET')     return superMetrics(req, res)
 
   // ---- LOCATIONS ------------------------------------
   if (route === '/locations' && method === 'GET')  return locationsGet(req, res)
