@@ -1,38 +1,11 @@
-import { useEffect, useState } from 'react'
-import { CheckCircle2, MapPin, RotateCcw } from 'lucide-react'
-import { api } from '../lib/api.js'
+import { CheckCircle2, MapPin } from 'lucide-react'
 
-export default function LocationSelector({ value, onChange }) {
-  const [locations, setLocations] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [error,     setError]     = useState(null)
-
-  useEffect(() => {
-    api.get('/locations')
-      .then(data => setLocations((data || []).filter(l => l.active !== false)))
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [])
-
-  if (loading) {
+export default function LocationSelector({ locations = [], value, onChange }) {
+  if (locations.length === 0) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="skeleton h-20 rounded-xl" />
-        ))}
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-red-400 text-sm">{error}</p>
-        <button className="btn btn-ghost btn-sm mt-2" onClick={() => window.location.reload()}>
-          <RotateCcw className="w-4 h-4" />
-          Reintentar
-        </button>
-      </div>
+      <p className="text-gray-500 text-sm text-center py-6">
+        Esta empresa aún no tiene puntos de venta configurados.
+      </p>
     )
   }
 

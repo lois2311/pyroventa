@@ -124,12 +124,53 @@ export default function LoginPage() {
   const { login, setRegister } = useAuthStore()
   const { error: toastError } = useToast()
 
-  const [step,         setStep]         = useState('location') // 'location' | 'pin' | 'register'
+  const [step,         setStep]         = useState('company') // 'company' | 'location' | 'pin' | 'register'
+  const [slugInput,    setSlugInput]    = useState('')
+  const [tenant,       setTenant]      = useState(null)      // { id, name, slug }
+  const [locations,    setLocations]   = useState([])
+  const [bootLoading,  setBootLoading] = useState(true)
   const [location,     setLocation]     = useState(null)
   const [pin,          setPin]          = useState('')
   const [loading,      setLoading]      = useState(false)
-  const [loginData,    setLoginData]    = useState(null) // resultado del login guardado temporalmente
+  const [loginData,    setLoginData]    = useState(null)
   const [selectedReg,  setSelectedReg]  = useState(null)
+
+  const loadTenant = async (slug) => {
+    setBootLoading(true)
+    try {
+      const data = await api.get(`/public/tenant/${encodeURIComponent(slug)}`)
+      setTenant(data.tenant)
+      setLocations(data.locations || [])
+      localStorage.setItem('pv_tenant_slug', data.tenant.slug)
+      setStep('location')
+    } catch (err) {
+      localStorage.removeItem('pv_tenant_slug')
+      setTenant(null)
+      setStep('company')
+      if (err.status) toastError(err.message)
+    } finally {
+      setBootLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const saved = localStorage.getItem('pv_tenant_slug')
+    if (saved) loadTenant(saved)
+    else setBootLoading(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleCompanySubmit = (e) => {
+    e.preventDefault()
+    const slug = slugInput.trim().toLowerCase()
+    if (slug) loadTenant(slug)
+  }
+
+  const handleChangeCompany = () => {
+    localStorage.removeItem('pv_tenant_slug')
+    setTenant(null); setLocation(null); setSlugInput('')
+    setStep('company')
+  }
 
   const handleLocationNext = () => {
     if (!location) return
@@ -143,8 +184,8 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const data = await api.post('/auth/login', { pin: p, location_id: location.id })
-      login(data.seller, data.location, data.token)
+      const data = await api.post('/auth/login', { pin: p, location_id: location.id, tenant_slug: tenant.slug })
+      login(data.seller, data.location, data.tenant, data.token)
 
       // Si es cajero o admin yendo a caja → pedir selección de caja
       if (data.seller.role === 'cashier') {
@@ -190,21 +231,65 @@ export default function LoginPage() {
             <Flame className="w-8 h-8 text-brand-500" />
           </div>
           <h1 className="font-syne text-3xl font-bold text-white tracking-tight">PyroVenta</h1>
-          <p className="text-gray-500 text-sm mt-1">Sistema de control de ventas</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {tenant ? tenant.name : 'Sistema de control de ventas'}
+          </p>
         </div>
 
         {/* Card principal */}
         <div className="card bg-surface-300 border-white/8 p-6">
 
+          {bootLoading && (
+            <div className="py-10 text-center">
+              <Loader2 className="animate-spin h-6 w-6 text-brand-500 mx-auto" />
+              <p className="text-gray-500 text-sm mt-3">Cargando empresa...</p>
+            </div>
+          )}
+
+          {!bootLoading && step === 'company' && (
+            <form onSubmit={handleCompanySubmit} className="animate-fade-in">
+              <h2 className="font-syne text-lg font-semibold text-white mb-1">
+                Código de empresa
+              </h2>
+              <p className="text-gray-500 text-sm mb-4">
+                Ingresa el código que te entregó tu proveedor (o abre el link de tu empresa).
+              </p>
+              <input
+                type="text"
+                value={slugInput}
+                onChange={e => setSlugInput(e.target.value)}
+                placeholder="ej: pirotecnia-el-coheton"
+                autoFocus
+                className="w-full px-4 py-3 rounded-xl bg-surface-400 border-2 border-white/10 text-white placeholder-gray-600 focus:border-brand-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!slugInput.trim()}
+                className="btn btn-primary btn-lg w-full mt-5"
+              >
+                Continuar
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          )}
+
           {/* ---- Paso 1: Seleccionar punto de venta ---- */}
-          {step === 'location' && (
+          {!bootLoading && step === 'location' && (
             <div className="animate-fade-in">
               <h2 className="font-syne text-lg font-semibold text-white mb-1">
                 Selecciona tu punto de venta
               </h2>
               <p className="text-gray-500 text-sm mb-4">¿En cuál estación vas a trabajar hoy?</p>
 
-              <LocationSelector value={location} onChange={setLocation} />
+              <LocationSelector locations={locations} value={location} onChange={setLocation} />
+
+              <button
+                type="button"
+                onClick={handleChangeCompany}
+                className="text-xs text-gray-600 hover:text-gray-400 transition-colors mt-3 w-full text-center"
+              >
+                Cambiar de empresa
+              </button>
 
               <button
                 onClick={handleLocationNext}
@@ -218,7 +303,7 @@ export default function LoginPage() {
           )}
 
           {/* ---- Paso 2: Ingresar PIN ---- */}
-          {step === 'pin' && (
+          {!bootLoading && step === 'pin' && (
             <div className="animate-fade-in">
               <button
                 onClick={() => { setStep('location'); setPin('') }}
@@ -260,7 +345,7 @@ export default function LoginPage() {
           )}
 
           {/* ---- Paso 3: Seleccionar caja (solo cajeros) ---- */}
-          {step === 'register' && (
+          {!bootLoading && step === 'register' && (
             <div className="animate-fade-in">
               <button
                 onClick={() => { setStep('pin'); setPin(''); setSelectedReg(null) }}
@@ -303,7 +388,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-gray-700 text-xs mt-4">
-          PyroVenta v0.1 · Admin PIN: 0000
+          PyroVenta · Multitenant
         </p>
       </div>
     </div>
