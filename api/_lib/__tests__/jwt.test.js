@@ -27,4 +27,10 @@ describe('jwt', () => {
     const fake = Buffer.from('seller-id:location-id').toString('base64')
     await expect(verifyJwt(fake)).rejects.toThrow()
   })
+
+  it('expiración por defecto es 7 días', async () => {
+    const token = await signToken({ tenantId: 't1' })
+    const claims = await verifyJwt(token)
+    expect(claims.exp - claims.iat).toBe(7 * 24 * 3600)
+  })
 })

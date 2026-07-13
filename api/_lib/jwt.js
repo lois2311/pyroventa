@@ -17,6 +17,6 @@ export async function signToken(payload, expiresIn = '7d') {
 
 /** Verifica firma y expiración. Lanza si es inválido. Retorna los claims. */
 export async function verifyJwt(token) {
-  const { payload } = await jwtVerify(token, secret())
+  const { payload } = await jwtVerify(token, secret(), { algorithms: ['HS256'] })
   return payload
 }

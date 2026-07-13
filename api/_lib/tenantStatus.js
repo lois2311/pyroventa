@@ -1,3 +1,13 @@
+// Zona horaria del negocio: los cortes de día (licencias y reportes)
+// se evalúan en hora local de Colombia, no en UTC.
+const BOGOTA_TZ = 'America/Bogota'
+const DATE_FMT  = new Intl.DateTimeFormat('en-CA', { timeZone: BOGOTA_TZ })
+
+/** Fecha 'YYYY-MM-DD' en hora de Bogotá. */
+export function bogotaDate(d = new Date()) {
+  return DATE_FMT.format(d)
+}
+
 /**
  * Evalúa si un tenant puede operar hoy.
  * license_start / license_end son strings DATE de Postgres ('2026-12-31').
@@ -13,7 +23,7 @@ export function getTenantStatus(tenant, today = new Date()) {
   if (!tenant.active) {
     return { ok: false, code: 'TENANT_SUSPENDED', message: 'Empresa suspendida. Contacte a su proveedor.' }
   }
-  const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(today)
+  const d = bogotaDate(today)
   if (d < tenant.license_start) {
     return { ok: false, code: 'LICENSE_NOT_STARTED', message: 'La licencia aún no está vigente.' }
   }
