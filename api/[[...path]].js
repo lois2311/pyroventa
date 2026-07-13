@@ -374,13 +374,14 @@ async function sellersCreate(req, res) {
   const { name, pin, role = 'seller', location_ids = [] } = req.body || {}
   if (!name || !pin) return res.status(400).json({ error: 'name y pin requeridos' })
   if (!/^\d{4}$/.test(pin)) return res.status(400).json({ error: 'PIN debe ser 4 dígitos' })
+  // Validar pertenencia ANTES de insertar el vendedor — evita vendedores huérfanos si una ref es ajena
+  for (const lid of location_ids) {
+    if (!(await tenantOwns('locations', lid, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+  }
   const { data: seller, error: se } = await supabaseAdmin.from('sellers')
     .insert({ tenant_id: auth.tenantId, name, pin, role }).select().single()
   if (se) return res.status(500).json({ error: se.message })
   if (location_ids.length) {
-    for (const lid of location_ids) {
-      if (!(await tenantOwns('locations', lid, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
-    }
     await supabaseAdmin.from('seller_locations')
       .insert(location_ids.map(lid => ({ tenant_id: auth.tenantId, seller_id: seller.id, location_id: lid })))
   }
@@ -395,11 +396,14 @@ async function sellersUpdate(req, res, id) {
   if (pin !== undefined) { if (!/^\d{4}$/.test(pin)) return res.status(400).json({ error: 'PIN debe ser 4 dígitos' }); u.pin = pin }
   if (role !== undefined) u.role = role
   if (active !== undefined) u.active = active
-  if (Object.keys(u).length) await supabaseAdmin.from('sellers').update(u).eq('id', id).eq('tenant_id', auth.tenantId)
+  // Validar pertenencia ANTES de escribir el vendedor — evita updates parciales si una ref es ajena
   if (Array.isArray(location_ids)) {
     for (const lid of location_ids) {
       if (!(await tenantOwns('locations', lid, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
     }
+  }
+  if (Object.keys(u).length) await supabaseAdmin.from('sellers').update(u).eq('id', id).eq('tenant_id', auth.tenantId)
+  if (Array.isArray(location_ids)) {
     await supabaseAdmin.from('seller_locations').delete().eq('seller_id', id).eq('tenant_id', auth.tenantId)
     if (location_ids.length) {
       await supabaseAdmin.from('seller_locations')
