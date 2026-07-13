@@ -7,6 +7,7 @@ import CajaPage     from './pages/CajaPage.jsx'
 import AdminPage    from './pages/AdminPage.jsx'
 import { ToastProvider } from './components/Toast.jsx'
 import NetworkBanner from './components/NetworkBanner.jsx'
+import LicenseBlock from './components/LicenseBlock.jsx'
 
 // ---- Guard de rol ----------------------------------------
 function RequireRole({ roles, children }) {
@@ -36,6 +37,7 @@ export default function App() {
     <ToastProvider>
       <CompactViewportHint />
       <NetworkBanner />
+      <LicenseBlock />
       <Routes>
         <Route path="/c/:slug" element={<TenantEntry />} />
         <Route path="/login" element={<LoginPage />} />
