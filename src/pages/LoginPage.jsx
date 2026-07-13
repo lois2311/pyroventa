@@ -144,10 +144,16 @@ export default function LoginPage() {
       localStorage.setItem('pv_tenant_slug', data.tenant.slug)
       setStep('location')
     } catch (err) {
-      localStorage.removeItem('pv_tenant_slug')
-      setTenant(null)
+      if (err.status) {
+        // Error real del servidor (empresa no existe, licencia vencida): soltar el amarre
+        localStorage.removeItem('pv_tenant_slug')
+        setTenant(null)
+        toastError(err.message)
+      } else {
+        // Falla de red: conservar el slug para reintentar
+        toastError('Sin conexión — reintenta en un momento')
+      }
       setStep('company')
-      if (err.status) toastError(err.message)
     } finally {
       setBootLoading(false)
     }
