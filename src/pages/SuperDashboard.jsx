@@ -11,8 +11,10 @@ const STATUS_LABEL = {
   LICENSE_NOT_STARTED: { text: 'No iniciado',   cls: 'bg-gray-500/15 text-gray-400 border-gray-500/30' },
 }
 
+const STATUS_UNKNOWN = { text: 'Desconocido', cls: 'bg-gray-500/15 text-gray-400 border-gray-500/30' }
+
 function StatusChip({ status }) {
-  const s = STATUS_LABEL[status] || STATUS_LABEL.active
+  const s = STATUS_LABEL[status] || STATUS_UNKNOWN
   return <span className={`text-xs px-2 py-0.5 rounded-full border ${s.cls}`}>{s.text}</span>
 }
 
@@ -94,7 +96,7 @@ function NewTenantModal({ onClose, onCreated }) {
             <p className="text-gray-400 text-sm">Comparte este link con tu cliente — sus dispositivos quedarán amarrados a su empresa:</p>
             <div className="flex items-center gap-2 bg-surface-400 rounded-xl p-3">
               <code className="text-brand-400 text-sm flex-1 break-all text-left">{fullLink}</code>
-              <button onClick={() => navigator.clipboard.writeText(fullLink)} className="btn btn-ghost btn-sm shrink-0">
+              <button onClick={() => navigator.clipboard.writeText(fullLink).catch(() => {})} className="btn btn-ghost btn-sm shrink-0">
                 <Copy className="w-4 h-4" />
               </button>
             </div>
@@ -226,7 +228,7 @@ export default function SuperDashboard() {
                   </button>
                 </div>
                 <div className="mt-3 pt-3 border-t border-white/5">
-                  <LicenseEditor tenant={t} onSaved={load} />
+                  <LicenseEditor key={`${t.id}-${t.license_start}-${t.license_end}`} tenant={t} onSaved={load} />
                 </div>
               </div>
             ))}
