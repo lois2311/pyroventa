@@ -10,7 +10,7 @@ const METHOD_BADGE = {
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-export default function SellerStats({ data, loading, date, locationId }) {
+export default function SellerStats({ data, loading, from, to, locationId }) {
   const [selectedSeller, setSelectedSeller] = useState(null)
 
   if (loading) {
@@ -100,7 +100,8 @@ export default function SellerStats({ data, loading, date, locationId }) {
         <SellerDetailModal
           sellerId={selectedSeller.seller_id}
           sellerName={selectedSeller.seller_name}
-          date={date}
+          from={from}
+          to={to}
           locationId={locationId}
           onClose={() => setSelectedSeller(null)}
         />

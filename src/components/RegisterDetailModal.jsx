@@ -11,35 +11,35 @@ const STATUS_STYLES = {
 const STATUS_LABEL = { pending: 'Pendiente', paid: 'Pagada', cancelled: 'Cancelada' }
 const METHOD_LABEL = { cash: 'Efectivo', transfer: 'Transferencia', card: 'Datáfono' }
 
-export default function SellerDetailModal({ sellerId, sellerName, from, to, locationId, onClose }) {
+export default function RegisterDetailModal({ registerId, registerName, from, to, locationId, onClose }) {
   const [data,     setData]     = useState(null)
   const [loading,  setLoading]  = useState(true)
   const [expanded, setExpanded] = useState(null)
 
   useEffect(() => {
-    if (!sellerId) return
+    if (!registerId) return
     setLoading(true)
 
-    const params = new URLSearchParams({ seller_id: sellerId, from, to })
+    const params = new URLSearchParams({ register_id: registerId, from, to })
     if (locationId) params.set('location_id', locationId)
 
-    api.get(`/reports/seller-detail?${params.toString()}`)
+    api.get(`/reports/register-detail?${params.toString()}`)
       .then(d => setData(d))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [sellerId, from, to, locationId])
+  }, [registerId, from, to, locationId])
 
   const handleExport = () => {
     if (!data) return
     exportToExcel([
-      { name: 'Resumen', rows: [{ Vendedor: sellerName, Desde: from, Hasta: to,
+      { name: 'Resumen', rows: [{ Caja: registerName, Desde: from, Hasta: to,
           Total: data.summary.total_revenue, Facturas: data.summary.invoice_count,
           Efectivo: data.summary.by_pay_method.cash, Transferencia: data.summary.by_pay_method.transfer,
           Tarjeta: data.summary.by_pay_method.card }] },
       { name: 'Productos', rows: (data.top_products || []).map(p => ({ Producto: p.name, Cantidad: p.qty, Total: p.revenue })) },
       { name: 'Facturas', rows: (data.invoices || []).map(i => ({ Código: i.code, Estado: i.status,
-          Vendedor: sellerName, Método: i.pay_method || '', Total: i.total, Fecha: i.created_at })) },
-    ], `vendedor_${sellerName}_${from}_${to}.xlsx`)
+          Vendedor: i.seller_name, Método: i.pay_method || '', Total: i.total, Fecha: i.created_at })) },
+    ], `caja_${registerName}_${from}_${to}.xlsx`)
   }
 
   return (
@@ -51,8 +51,8 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-syne font-bold text-xl text-white">{sellerName}</h2>
-            <p className="text-xs text-gray-500">Detalle de ventas · {from === to ? from : `${from} → ${to}`}</p>
+            <h2 className="font-syne font-bold text-xl text-white">🖥 {registerName}</h2>
+            <p className="text-xs text-gray-500">Detalle de caja · {from === to ? from : `${from} → ${to}`}</p>
           </div>
           <div className="flex items-center gap-1">
             <button onClick={handleExport} className="text-gray-500 hover:text-white text-sm px-2" title="Exportar a Excel">⬇</button>
@@ -68,7 +68,7 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
           <p className="text-gray-600 text-sm">Error al cargar datos.</p>
         ) : (
           <>
-            {/* KPIs del vendedor */}
+            {/* KPIs de la caja */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <KpiCard label="Total vendido" value={formatCOP(data.summary.total_revenue)} color="text-brand-400" />
               <KpiCard label="Facturas" value={data.summary.invoice_count} color="text-green-400" />
@@ -125,7 +125,7 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
               </div>
             )}
 
-            {/* Top productos del vendedor */}
+            {/* Top productos de la caja */}
             {data.top_products?.length > 0 && (
               <div>
                 <h3 className="text-sm font-semibold text-gray-400 mb-2">Productos vendidos</h3>
@@ -164,8 +164,8 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
                           {new Date(inv.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </span>
                       </div>
-                      {inv.location_name && (
-                        <p className="text-[10px] text-gray-600 mt-0.5">📍 {inv.location_name}</p>
+                      {inv.seller_name && (
+                        <p className="text-[10px] text-gray-600 mt-0.5">Vendió: {inv.seller_name}</p>
                       )}
                     </button>
 
