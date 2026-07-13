@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin } from './_lib/auth.js'
 import { signToken }       from './_lib/jwt.js'
 import { getTenantStatus } from './_lib/tenantStatus.js'
 import { superLogin, superTenantsList, superTenantsCreate, superTenantsPatch, superTenantAdminCreate, superMetrics } from './_lib/superRoutes.js'
+import { parseRange, bogotaDayBounds } from './_lib/range.js'
 
 // =====================================================
 // PyroVenta — API Router (catch-all)
@@ -83,6 +84,7 @@ export default async function handler(req, res) {
   if (route === '/reports/locations'     && method === 'GET') return reportLocations(req, res)
   if (route === '/reports/registers'     && method === 'GET') return reportRegisters(req, res)
   if (route === '/reports/seller-detail' && method === 'GET') return reportSellerDetail(req, res)
+  if (route === '/reports/register-detail' && method === 'GET') return reportRegisterDetail(req, res)
   if (route === '/reports/top-products'  && method === 'GET') return reportTopProducts(req, res)
 
   return res.status(404).json({ error: `Ruta no encontrada: ${method} /api${route}` })
@@ -544,13 +546,14 @@ async function invoicesEdit(req, res, code) {
 
 async function invoicesHistory(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, date, status, seller_id, limit = '50', offset = '0' } = req.query
-  const day = date ? new Date(date) : new Date(); day.setHours(0,0,0,0)
-  const dayEnd = new Date(day); dayEnd.setDate(dayEnd.getDate() + 1)
+  const { location_id, status, seller_id, limit = '50', offset = '0' } = req.query
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const bounds = bogotaDayBounds(range.from, range.to)
   let q = supabaseAdmin.from('invoices')
     .select('id, code, location_id, location_name, seller_id, seller_name, total, status, pay_method, items, observations, edited_at, edited_by, register_name, cashier_name, created_at, paid_at', { count: 'exact' })
     .eq('tenant_id', auth.tenantId)
-    .gte('created_at', day.toISOString()).lt('created_at', dayEnd.toISOString()).order('created_at', { ascending: false })
+    .gte('created_at', bounds.start).lt('created_at', bounds.end).order('created_at', { ascending: false })
     .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1)
   if (location_id) q = q.eq('location_id', location_id)
   if (status) q = q.eq('status', status)
@@ -565,98 +568,217 @@ async function invoicesHistory(req, res) {
 // =====================================================
 async function reportDaily(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, date } = req.query
-  const day = date ? new Date(date) : new Date(); day.setHours(0,0,0,0)
-  const dayEnd = new Date(day); dayEnd.setDate(dayEnd.getDate() + 1)
-  let q = supabaseAdmin.from('invoices').select('id, total, pay_method, status, seller_id, seller_name, location_id, location_name, items, created_at')
-    .eq('tenant_id', auth.tenantId)
-    .gte('created_at', day.toISOString()).lt('created_at', dayEnd.toISOString())
-  if (location_id) q = q.eq('location_id', location_id)
-  const { data, error } = await q
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const { from, to } = range
+  const { location_id } = req.query
+
+  const { data: summaryRows, error } = await supabaseAdmin.rpc('report_range_summary', {
+    p_tenant_id: auth.tenantId, p_from: from, p_to: to,
+    p_location_id: location_id || null,
+  })
   if (error) return res.status(500).json({ error: error.message })
-  const all = data || [], paid = all.filter(i => i.status === 'paid')
-  const tr = paid.reduce((s, i) => s + (i.total || 0), 0), ic = paid.length
-  const bpm = { cash: 0, transfer: 0, card: 0 }
-  paid.forEach(i => { if (i.pay_method) bpm[i.pay_method] += i.total || 0 })
-  const bl = {}
-  if (!location_id) paid.forEach(i => { if (!bl[i.location_id]) bl[i.location_id] = { name: i.location_name, total: 0, count: 0 }; bl[i.location_id].total += i.total || 0; bl[i.location_id].count++ })
-  return res.status(200).json({ date: day.toISOString().split('T')[0], location_id: location_id || null, total_revenue: tr, invoice_count: ic, avg_ticket: ic > 0 ? tr / ic : 0, pending_count: all.filter(i => i.status === 'pending').length, cancelled_count: all.filter(i => i.status === 'cancelled').length, by_pay_method: bpm, by_location: Object.entries(bl).map(([id, v]) => ({ id, ...v })) })
+  const s = summaryRows?.[0] || {}
+  const tr = Number(s.total_revenue || 0), ic = Number(s.invoice_count || 0)
+
+  const result = {
+    from, to,
+    date: from === to ? from : undefined, // retrocompatibilidad
+    location_id: location_id || null,
+    total_revenue: tr,
+    invoice_count: ic,
+    avg_ticket: ic > 0 ? tr / ic : 0,
+    pending_count: Number(s.pending_count || 0),
+    cancelled_count: Number(s.cancelled_count || 0),
+    by_pay_method: { cash: Number(s.cash || 0), transfer: Number(s.transfer || 0), card: Number(s.card || 0) },
+    by_day: [],
+    by_location: [],
+  }
+
+  if (from !== to) {
+    const { data: days } = await supabaseAdmin.rpc('report_range_by_day', {
+      p_tenant_id: auth.tenantId, p_from: from, p_to: to,
+      p_location_id: location_id || null,
+    })
+    result.by_day = (days || []).map(d => ({
+      day: d.day,
+      total_revenue: Number(d.total_revenue || 0),
+      invoice_count: Number(d.invoice_count || 0),
+      cash: Number(d.cash || 0), transfer: Number(d.transfer || 0), card: Number(d.card || 0),
+    }))
+  }
+
+  if (!location_id) {
+    const { data: locs } = await supabaseAdmin.rpc('report_range_by_location', {
+      p_tenant_id: auth.tenantId, p_from: from, p_to: to,
+    })
+    result.by_location = (locs || []).map(l => ({
+      id: l.location_id, name: l.location_name,
+      total: Number(l.total_revenue || 0), count: Number(l.invoice_count || 0),
+    }))
+  }
+
+  return res.status(200).json(result)
 }
 
 async function reportSellers(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, date } = req.query
-  const day = date ? new Date(date) : new Date(); day.setHours(0,0,0,0)
-  const dayEnd = new Date(day); dayEnd.setDate(dayEnd.getDate() + 1)
-  let q = supabaseAdmin.from('invoices').select('seller_id, seller_name, total, status, pay_method')
-    .eq('tenant_id', auth.tenantId)
-    .gte('created_at', day.toISOString()).lt('created_at', dayEnd.toISOString()).eq('status', 'paid')
-  if (location_id) q = q.eq('location_id', location_id)
-  const { data, error } = await q
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const { location_id } = req.query
+  const { data, error } = await supabaseAdmin.rpc('report_range_by_seller', {
+    p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
+    p_location_id: location_id || null,
+  })
   if (error) return res.status(500).json({ error: error.message })
-  const m = {}
-  ;(data || []).forEach(inv => { const k = inv.seller_id; if (!m[k]) m[k] = { seller_id: k, seller_name: inv.seller_name || 'Desconocido', total: 0, count: 0, by_method: { cash: 0, transfer: 0, card: 0 } }; m[k].total += inv.total || 0; m[k].count++; if (inv.pay_method) m[k].by_method[inv.pay_method] += inv.total || 0 })
-  return res.status(200).json(Object.values(m).map(s => ({ ...s, avg_ticket: s.count > 0 ? s.total / s.count : 0 })).sort((a, b) => b.total - a.total))
-}
-
-async function reportLocations(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  const { date } = req.query
-  const day = date ? new Date(date) : new Date(); day.setHours(0,0,0,0)
-  const dayEnd = new Date(day); dayEnd.setDate(dayEnd.getDate() + 1)
-  const { data: locs } = await supabaseAdmin.from('locations').select('id, name, address').eq('tenant_id', auth.tenantId).eq('active', true)
-  const { data: invs, error } = await supabaseAdmin.from('invoices').select('location_id, total, status, pay_method').eq('tenant_id', auth.tenantId).gte('created_at', day.toISOString()).lt('created_at', dayEnd.toISOString())
-  if (error) return res.status(500).json({ error: error.message })
-  const lm = {}; (locs || []).forEach(l => { lm[l.id] = { location_id: l.id, location_name: l.name, address: l.address, total_revenue: 0, invoice_count: 0, pending_count: 0, cancelled_count: 0, avg_ticket: 0, by_pay_method: { cash: 0, transfer: 0, card: 0 } } })
-  ;(invs || []).forEach(i => { const l = lm[i.location_id]; if (!l) return; if (i.status === 'paid') { l.total_revenue += i.total || 0; l.invoice_count++; if (i.pay_method) l.by_pay_method[i.pay_method] += i.total || 0 }; if (i.status === 'pending') l.pending_count++; if (i.status === 'cancelled') l.cancelled_count++ })
-  return res.status(200).json(Object.values(lm).map(l => ({ ...l, avg_ticket: l.invoice_count > 0 ? l.total_revenue / l.invoice_count : 0 })).sort((a, b) => b.total_revenue - a.total_revenue))
+  return res.status(200).json((data || []).map(r => {
+    const total = Number(r.total_revenue || 0), count = Number(r.invoice_count || 0)
+    return {
+      seller_id: r.seller_id, seller_name: r.seller_name,
+      total, count, avg_ticket: count > 0 ? total / count : 0,
+      by_method: { cash: Number(r.cash || 0), transfer: Number(r.transfer || 0), card: Number(r.card || 0) },
+    }
+  }))
 }
 
 async function reportRegisters(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, date } = req.query
-  const day = date ? new Date(date) : new Date(); day.setHours(0,0,0,0)
-  const dayEnd = new Date(day); dayEnd.setDate(dayEnd.getDate() + 1)
-  let q = supabaseAdmin.from('invoices').select('register_id, register_name, cashier_id, cashier_name, total, pay_method, status')
-    .eq('tenant_id', auth.tenantId)
-    .gte('created_at', day.toISOString()).lt('created_at', dayEnd.toISOString()).eq('status', 'paid')
-  if (location_id) q = q.eq('location_id', location_id)
-  const { data, error } = await q
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const { location_id } = req.query
+  const { data, error } = await supabaseAdmin.rpc('report_range_by_register', {
+    p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
+    p_location_id: location_id || null,
+  })
   if (error) return res.status(500).json({ error: error.message })
-  const m = {}
-  ;(data || []).forEach(inv => { const k = inv.register_id || 'sin_caja'; if (!m[k]) m[k] = { register_id: inv.register_id, register_name: inv.register_name || 'Sin caja', cashier_name: null, total: 0, count: 0, by_method: { cash: 0, transfer: 0, card: 0 } }; m[k].total += inv.total || 0; m[k].count++; if (inv.pay_method) m[k].by_method[inv.pay_method] += inv.total || 0; if (inv.cashier_name) m[k].cashier_name = inv.cashier_name })
-  return res.status(200).json(Object.values(m).map(r => ({ ...r, avg_ticket: r.count > 0 ? r.total / r.count : 0 })).sort((a, b) => b.total - a.total))
+  return res.status(200).json((data || []).map(r => {
+    const total = Number(r.total_revenue || 0), count = Number(r.invoice_count || 0)
+    return {
+      register_id: r.register_id, register_name: r.register_name, cashier_name: r.cashier_name,
+      total, count, avg_ticket: count > 0 ? total / count : 0,
+      by_method: { cash: Number(r.cash || 0), transfer: Number(r.transfer || 0), card: Number(r.card || 0) },
+    }
+  }))
 }
 
-async function reportSellerDetail(req, res) {
+async function reportLocations(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { seller_id, date, location_id } = req.query
-  if (!seller_id) return res.status(400).json({ error: 'seller_id requerido' })
-  const day = date ? new Date(date) : new Date(); day.setHours(0,0,0,0)
-  const dayEnd = new Date(day); dayEnd.setDate(dayEnd.getDate() + 1)
-  const { data: seller } = await supabaseAdmin.from('sellers').select('id, name, role').eq('id', seller_id).eq('tenant_id', auth.tenantId).single()
-  let q = supabaseAdmin.from('invoices').select('id, code, location_id, location_name, total, status, pay_method, items, created_at, paid_at').eq('tenant_id', auth.tenantId).eq('seller_id', seller_id).gte('created_at', day.toISOString()).lt('created_at', dayEnd.toISOString()).order('created_at', { ascending: false })
-  if (location_id) q = q.eq('location_id', location_id)
-  const { data: invoices, error } = await q
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const [{ data, error }, { data: locRows }] = await Promise.all([
+    supabaseAdmin.rpc('report_range_by_location', {
+      p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
+    }),
+    supabaseAdmin.from('locations').select('id, name, address').eq('tenant_id', auth.tenantId),
+  ])
   if (error) return res.status(500).json({ error: error.message })
-  const all = invoices || [], paid = all.filter(i => i.status === 'paid')
-  const tr = paid.reduce((s, i) => s + (i.total || 0), 0)
-  const bpm = { cash: 0, transfer: 0, card: 0 }; paid.forEach(i => { if (i.pay_method) bpm[i.pay_method] += i.total || 0 })
-  const bh = {}; paid.forEach(inv => { const h = `${String(new Date(inv.created_at).getHours()).padStart(2, '0')}:00`; if (!bh[h]) bh[h] = { hour: h, count: 0, revenue: 0 }; bh[h].count++; bh[h].revenue += inv.total || 0 })
-  const pm = {}; paid.forEach(inv => { (Array.isArray(inv.items) ? inv.items : []).forEach(item => { const k = item.product_name || item.label || '?'; if (!pm[k]) pm[k] = { name: k, qty: 0, revenue: 0 }; pm[k].qty += item.qty || 0; pm[k].revenue += item.subtotal || 0 }) })
-  return res.status(200).json({ seller: seller || { id: seller_id, name: 'Desconocido' }, date: day.toISOString().split('T')[0], summary: { total_revenue: tr, invoice_count: paid.length, avg_ticket: paid.length > 0 ? tr / paid.length : 0, pending_count: all.filter(i => i.status === 'pending').length, cancelled_count: all.filter(i => i.status === 'cancelled').length, by_pay_method: bpm }, by_hour: Object.values(bh).sort((a, b) => a.hour.localeCompare(b.hour)), top_products: Object.values(pm).sort((a, b) => b.revenue - a.revenue).slice(0, 10), invoices: all })
+  const addr = {}; (locRows || []).forEach(l => { addr[l.id] = l.address })
+  return res.status(200).json((data || []).map(l => {
+    const tr = Number(l.total_revenue || 0), ic = Number(l.invoice_count || 0)
+    return {
+      location_id: l.location_id, location_name: l.location_name, address: addr[l.location_id] || null,
+      total_revenue: tr, invoice_count: ic,
+      pending_count: Number(l.pending_count || 0), cancelled_count: Number(l.cancelled_count || 0),
+      avg_ticket: ic > 0 ? tr / ic : 0,
+      by_pay_method: { cash: Number(l.cash || 0), transfer: Number(l.transfer || 0), card: Number(l.card || 0) },
+    }
+  }))
 }
 
 async function reportTopProducts(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, date, limit = '10' } = req.query
-  const day = date ? new Date(date) : new Date(); day.setHours(0,0,0,0)
-  const dayEnd = new Date(day); dayEnd.setDate(dayEnd.getDate() + 1)
-  let q = supabaseAdmin.from('invoices').select('items').eq('tenant_id', auth.tenantId).gte('created_at', day.toISOString()).lt('created_at', dayEnd.toISOString()).eq('status', 'paid')
-  if (location_id) q = q.eq('location_id', location_id)
-  const { data, error } = await q
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const { location_id, seller_id, register_id, limit = '10' } = req.query
+  const { data, error } = await supabaseAdmin.rpc('report_range_products', {
+    p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
+    p_location_id: location_id || null,
+    p_seller_id: seller_id || null,
+    p_register_id: register_id || null,
+  })
   if (error) return res.status(500).json({ error: error.message })
+  // Agrupar filas planas (producto+presentación) al shape anidado existente
   const pm = {}
-  ;(data || []).forEach(inv => { (Array.isArray(inv.items) ? inv.items : []).forEach(item => { const k = item.productId || item.product_name || item.label; if (!pm[k]) pm[k] = { product_id: item.productId || null, product_name: item.product_name || item.label || '?', total_qty: 0, total_revenue: 0, presentations: {} }; pm[k].total_qty += item.qty || 0; pm[k].total_revenue += item.subtotal || 0; const pk = item.label || 'Unidad'; if (!pm[k].presentations[pk]) pm[k].presentations[pk] = { qty: 0, revenue: 0 }; pm[k].presentations[pk].qty += item.qty || 0; pm[k].presentations[pk].revenue += item.subtotal || 0 }) })
-  return res.status(200).json(Object.values(pm).map(p => ({ ...p, presentations: Object.entries(p.presentations).map(([l, v]) => ({ label: l, ...v })) })).sort((a, b) => b.total_revenue - a.total_revenue).slice(0, parseInt(limit)))
+  ;(data || []).forEach(r => {
+    if (!pm[r.product_name]) pm[r.product_name] = { product_id: null, product_name: r.product_name, total_qty: 0, total_revenue: 0, presentations: [] }
+    const p = pm[r.product_name]
+    p.total_qty += Number(r.total_qty || 0)
+    p.total_revenue += Number(r.total_revenue || 0)
+    p.presentations.push({ label: r.label, qty: Number(r.total_qty || 0), revenue: Number(r.total_revenue || 0) })
+  })
+  return res.status(200).json(
+    Object.values(pm).sort((a, b) => b.total_revenue - a.total_revenue).slice(0, parseInt(limit))
+  )
+}
+
+// Detalle común para vendedor y caja: summary + por hora + productos + facturas
+async function rangeDetail(auth, { from, to, location_id, seller_id, register_id }) {
+  const rpcParams = {
+    p_tenant_id: auth.tenantId, p_from: from, p_to: to,
+    p_location_id: location_id || null,
+    p_seller_id: seller_id || null,
+    p_register_id: register_id || null,
+  }
+  const bounds = bogotaDayBounds(from, to)
+  let invQ = supabaseAdmin.from('invoices')
+    .select('id, code, location_id, location_name, seller_name, cashier_name, register_name, total, status, pay_method, items, created_at, paid_at')
+    .eq('tenant_id', auth.tenantId)
+    .gte('created_at', bounds.start).lt('created_at', bounds.end)
+    .order('created_at', { ascending: false }).limit(100)
+  if (location_id) invQ = invQ.eq('location_id', location_id)
+  if (seller_id)   invQ = invQ.eq('seller_id', seller_id)
+  if (register_id) invQ = invQ.eq('register_id', register_id)
+
+  const [sum, hours, prods, invs] = await Promise.all([
+    supabaseAdmin.rpc('report_range_summary', rpcParams),
+    supabaseAdmin.rpc('report_range_by_hour', rpcParams),
+    supabaseAdmin.rpc('report_range_products', rpcParams),
+    invQ,
+  ])
+  const s = sum.data?.[0] || {}
+  const tr = Number(s.total_revenue || 0), ic = Number(s.invoice_count || 0)
+  return {
+    summary: {
+      total_revenue: tr, invoice_count: ic,
+      avg_ticket: ic > 0 ? tr / ic : 0,
+      pending_count: Number(s.pending_count || 0),
+      cancelled_count: Number(s.cancelled_count || 0),
+      by_pay_method: { cash: Number(s.cash || 0), transfer: Number(s.transfer || 0), card: Number(s.card || 0) },
+    },
+    by_hour: (hours.data || []).map(h => ({ hour: h.hour, count: Number(h.invoice_count || 0), revenue: Number(h.total_revenue || 0) })),
+    top_products: (prods.data || []).slice(0, 10).map(p => ({ name: `${p.product_name}${p.label && p.label !== 'Unidad' ? ` (${p.label})` : ''}`, qty: Number(p.total_qty || 0), revenue: Number(p.total_revenue || 0) })),
+    invoices: invs.data || [],
+  }
+}
+
+async function reportSellerDetail(req, res) {
+  const auth = await requireAuth(req, res); if (!auth) return
+  const { seller_id, location_id } = req.query
+  if (!seller_id) return res.status(400).json({ error: 'seller_id requerido' })
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const { data: seller } = await supabaseAdmin.from('sellers')
+    .select('id, name, role').eq('id', seller_id).eq('tenant_id', auth.tenantId).single()
+  const detail = await rangeDetail(auth, { from: range.from, to: range.to, location_id, seller_id })
+  return res.status(200).json({
+    seller: seller || { id: seller_id, name: 'Desconocido' },
+    from: range.from, to: range.to, date: range.from === range.to ? range.from : undefined,
+    ...detail,
+  })
+}
+
+async function reportRegisterDetail(req, res) {
+  const auth = await requireAuth(req, res); if (!auth) return
+  const { register_id, location_id } = req.query
+  if (!register_id) return res.status(400).json({ error: 'register_id requerido' })
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const { data: register } = await supabaseAdmin.from('registers')
+    .select('id, name, location_id').eq('id', register_id).eq('tenant_id', auth.tenantId).single()
+  if (!register) return res.status(404).json({ error: 'Caja no encontrada' })
+  const detail = await rangeDetail(auth, { from: range.from, to: range.to, location_id, register_id })
+  return res.status(200).json({
+    register, from: range.from, to: range.to,
+    ...detail,
+  })
 }
