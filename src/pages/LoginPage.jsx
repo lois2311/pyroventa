@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Delete, Flame, Loader2, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '../store/authStore.js'
 import { api } from '../lib/api.js'
+import { classifyBootstrapError } from '../lib/bootstrapError.js'
 import LocationSelector from '../components/LocationSelector.jsx'
 import { useToast } from '../components/Toast.jsx'
 
@@ -144,18 +145,12 @@ export default function LoginPage() {
       localStorage.setItem('pv_tenant_slug', data.tenant.slug)
       setStep('location')
     } catch (err) {
-      if (err.status === 404 || err.status === 403) {
-        // Rechazo definitivo del servidor (no existe / licencia): soltar el amarre
+      const { clearSlug, message } = classifyBootstrapError(err)
+      if (clearSlug) {
         localStorage.removeItem('pv_tenant_slug')
         setTenant(null)
-        toastError(err.message)
-      } else if (err.status) {
-        // Error del servidor (5xx): conservar el slug y avisar
-        toastError('Error del servidor — reintenta en un momento')
-      } else {
-        // Falla de red: conservar el slug para reintentar
-        toastError('Sin conexión — reintenta en un momento')
       }
+      toastError(message)
       setStep('company')
     } finally {
       setBootLoading(false)
@@ -194,7 +189,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const data = await api.post('/auth/login', { pin: p, location_id: location.id, tenant_slug: tenant.slug })
-      login(data.seller, data.location, data.tenant, data.token)
+      await login(data.seller, data.location, data.tenant, data.token)
 
       // Si es cajero o admin yendo a caja → pedir selección de caja
       if (data.seller.role === 'cashier') {
