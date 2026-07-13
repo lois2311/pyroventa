@@ -87,7 +87,7 @@ async function authLogin(req, res) {
   const { data: tenant } = await supabaseAdmin
     .from('tenants')
     .select('id, name, slug, active, license_start, license_end')
-    .eq('slug', tenant_slug)
+    .eq('slug', String(tenant_slug).toLowerCase().trim())
     .single()
 
   const status = getTenantStatus(tenant)
