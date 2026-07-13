@@ -211,6 +211,260 @@ AS $$
 $$;
 
 -- =====================================================
+-- FUNCIONES DE REPORTES POR RANGO (corte de día en hora Bogotá)
+-- Todas filtran por tenant y agregan dentro de Postgres para
+-- evitar el límite de filas de PostgREST y transferencias grandes.
+-- p_from / p_to son fechas Bogotá inclusivas.
+-- =====================================================
+
+-- ---- Resumen del rango ------------------------------
+CREATE OR REPLACE FUNCTION report_range_summary(
+  p_tenant_id   UUID,
+  p_from        DATE,
+  p_to          DATE,
+  p_location_id UUID DEFAULT NULL,
+  p_seller_id   UUID DEFAULT NULL,
+  p_register_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+  total_revenue   NUMERIC,
+  invoice_count   BIGINT,
+  pending_count   BIGINT,
+  cancelled_count BIGINT,
+  cash            NUMERIC,
+  transfer        NUMERIC,
+  card            NUMERIC
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid'), 0),
+    COUNT(*) FILTER (WHERE i.status = 'paid'),
+    COUNT(*) FILTER (WHERE i.status = 'pending'),
+    COUNT(*) FILTER (WHERE i.status = 'cancelled'),
+    COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid' AND i.pay_method = 'cash'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid' AND i.pay_method = 'transfer'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid' AND i.pay_method = 'card'), 0)
+  FROM invoices i
+  WHERE i.tenant_id = p_tenant_id
+    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND (p_location_id IS NULL OR i.location_id = p_location_id)
+    AND (p_seller_id   IS NULL OR i.seller_id   = p_seller_id)
+    AND (p_register_id IS NULL OR i.register_id = p_register_id)
+$$;
+
+-- ---- Tendencia día por día (solo pagadas) -----------
+CREATE OR REPLACE FUNCTION report_range_by_day(
+  p_tenant_id   UUID,
+  p_from        DATE,
+  p_to          DATE,
+  p_location_id UUID DEFAULT NULL,
+  p_seller_id   UUID DEFAULT NULL,
+  p_register_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+  day           DATE,
+  total_revenue NUMERIC,
+  invoice_count BIGINT,
+  cash          NUMERIC,
+  transfer      NUMERIC,
+  card          NUMERIC
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    (i.created_at AT TIME ZONE 'America/Bogota')::date,
+    COALESCE(SUM(i.total), 0),
+    COUNT(*),
+    COALESCE(SUM(i.total) FILTER (WHERE i.pay_method = 'cash'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.pay_method = 'transfer'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.pay_method = 'card'), 0)
+  FROM invoices i
+  WHERE i.tenant_id = p_tenant_id
+    AND i.status = 'paid'
+    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND (p_location_id IS NULL OR i.location_id = p_location_id)
+    AND (p_seller_id   IS NULL OR i.seller_id   = p_seller_id)
+    AND (p_register_id IS NULL OR i.register_id = p_register_id)
+  GROUP BY 1
+  ORDER BY 1
+$$;
+
+-- ---- Por vendedor (solo pagadas) --------------------
+CREATE OR REPLACE FUNCTION report_range_by_seller(
+  p_tenant_id   UUID,
+  p_from        DATE,
+  p_to          DATE,
+  p_location_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+  seller_id     UUID,
+  seller_name   TEXT,
+  total_revenue NUMERIC,
+  invoice_count BIGINT,
+  cash          NUMERIC,
+  transfer      NUMERIC,
+  card          NUMERIC
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    i.seller_id,
+    COALESCE(MAX(i.seller_name), 'Desconocido'),
+    COALESCE(SUM(i.total), 0),
+    COUNT(*),
+    COALESCE(SUM(i.total) FILTER (WHERE i.pay_method = 'cash'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.pay_method = 'transfer'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.pay_method = 'card'), 0)
+  FROM invoices i
+  WHERE i.tenant_id = p_tenant_id
+    AND i.status = 'paid'
+    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND (p_location_id IS NULL OR i.location_id = p_location_id)
+  GROUP BY i.seller_id
+  ORDER BY 3 DESC
+$$;
+
+-- ---- Por caja (solo pagadas) ------------------------
+CREATE OR REPLACE FUNCTION report_range_by_register(
+  p_tenant_id   UUID,
+  p_from        DATE,
+  p_to          DATE,
+  p_location_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+  register_id   UUID,
+  register_name TEXT,
+  cashier_name  TEXT,
+  total_revenue NUMERIC,
+  invoice_count BIGINT,
+  cash          NUMERIC,
+  transfer      NUMERIC,
+  card          NUMERIC
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    i.register_id,
+    COALESCE(MAX(i.register_name), 'Sin caja'),
+    MAX(i.cashier_name),
+    COALESCE(SUM(i.total), 0),
+    COUNT(*),
+    COALESCE(SUM(i.total) FILTER (WHERE i.pay_method = 'cash'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.pay_method = 'transfer'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.pay_method = 'card'), 0)
+  FROM invoices i
+  WHERE i.tenant_id = p_tenant_id
+    AND i.status = 'paid'
+    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND (p_location_id IS NULL OR i.location_id = p_location_id)
+  GROUP BY i.register_id
+  ORDER BY 4 DESC
+$$;
+
+-- ---- Por punto de venta (incluye pendientes/canceladas) ----
+CREATE OR REPLACE FUNCTION report_range_by_location(
+  p_tenant_id UUID,
+  p_from      DATE,
+  p_to        DATE
+)
+RETURNS TABLE(
+  location_id     UUID,
+  location_name   TEXT,
+  total_revenue   NUMERIC,
+  invoice_count   BIGINT,
+  pending_count   BIGINT,
+  cancelled_count BIGINT,
+  cash            NUMERIC,
+  transfer        NUMERIC,
+  card            NUMERIC
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    i.location_id,
+    COALESCE(MAX(i.location_name), 'Desconocido'),
+    COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid'), 0),
+    COUNT(*) FILTER (WHERE i.status = 'paid'),
+    COUNT(*) FILTER (WHERE i.status = 'pending'),
+    COUNT(*) FILTER (WHERE i.status = 'cancelled'),
+    COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid' AND i.pay_method = 'cash'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid' AND i.pay_method = 'transfer'), 0),
+    COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid' AND i.pay_method = 'card'), 0)
+  FROM invoices i
+  WHERE i.tenant_id = p_tenant_id
+    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+  GROUP BY i.location_id
+  ORDER BY 3 DESC
+$$;
+
+-- ---- Productos vendidos (desglose por presentación) ----
+CREATE OR REPLACE FUNCTION report_range_products(
+  p_tenant_id   UUID,
+  p_from        DATE,
+  p_to          DATE,
+  p_location_id UUID DEFAULT NULL,
+  p_seller_id   UUID DEFAULT NULL,
+  p_register_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+  product_name  TEXT,
+  label         TEXT,
+  total_qty     BIGINT,
+  total_revenue NUMERIC
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    COALESCE(item->>'product_name', item->>'label', '?'),
+    COALESCE(item->>'label', 'Unidad'),
+    COALESCE(SUM(COALESCE((item->>'qty')::numeric, 0)), 0)::bigint,
+    COALESCE(SUM(COALESCE((item->>'subtotal')::numeric, 0)), 0)
+  FROM invoices i
+  CROSS JOIN LATERAL jsonb_array_elements(i.items) AS item
+  WHERE i.tenant_id = p_tenant_id
+    AND i.status = 'paid'
+    AND jsonb_typeof(i.items) = 'array'
+    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND (p_location_id IS NULL OR i.location_id = p_location_id)
+    AND (p_seller_id   IS NULL OR i.seller_id   = p_seller_id)
+    AND (p_register_id IS NULL OR i.register_id = p_register_id)
+  GROUP BY 1, 2
+  ORDER BY 4 DESC
+$$;
+
+-- ---- Por hora del día (hora Bogotá, solo pagadas) ----
+CREATE OR REPLACE FUNCTION report_range_by_hour(
+  p_tenant_id   UUID,
+  p_from        DATE,
+  p_to          DATE,
+  p_location_id UUID DEFAULT NULL,
+  p_seller_id   UUID DEFAULT NULL,
+  p_register_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+  hour          TEXT,
+  invoice_count BIGINT,
+  total_revenue NUMERIC
+)
+LANGUAGE sql STABLE
+AS $$
+  SELECT
+    to_char(i.created_at AT TIME ZONE 'America/Bogota', 'HH24:00'),
+    COUNT(*),
+    COALESCE(SUM(i.total), 0)
+  FROM invoices i
+  WHERE i.tenant_id = p_tenant_id
+    AND i.status = 'paid'
+    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND (p_location_id IS NULL OR i.location_id = p_location_id)
+    AND (p_seller_id   IS NULL OR i.seller_id   = p_seller_id)
+    AND (p_register_id IS NULL OR i.register_id = p_register_id)
+  GROUP BY 1
+  ORDER BY 1
+$$;
+
+-- =====================================================
 -- ROW LEVEL SECURITY
 -- Toda operación de datos pasa por la API con service key (bypasea RLS).
 -- La anon key del frontend queda SOLO para el canal realtime;
