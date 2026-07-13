@@ -11,7 +11,7 @@ const STATUS_LABEL = {
   LICENSE_NOT_STARTED: { text: 'No iniciado',   cls: 'bg-gray-500/15 text-gray-400 border-gray-500/30' },
 }
 
-const STATUS_UNKNOWN = { text: 'Desconocido', cls: 'bg-gray-500/15 text-gray-400 border-gray-500/30' }
+const STATUS_UNKNOWN = { text: 'Desconocido', cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30' }
 
 function StatusChip({ status }) {
   const s = STATUS_LABEL[status] || STATUS_UNKNOWN
@@ -19,8 +19,12 @@ function StatusChip({ status }) {
 }
 
 // ---- Wizard de nuevo cliente -----------------------------
+const slugify = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '')
+
 function NewTenantModal({ onClose, onCreated }) {
   const [name,   setName]   = useState('')
+  const [slug,   setSlug]   = useState('')
+  const [slugTouched, setSlugTouched] = useState(false)
   const [start,  setStart]  = useState('')
   const [end,    setEnd]    = useState('')
   const [adminName, setAdminName] = useState('')
@@ -28,12 +32,13 @@ function NewTenantModal({ onClose, onCreated }) {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState(null)
   const [created, setCreated] = useState(null) // { tenant, link }
+  const [copied, setCopied] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true); setError(null)
     try {
-      const body = { name, license_start: start, license_end: end }
+      const body = { name, slug, license_start: start, license_end: end }
       if (adminName.trim()) body.admin = { name: adminName.trim(), pin: adminPin }
       const data = await superApi.post('/super/tenants', body)
       setCreated(data)
@@ -55,9 +60,19 @@ function NewTenantModal({ onClose, onCreated }) {
             <h2 className="font-syne text-lg font-bold text-white">Nuevo cliente</h2>
             <div>
               <label className="text-gray-400 text-sm block mb-1.5">Nombre de la empresa</label>
-              <input value={name} onChange={e => setName(e.target.value)} required autoFocus
+              <input value={name} onChange={e => {
+                  setName(e.target.value)
+                  if (!slugTouched) setSlug(slugify(e.target.value))
+                }} required autoFocus
                 placeholder="Pirotecnia El Cohetón"
                 className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-gray-400 text-sm block mb-1.5">Código (slug) — será el link /c/&lt;código&gt;</label>
+              <input value={slug}
+                onChange={e => { setSlugTouched(true); setSlug(slugify(e.target.value)) }}
+                placeholder="pirotecnia-el-coheton"
+                className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white font-mono text-sm focus:border-brand-500 focus:outline-none" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -96,8 +111,12 @@ function NewTenantModal({ onClose, onCreated }) {
             <p className="text-gray-400 text-sm">Comparte este link con tu cliente — sus dispositivos quedarán amarrados a su empresa:</p>
             <div className="flex items-center gap-2 bg-surface-400 rounded-xl p-3">
               <code className="text-brand-400 text-sm flex-1 break-all text-left">{fullLink}</code>
-              <button onClick={() => navigator.clipboard.writeText(fullLink).catch(() => {})} className="btn btn-ghost btn-sm shrink-0">
-                <Copy className="w-4 h-4" />
+              <button onClick={() => {
+                navigator.clipboard.writeText(fullLink)
+                  .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+                  .catch(() => {})
+              }} className="btn btn-ghost btn-sm shrink-0">
+                {copied ? <span className="text-green-400 text-xs">Copiado ✓</span> : <Copy className="w-4 h-4" />}
               </button>
             </div>
             <button onClick={onClose} className="btn btn-primary w-full">Listo</button>
@@ -137,6 +156,63 @@ function LicenseEditor({ tenant, onSaved }) {
         <button onClick={save} disabled={saving} className="btn btn-primary btn-sm">
           {saving ? <Loader2 className="animate-spin h-3 w-3" /> : 'Guardar'}
         </button>
+      )}
+    </div>
+  )
+}
+
+// ---- Métricas por rango -----------------------------------
+function MetricsSection() {
+  const hoy = new Date().toISOString().split('T')[0]
+  const [from, setFrom] = useState(hoy)
+  const [to,   setTo]   = useState(hoy)
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    try { setData(await superApi.get(`/super/metrics?from=${from}&to=${to}`)) }
+    catch { setData(null) }
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() /* eslint-disable-line */ }, []) // carga inicial (hoy)
+
+  return (
+    <div className="mt-8">
+      <h2 className="font-syne text-xl font-bold text-white mb-3">Métricas globales</h2>
+      <div className="flex items-end gap-2 flex-wrap mb-3">
+        <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)}
+          className="px-3 py-2 rounded-xl bg-surface-400 border border-white/10 text-white text-sm" />
+        <span className="text-gray-600 pb-2">→</span>
+        <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)}
+          className="px-3 py-2 rounded-xl bg-surface-400 border border-white/10 text-white text-sm" />
+        <button onClick={load} disabled={loading} className="btn btn-primary btn-sm">
+          {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Consultar'}
+        </button>
+      </div>
+      {data?.tenants?.length > 0 ? (
+        <div className="card bg-surface-300 border-white/8 overflow-x-auto">
+          <table className="w-full text-sm min-w-[420px]">
+            <thead>
+              <tr className="text-left text-xs text-gray-600">
+                <th className="py-1.5 pr-3 font-medium">Cliente</th>
+                <th className="py-1.5 pr-3 font-medium text-right">Facturas</th>
+                <th className="py-1.5 font-medium text-right">Total vendido</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.tenants.map(t => (
+                <tr key={t.tenant_id} className="border-t border-white/5">
+                  <td className="py-1.5 pr-3 text-white">{t.tenant_name}</td>
+                  <td className="py-1.5 pr-3 text-right text-gray-400">{t.invoice_count}</td>
+                  <td className="py-1.5 text-right font-mono text-brand-400">{formatCOP(t.revenue)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-gray-600 text-sm">{loading ? 'Cargando…' : 'Sin ventas en el rango.'}</p>
       )}
     </div>
   )
@@ -234,6 +310,8 @@ export default function SuperDashboard() {
             ))}
           </div>
         )}
+
+        <MetricsSection />
       </div>
 
       {showNew && <NewTenantModal onClose={() => setShowNew(false)} onCreated={load} />}
