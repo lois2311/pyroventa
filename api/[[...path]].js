@@ -596,10 +596,11 @@ async function reportDaily(req, res) {
   }
 
   if (from !== to) {
-    const { data: days } = await supabaseAdmin.rpc('report_range_by_day', {
+    const { data: days, error: daysErr } = await supabaseAdmin.rpc('report_range_by_day', {
       p_tenant_id: auth.tenantId, p_from: from, p_to: to,
       p_location_id: location_id || null,
     })
+    if (daysErr) return res.status(500).json({ error: daysErr.message })
     result.by_day = (days || []).map(d => ({
       day: d.day,
       total_revenue: Number(d.total_revenue || 0),
@@ -609,9 +610,10 @@ async function reportDaily(req, res) {
   }
 
   if (!location_id) {
-    const { data: locs } = await supabaseAdmin.rpc('report_range_by_location', {
+    const { data: locs, error: locsErr } = await supabaseAdmin.rpc('report_range_by_location', {
       p_tenant_id: auth.tenantId, p_from: from, p_to: to,
     })
+    if (locsErr) return res.status(500).json({ error: locsErr.message })
     result.by_location = (locs || []).map(l => ({
       id: l.location_id, name: l.location_name,
       total: Number(l.total_revenue || 0), count: Number(l.invoice_count || 0),
@@ -665,13 +667,14 @@ async function reportLocations(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
-  const [{ data, error }, { data: locRows }] = await Promise.all([
+  const [{ data, error }, { data: locRows, error: locErr }] = await Promise.all([
     supabaseAdmin.rpc('report_range_by_location', {
       p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
     }),
     supabaseAdmin.from('locations').select('id, name, address').eq('tenant_id', auth.tenantId),
   ])
   if (error) return res.status(500).json({ error: error.message })
+  if (locErr) return res.status(500).json({ error: locErr.message })
   const addr = {}; (locRows || []).forEach(l => { addr[l.id] = l.address })
   return res.status(200).json((data || []).map(l => {
     const tr = Number(l.total_revenue || 0), ic = Number(l.invoice_count || 0)
@@ -735,6 +738,12 @@ async function rangeDetail(auth, { from, to, location_id, seller_id, register_id
     supabaseAdmin.rpc('report_range_products', rpcParams),
     invQ,
   ])
+  const failed = [sum, hours, prods, invs].find(r => r.error)
+  if (failed) {
+    const err = new Error(failed.error.message)
+    err.status = 500
+    throw err
+  }
   const s = sum.data?.[0] || {}
   const tr = Number(s.total_revenue || 0), ic = Number(s.invoice_count || 0)
   return {
@@ -759,7 +768,9 @@ async function reportSellerDetail(req, res) {
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
   const { data: seller } = await supabaseAdmin.from('sellers')
     .select('id, name, role').eq('id', seller_id).eq('tenant_id', auth.tenantId).single()
-  const detail = await rangeDetail(auth, { from: range.from, to: range.to, location_id, seller_id })
+  let detail
+  try { detail = await rangeDetail(auth, { from: range.from, to: range.to, location_id, seller_id }) }
+  catch (e) { return res.status(e.status || 500).json({ error: e.message }) }
   return res.status(200).json({
     seller: seller || { id: seller_id, name: 'Desconocido' },
     from: range.from, to: range.to, date: range.from === range.to ? range.from : undefined,
@@ -776,7 +787,9 @@ async function reportRegisterDetail(req, res) {
   const { data: register } = await supabaseAdmin.from('registers')
     .select('id, name, location_id').eq('id', register_id).eq('tenant_id', auth.tenantId).single()
   if (!register) return res.status(404).json({ error: 'Caja no encontrada' })
-  const detail = await rangeDetail(auth, { from: range.from, to: range.to, location_id, register_id })
+  let detail
+  try { detail = await rangeDetail(auth, { from: range.from, to: range.to, location_id, register_id }) }
+  catch (e) { return res.status(e.status || 500).json({ error: e.message }) }
   return res.status(200).json({
     register, from: range.from, to: range.to,
     ...detail,
