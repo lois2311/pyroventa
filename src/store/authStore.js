@@ -21,6 +21,13 @@ export const useAuthStore = create(
         localStorage.setItem('pv_token', token)
         if (tenant?.slug) localStorage.setItem('pv_tenant_slug', tenant.slug)
         set({ seller, location, tenant, token, register: null })
+
+        // Limpiar cachés de API del service worker (evita datos de otro tenant en el mismo dispositivo)
+        if (typeof caches !== 'undefined') {
+          caches.keys()
+            .then(keys => Promise.all(keys.filter(k => k.includes('api')).map(k => caches.delete(k))))
+            .catch(() => {})
+        }
       },
 
       setRegister: (register) => set({ register }),

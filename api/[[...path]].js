@@ -97,11 +97,15 @@ async function authLogin(req, res) {
     return res.status(400).json({ error: 'PIN, punto de venta y empresa son requeridos' })
   }
 
-  const { data: tenant } = await supabaseAdmin
+  const { data: tenant, error: tenantErr } = await supabaseAdmin
     .from('tenants')
     .select('id, name, slug, active, license_start, license_end')
     .eq('slug', String(tenant_slug).toLowerCase().trim())
     .single()
+
+  if (tenantErr && tenantErr.code !== 'PGRST116') {
+    return res.status(500).json({ error: 'Error interno del servidor' })
+  }
 
   const status = getTenantStatus(tenant)
   if (!status.ok) {
@@ -151,11 +155,15 @@ async function authLogin(req, res) {
 // PÚBLICO — bootstrap de login por slug de empresa
 // =====================================================
 async function publicTenantGet(req, res, slug) {
-  const { data: tenant } = await supabaseAdmin
+  const { data: tenant, error: tenantErr } = await supabaseAdmin
     .from('tenants')
     .select('id, name, slug, active, license_start, license_end')
     .eq('slug', String(slug).toLowerCase())
     .single()
+
+  if (tenantErr && tenantErr.code !== 'PGRST116') {
+    return res.status(500).json({ error: 'Error interno del servidor' })
+  }
 
   const status = getTenantStatus(tenant)
   if (!status.ok) {
@@ -241,6 +249,7 @@ async function productsGet(req, res) {
   result.sort((a, b) => (a.categories?.sort_order ?? 99) - (b.categories?.sort_order ?? 99) || a.name.localeCompare(b.name, 'es'))
   // private: la respuesta es por tenant — NUNCA cachear en CDN compartido
   res.setHeader('Cache-Control', 'private, max-age=300')
+  res.setHeader('Vary', 'Authorization')
   return res.status(200).json(result)
 }
 

@@ -41,6 +41,13 @@ async function request(method, path, body, options = {}) {
         const err = new Error(message)
         err.status = res.status
         err.code = code
+        // Sesión inválida o expirada → cerrar sesión y volver al login
+        if (res.status === 401 && !path.startsWith('/auth/') && !path.startsWith('/public/')) {
+          const { useAuthStore } = await import('../store/authStore.js')
+          useAuthStore.getState().logout()
+          window.location.href = '/login'
+          throw err
+        }
         // Licencia vencida / empresa suspendida → evento global para bloquear la app
         if (res.status === 403 && ['LICENSE_EXPIRED', 'TENANT_SUSPENDED', 'LICENSE_NOT_STARTED'].includes(code)) {
           window.dispatchEvent(new CustomEvent('pv:license-error', { detail: { code, message } }))

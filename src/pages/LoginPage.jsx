@@ -144,11 +144,14 @@ export default function LoginPage() {
       localStorage.setItem('pv_tenant_slug', data.tenant.slug)
       setStep('location')
     } catch (err) {
-      if (err.status) {
-        // Error real del servidor (empresa no existe, licencia vencida): soltar el amarre
+      if (err.status === 404 || err.status === 403) {
+        // Rechazo definitivo del servidor (no existe / licencia): soltar el amarre
         localStorage.removeItem('pv_tenant_slug')
         setTenant(null)
         toastError(err.message)
+      } else if (err.status) {
+        // Error del servidor (5xx): conservar el slug y avisar
+        toastError('Error del servidor — reintenta en un momento')
       } else {
         // Falla de red: conservar el slug para reintentar
         toastError('Sin conexión — reintenta en un momento')
