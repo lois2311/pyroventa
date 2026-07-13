@@ -9,7 +9,7 @@ import SellerStats         from '../components/SellerStats.jsx'
 import TopProducts         from '../components/TopProducts.jsx'
 import BulkUpload          from '../components/BulkUpload.jsx'
 import RegisterComparison  from '../components/RegisterComparison.jsx'
-import DateRangeBar        from '../components/DateRangeBar.jsx'
+import DateRangeBar, { toISO } from '../components/DateRangeBar.jsx'
 import DailyTrend          from '../components/DailyTrend.jsx'
 import { exportToExcel }   from '../lib/exportExcel.js'
 import { useToast }        from '../components/Toast.jsx'
@@ -29,7 +29,7 @@ export default function AdminPage() {
   const { error: toastError, success: toastSuccess } = useToast()
 
   const [tab,         setTab]         = useState('resumen')
-  const hoy = new Date().toISOString().split('T')[0]
+  const hoy = toISO(new Date())
   const [from, setFrom] = useState(hoy)
   const [to,   setTo]   = useState(hoy)
   const [locationId,  setLocationId]  = useState('')
@@ -184,6 +184,7 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }
   }, [from, to, locationId])
 
   const handleExport = () => {
+    if (!daily) return
     const sheets = [
       { name: 'Resumen', rows: daily ? [{
           Desde: from, Hasta: to,
@@ -853,7 +854,7 @@ function HistorialTab({ locations }) {
   const [invoices,   setInvoices]   = useState([])
   const [total,      setTotal]      = useState(0)
   const [loading,    setLoading]    = useState(false)
-  const hoy = new Date().toISOString().split('T')[0]
+  const hoy = toISO(new Date())
   const [from, setFrom] = useState(hoy)
   const [to,   setTo]   = useState(hoy)
   const [locFilter,  setLocFilter]  = useState('')

@@ -1,5 +1,5 @@
 // Selector de rango con atajos. Fechas en hora local del dispositivo (Colombia).
-const toISO = (d) => {
+export const toISO = (d) => {
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }

@@ -33,4 +33,11 @@ describe('jwt', () => {
     const claims = await verifyJwt(token)
     expect(claims.exp - claims.iat).toBe(7 * 24 * 3600)
   })
+
+  it('rechaza un token sin firma valida aunque declare otro alg', async () => {
+    // header {"alg":"none"} + payload sin firma
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ tenantId: 't1' })).toString('base64url')
+    await expect(verifyJwt(`${header}.${payload}.`)).rejects.toThrow()
+  })
 })

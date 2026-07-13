@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Building2, Copy, Loader2, LogOut, Pause, Play, Plus, RefreshCw } from 'lucide-react'
 import { superApi } from '../lib/superApi.js'
 import { formatCOP } from '../lib/format.js'
+import { toISO } from '../components/DateRangeBar.jsx'
 
 const STATUS_LABEL = {
   active:              { text: 'Activo',        cls: 'bg-green-500/15 text-green-400 border-green-500/30' },
@@ -163,7 +164,7 @@ function LicenseEditor({ tenant, onSaved }) {
 
 // ---- Métricas por rango -----------------------------------
 function MetricsSection() {
-  const hoy = new Date().toISOString().split('T')[0]
+  const hoy = toISO(new Date())
   const [from, setFrom] = useState(hoy)
   const [to,   setTo]   = useState(hoy)
   const [data, setData] = useState(null)

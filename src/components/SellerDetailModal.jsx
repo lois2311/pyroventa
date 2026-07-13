@@ -143,7 +143,9 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
             {/* Lista completa de facturas con timestamps */}
             <div>
               <h3 className="text-sm font-semibold text-gray-400 mb-2">
-                Todas las facturas ({data.invoices?.length || 0})
+                {data.invoices?.length === 100
+                  ? 'Todas las facturas (primeras 100)'
+                  : `Todas las facturas (${data.invoices?.length || 0})`}
               </h3>
               <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
                 {(data.invoices || []).map(inv => (

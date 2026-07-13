@@ -23,6 +23,10 @@ describe('parseRange', () => {
   it('solo from → to = from', () => {
     expect(parseRange({ from: '2026-12-01' })).toEqual({ from: '2026-12-01', to: '2026-12-01' })
   })
+  it('fecha inexistente en calendario → 400', () => {
+    try { parseRange({ from: '2026-13-40', to: '2026-13-40' }) } catch (e) { expect(e.status).toBe(400) }
+    expect(() => parseRange({ from: '2026-02-30', to: '2026-02-30' })).toThrow()
+  })
 })
 
 describe('bogotaDayBounds', () => {

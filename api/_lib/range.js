@@ -20,6 +20,13 @@ export function parseRange(query = {}) {
   else            { f = bogotaDate(); t = f }
 
   if (!DATE_RE.test(f) || !DATE_RE.test(t)) throw badRequest('Fechas inválidas — usa formato YYYY-MM-DD')
+
+  const valida = (s) => {
+    const d = new Date(`${s}T00:00:00Z`)
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
+  }
+  if (!valida(f) || !valida(t)) throw badRequest('Fechas inválidas — usa formato YYYY-MM-DD')
+
   if (t < f) throw badRequest('El rango es inválido: "hasta" es anterior a "desde"')
   return { from: f, to: t }
 }

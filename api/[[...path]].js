@@ -689,21 +689,34 @@ async function reportLocations(req, res) {
     supabaseAdmin.rpc('report_range_by_location', {
       p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
     }),
-    supabaseAdmin.from('locations').select('id, name, address').eq('tenant_id', auth.tenantId),
+    supabaseAdmin.from('locations').select('id, name, address').eq('tenant_id', auth.tenantId).eq('active', true),
   ])
   if (error) return res.status(500).json({ error: error.message })
   if (locErr) return res.status(500).json({ error: locErr.message })
-  const addr = {}; (locRows || []).forEach(l => { addr[l.id] = l.address })
-  return res.status(200).json((data || []).map(l => {
+
+  // Sembrar con TODAS las locations activas en ceros para que un punto sin
+  // ventas en el rango no desaparezca del reporte; luego superponer las
+  // filas del RPC (una location inactiva con ventas históricas también entra).
+  const map = {}
+  ;(locRows || []).forEach(l => {
+    map[l.id] = {
+      location_id: l.id, location_name: l.name, address: l.address || null,
+      total_revenue: 0, invoice_count: 0, pending_count: 0, cancelled_count: 0, avg_ticket: 0,
+      by_pay_method: { cash: 0, transfer: 0, card: 0 },
+    }
+  })
+  ;(data || []).forEach(l => {
     const tr = Number(l.total_revenue || 0), ic = Number(l.invoice_count || 0)
-    return {
-      location_id: l.location_id, location_name: l.location_name, address: addr[l.location_id] || null,
+    const prev = map[l.location_id]
+    map[l.location_id] = {
+      location_id: l.location_id, location_name: l.location_name, address: prev ? prev.address : null,
       total_revenue: tr, invoice_count: ic,
       pending_count: Number(l.pending_count || 0), cancelled_count: Number(l.cancelled_count || 0),
       avg_ticket: ic > 0 ? tr / ic : 0,
       by_pay_method: { cash: Number(l.cash || 0), transfer: Number(l.transfer || 0), card: Number(l.card || 0) },
     }
-  }))
+  })
+  return res.status(200).json(Object.values(map).sort((a, b) => b.total_revenue - a.total_revenue))
 }
 
 async function reportTopProducts(req, res) {

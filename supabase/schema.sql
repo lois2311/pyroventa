@@ -162,6 +162,7 @@ CREATE UNIQUE INDEX invoices_pending_code_location
 CREATE INDEX idx_invoices_code_location   ON invoices(code, location_id);
 CREATE INDEX idx_invoices_location_status ON invoices(location_id, status);
 CREATE INDEX idx_invoices_created_at      ON invoices(created_at);
+CREATE INDEX idx_invoices_tenant_created  ON invoices(tenant_id, created_at);
 
 -- =====================================================
 -- FUNCIÓN: Generación atómica de código aleatorio (sin cambios de firma)
@@ -247,7 +248,8 @@ AS $$
     COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid' AND i.pay_method = 'card'), 0)
   FROM invoices i
   WHERE i.tenant_id = p_tenant_id
-    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND i.created_at >= (p_from::timestamp AT TIME ZONE 'America/Bogota')
+    AND i.created_at < ((p_to + 1)::timestamp AT TIME ZONE 'America/Bogota')
     AND (p_location_id IS NULL OR i.location_id = p_location_id)
     AND (p_seller_id   IS NULL OR i.seller_id   = p_seller_id)
     AND (p_register_id IS NULL OR i.register_id = p_register_id)
@@ -282,7 +284,8 @@ AS $$
   FROM invoices i
   WHERE i.tenant_id = p_tenant_id
     AND i.status = 'paid'
-    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND i.created_at >= (p_from::timestamp AT TIME ZONE 'America/Bogota')
+    AND i.created_at < ((p_to + 1)::timestamp AT TIME ZONE 'America/Bogota')
     AND (p_location_id IS NULL OR i.location_id = p_location_id)
     AND (p_seller_id   IS NULL OR i.seller_id   = p_seller_id)
     AND (p_register_id IS NULL OR i.register_id = p_register_id)
@@ -319,7 +322,8 @@ AS $$
   FROM invoices i
   WHERE i.tenant_id = p_tenant_id
     AND i.status = 'paid'
-    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND i.created_at >= (p_from::timestamp AT TIME ZONE 'America/Bogota')
+    AND i.created_at < ((p_to + 1)::timestamp AT TIME ZONE 'America/Bogota')
     AND (p_location_id IS NULL OR i.location_id = p_location_id)
   GROUP BY i.seller_id
   ORDER BY 3 DESC
@@ -356,7 +360,8 @@ AS $$
   FROM invoices i
   WHERE i.tenant_id = p_tenant_id
     AND i.status = 'paid'
-    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND i.created_at >= (p_from::timestamp AT TIME ZONE 'America/Bogota')
+    AND i.created_at < ((p_to + 1)::timestamp AT TIME ZONE 'America/Bogota')
     AND (p_location_id IS NULL OR i.location_id = p_location_id)
   GROUP BY i.register_id
   ORDER BY 4 DESC
@@ -393,7 +398,8 @@ AS $$
     COALESCE(SUM(i.total) FILTER (WHERE i.status = 'paid' AND i.pay_method = 'card'), 0)
   FROM invoices i
   WHERE i.tenant_id = p_tenant_id
-    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND i.created_at >= (p_from::timestamp AT TIME ZONE 'America/Bogota')
+    AND i.created_at < ((p_to + 1)::timestamp AT TIME ZONE 'America/Bogota')
   GROUP BY i.location_id
   ORDER BY 3 DESC
 $$;
@@ -421,11 +427,13 @@ AS $$
     COALESCE(SUM(COALESCE((item->>'qty')::numeric, 0)), 0)::bigint,
     COALESCE(SUM(COALESCE((item->>'subtotal')::numeric, 0)), 0)
   FROM invoices i
-  CROSS JOIN LATERAL jsonb_array_elements(i.items) AS item
+  CROSS JOIN LATERAL jsonb_array_elements(
+    CASE WHEN jsonb_typeof(i.items) = 'array' THEN i.items ELSE '[]'::jsonb END
+  ) AS item
   WHERE i.tenant_id = p_tenant_id
     AND i.status = 'paid'
-    AND jsonb_typeof(i.items) = 'array'
-    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND i.created_at >= (p_from::timestamp AT TIME ZONE 'America/Bogota')
+    AND i.created_at < ((p_to + 1)::timestamp AT TIME ZONE 'America/Bogota')
     AND (p_location_id IS NULL OR i.location_id = p_location_id)
     AND (p_seller_id   IS NULL OR i.seller_id   = p_seller_id)
     AND (p_register_id IS NULL OR i.register_id = p_register_id)
@@ -456,7 +464,8 @@ AS $$
   FROM invoices i
   WHERE i.tenant_id = p_tenant_id
     AND i.status = 'paid'
-    AND (i.created_at AT TIME ZONE 'America/Bogota')::date BETWEEN p_from AND p_to
+    AND i.created_at >= (p_from::timestamp AT TIME ZONE 'America/Bogota')
+    AND i.created_at < ((p_to + 1)::timestamp AT TIME ZONE 'America/Bogota')
     AND (p_location_id IS NULL OR i.location_id = p_location_id)
     AND (p_seller_id   IS NULL OR i.seller_id   = p_seller_id)
     AND (p_register_id IS NULL OR i.register_id = p_register_id)
