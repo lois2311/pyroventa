@@ -29,6 +29,17 @@
   ::-webkit-scrollbar-track  { background: #1a1a1a; }
   ::-webkit-scrollbar-thumb  { background: #3a3a3a; border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: #f97316; }
+
+  /* Foco visible consistente para navegación por teclado.
+     Solo botones/links/tabs: los inputs ya tienen su propio anillo en .input */
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid #f97316;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
 }
 
 @layer components {
