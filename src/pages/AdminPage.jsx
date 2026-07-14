@@ -217,7 +217,7 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }
       <div className="flex items-end gap-3 flex-wrap">
         <DateRangeBar from={from} to={to} onChange={setRange} />
         <div>
-          <label className="block text-xs text-gray-600 mb-1">Punto de venta</label>
+          <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
           <select
             value={locationId}
             onChange={e => setLocationId(e.target.value)}
@@ -324,7 +324,7 @@ function VendedoresTab({ locations }) {
           {sellers.map(s => (
             <div key={s.id} className="card bg-surface-300 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className={`font-medium ${s.active ? 'text-white' : 'text-gray-600 line-through'}`}>{s.name}</p>
+                <p className={`font-medium ${s.active ? 'text-white' : 'text-gray-400 line-through'}`}>{s.name}</p>
                 <p className="text-xs text-gray-500">{ROLE_LABEL[s.role]} · PIN: {s.pin}</p>
               </div>
               <div className="flex gap-2 shrink-0">
@@ -442,10 +442,10 @@ function LocacionesTab({ locations, setLocations }) {
           <div key={loc.id} className="card bg-surface-300 flex flex-col sm:flex-row sm:items-center gap-3">
             <span className="text-xl hidden sm:block">📍</span>
             <div className="flex-1 min-w-0">
-              <p className={`font-medium ${loc.active ? 'text-white' : 'text-gray-600 line-through'}`}>{loc.name}</p>
+              <p className={`font-medium ${loc.active ? 'text-white' : 'text-gray-400 line-through'}`}>{loc.name}</p>
               {loc.address && <p className="text-xs text-gray-500 truncate">{loc.address}</p>}
               {loc.printer_config?.paper_width && (
-                <p className="text-xs text-gray-600">Impresora: {loc.printer_config.paper_width}</p>
+                <p className="text-xs text-gray-400">Impresora: {loc.printer_config.paper_width}</p>
               )}
             </div>
             <div className="flex gap-2 shrink-0">
@@ -676,7 +676,7 @@ function ProductForm({ product, onClose, onSave }) {
                   onChange={e => updatePres(i, 'price', e.target.value)}
                   className="input w-28"
                 />
-                <button onClick={() => removePres(i)} className="text-gray-600 hover:text-red-400 px-2">✕</button>
+                <button onClick={() => removePres(i)} className="text-gray-400 hover:text-red-400 px-2">✕</button>
               </div>
             ))}
           </div>
@@ -742,7 +742,7 @@ function CajasTab({ locations }) {
       {loading ? (
         <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>
       ) : registers.length === 0 ? (
-        <div className="card bg-surface-300 text-center py-8 text-gray-600">
+        <div className="card bg-surface-300 text-center py-8 text-gray-400">
           <span className="text-3xl block mb-2">🖥</span>
           <p className="text-sm">No hay cajas registradas.</p>
           <p className="text-xs mt-1">Crea una caja para cada registradora física de tu negocio.</p>
@@ -894,14 +894,14 @@ function HistorialTab({ locations }) {
       <div className="flex items-end gap-3 flex-wrap">
         <DateRangeBar from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
         <div>
-          <label className="block text-xs text-gray-600 mb-1">Punto de venta</label>
+          <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
           <select value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input w-48 text-sm">
             <option value="">Todos</option>
             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-gray-600 mb-1">Estado</label>
+          <label className="block text-xs text-gray-400 mb-1">Estado</label>
           <select value={statusFilt} onChange={e => setStatusFilt(e.target.value)} className="input w-36 text-sm">
             <option value="">Todos</option>
             <option value="paid">Pagadas</option>
@@ -912,12 +912,12 @@ function HistorialTab({ locations }) {
         <button onClick={fetchInvoices} className="btn btn-ghost border border-white/10">↻</button>
       </div>
 
-      <p className="text-xs text-gray-600">{total} facturas encontradas</p>
+      <p className="text-xs text-gray-400">{total} facturas encontradas</p>
 
       {loading ? (
         <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>
       ) : invoices.length === 0 ? (
-        <div className="card bg-surface-300 text-center py-12 text-gray-600">
+        <div className="card bg-surface-300 text-center py-12 text-gray-400">
           <p className="text-sm">Sin facturas para los filtros seleccionados.</p>
         </div>
       ) : (
@@ -932,7 +932,7 @@ function HistorialTab({ locations }) {
                   <span className="font-mono font-bold text-brand-400 text-lg w-16 shrink-0">#{inv.code}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white truncate">{inv.seller_name}</p>
-                    <p className="text-xs text-gray-600">
+                    <p className="text-xs text-gray-400">
                       {inv.location_name}
                       {inv.register_name && <span> · 🖥 {inv.register_name}</span>}
                       {inv.cashier_name && inv.cashier_name !== inv.seller_name && <span> · Cajero: {inv.cashier_name}</span>}
@@ -945,7 +945,7 @@ function HistorialTab({ locations }) {
                     <span className="text-xs text-gray-500">{METHOD_LABEL[inv.pay_method]}</span>
                   )}
                   <span className="font-mono font-semibold text-white text-sm">{formatCOP(inv.total)}</span>
-                  <span className="text-xs text-gray-600 w-28 text-right shrink-0">
+                  <span className="text-xs text-gray-400 w-28 text-right shrink-0">
                     {formatDate(inv.created_at)}
                   </span>
                 </div>
@@ -961,7 +961,7 @@ function HistorialTab({ locations }) {
                         <span className="text-gray-300">
                           {item.product_name || item.label}
                           {item.label && item.product_name ? ` (${item.label})` : ''}
-                          <span className="text-gray-600"> x{item.qty}</span>
+                          <span className="text-gray-400"> x{item.qty}</span>
                         </span>
                         <span className="font-mono text-brand-400">{formatCOP(item.subtotal)}</span>
                       </div>
@@ -972,7 +972,7 @@ function HistorialTab({ locations }) {
                     <span className="font-mono font-bold text-brand-400">{formatCOP(inv.total)}</span>
                   </div>
                   {inv.paid_at && (
-                    <p className="text-xs text-gray-600 mt-2">Cobrada: {formatDate(inv.paid_at)}</p>
+                    <p className="text-xs text-gray-400 mt-2">Cobrada: {formatDate(inv.paid_at)}</p>
                   )}
                   {inv.edited_at && (
                     <p className="text-[10px] text-yellow-500/70 mt-1">✏️ Editada: {formatDate(inv.edited_at)}</p>

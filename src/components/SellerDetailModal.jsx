@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Download, X } from 'lucide-react'
 import { api } from '../lib/api.js'
 import { formatCOP, formatDate } from '../lib/format.js'
 import { exportToExcel } from '../lib/exportExcel.js'
@@ -54,9 +55,22 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
             <h2 className="font-syne font-bold text-xl text-white">{sellerName}</h2>
             <p className="text-xs text-gray-500">Detalle de ventas · {from === to ? from : `${from} → ${to}`}</p>
           </div>
-          <div className="flex items-center gap-1">
-            <button onClick={handleExport} className="text-gray-500 hover:text-white text-sm px-2" title="Exportar a Excel">⬇</button>
-            <button onClick={onClose} className="text-gray-600 hover:text-white text-xl px-2">✕</button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={handleExport}
+              className="btn-touch-safe inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-surface-50 transition-colors"
+              aria-label="Exportar a Excel"
+              title="Exportar a Excel"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="btn-touch-safe inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-surface-50 transition-colors"
+              aria-label="Cerrar"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -65,7 +79,7 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
             {[1, 2, 3, 4].map(i => <div key={i} className="skeleton h-16 rounded-xl" />)}
           </div>
         ) : !data ? (
-          <p className="text-gray-600 text-sm">Error al cargar datos.</p>
+          <p className="text-gray-400 text-sm">Error al cargar datos.</p>
         ) : (
           <>
             {/* KPIs del vendedor */}
@@ -117,7 +131,7 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
                             style={{ height: `${heightPct}%`, marginTop: `${100 - heightPct}%` }}
                           />
                         </div>
-                        <span className="text-[9px] text-gray-600 font-mono">{h.hour.slice(0, 2)}</span>
+                        <span className="text-[9px] text-gray-400 font-mono">{h.hour.slice(0, 2)}</span>
                       </div>
                     )
                   })}
@@ -132,7 +146,7 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
                 <div className="space-y-1">
                   {data.top_products.map((p, i) => (
                     <div key={i} className="flex items-center justify-between text-sm py-1 border-b border-white/5 last:border-0">
-                      <span className="text-gray-300">{p.name} <span className="text-gray-600">x{p.qty}</span></span>
+                      <span className="text-gray-300">{p.name} <span className="text-gray-400">x{p.qty}</span></span>
                       <span className="font-mono text-brand-400">{formatCOP(p.revenue)}</span>
                     </div>
                   ))}
@@ -167,18 +181,18 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
                         </span>
                       </div>
                       {inv.location_name && (
-                        <p className="text-[10px] text-gray-600 mt-0.5">📍 {inv.location_name}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">📍 {inv.location_name}</p>
                       )}
                     </button>
 
                     {expanded === inv.id && (
-                      <div className="bg-surface-500 rounded-b-lg px-3 py-2 ml-2 border-l-2 border-brand-500/30 animate-fade-in">
+                      <div className="bg-surface-500 rounded-lg px-3 py-2 mt-1 ml-2 border border-white/5 animate-fade-in">
                         {(Array.isArray(inv.items) ? inv.items : []).map((item, idx) => (
                           <div key={idx} className="flex justify-between text-xs py-0.5">
                             <span className="text-gray-400">
                               {item.product_name || item.label}
                               {item.label && item.product_name ? ` · ${item.label}` : ''}
-                              <span className="text-gray-600"> x{item.qty}</span>
+                              <span className="text-gray-400"> x{item.qty}</span>
                             </span>
                             <span className="font-mono text-gray-300">{formatCOP(item.subtotal)}</span>
                           </div>
@@ -188,11 +202,11 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
                           <span className="font-mono text-brand-400">{formatCOP(inv.total)}</span>
                         </div>
                         {inv.paid_at && (
-                          <p className="text-[10px] text-gray-600 mt-1">
+                          <p className="text-[10px] text-gray-400 mt-1">
                             Cobrada: {formatDate(inv.paid_at)}
                           </p>
                         )}
-                        <p className="text-[10px] text-gray-600">
+                        <p className="text-[10px] text-gray-400">
                           Creada: {formatDate(inv.created_at)}
                         </p>
                       </div>
@@ -211,7 +225,7 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
 function KpiCard({ label, value, color = 'text-white' }) {
   return (
     <div className="bg-surface-400 border border-white/5 rounded-xl p-3">
-      <p className="text-[10px] text-gray-600 uppercase tracking-wider">{label}</p>
+      <p className="text-[10px] text-gray-400 uppercase tracking-wider">{label}</p>
       <p className={`font-syne font-bold text-lg ${color}`}>{value}</p>
     </div>
   )

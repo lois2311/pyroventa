@@ -22,7 +22,7 @@ export default function RegisterComparison({ data, loading, from, to, locationId
   }
 
   if (!data?.length) {
-    return <p className="text-gray-600 text-sm">Sin cobros registrados por caja en este período.</p>
+    return <p className="text-gray-400 text-sm">Sin cobros registrados por caja en este período.</p>
   }
 
   const maxRevenue = Math.max(...data.map(r => r.total), 1)
@@ -47,7 +47,7 @@ export default function RegisterComparison({ data, loading, from, to, locationId
                   {idx < 3 ? (
                     <span className="text-xl">{MEDALS[idx]}</span>
                   ) : (
-                    <span className="text-sm font-mono font-bold text-gray-600">#{idx + 1}</span>
+                    <span className="text-sm font-mono font-bold text-gray-400">#{idx + 1}</span>
                   )}
                 </div>
 
@@ -57,7 +57,7 @@ export default function RegisterComparison({ data, loading, from, to, locationId
                     <span className="text-lg">🖥</span>
                     <p className="font-medium text-white text-sm">{reg.register_name}</p>
                   </div>
-                  <p className="text-[10px] text-gray-600 ml-7">
+                  <p className="text-[10px] text-gray-400 ml-7">
                     {reg.count} cobro{reg.count !== 1 ? 's' : ''} · Ticket prom: {formatCOP(reg.avg_ticket)}
                     {reg.cashier_name && <span> · Cajero(a): {reg.cashier_name}</span>}
                   </p>
@@ -96,7 +96,7 @@ export default function RegisterComparison({ data, loading, from, to, locationId
                 )}
               </div>
 
-              {clickable && <p className="text-[10px] text-gray-700 mt-1">Click para ver detalle →</p>}
+              {clickable && <p className="text-[10px] text-gray-500 mt-1">Click para ver detalle →</p>}
             </Wrapper>
           )
         })}

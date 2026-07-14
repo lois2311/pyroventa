@@ -9,7 +9,7 @@ const URGENCY_STYLES = {
 export default function PendingList({ invoices, selectedId, onSelect }) {
   if (!invoices.length) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-600">
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-400">
         <span className="text-3xl mb-2">✅</span>
         <p className="text-sm font-medium">Sin facturas pendientes</p>
         <p className="text-xs mt-1">Las nuevas aparecerán aquí</p>

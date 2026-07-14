@@ -143,7 +143,7 @@ function RegisterGate({ locationId, onSelect }) {
 
         <button
           onClick={() => onSelect(null)}
-          className="text-xs text-gray-600 hover:text-gray-400 transition-colors mt-4"
+          className="text-xs text-gray-400 hover:text-white transition-colors mt-4"
         >
           Continuar sin seleccionar caja
         </button>
@@ -328,7 +328,7 @@ export default function CajaPage() {
           </span>
           <button
             onClick={() => setChangingReg(true)}
-            className="text-[10px] text-gray-600 hover:text-brand-400 transition-colors"
+            className="text-[10px] text-gray-400 hover:text-brand-400 transition-colors"
           >
             Cambiar caja
           </button>
@@ -368,12 +368,12 @@ export default function CajaPage() {
                 <button onClick={() => setEditing(true)} className="text-xs text-brand-400 hover:text-brand-300 transition-colors">✏️ Editar factura</button>
               )}
               {canEdit && (
-                <button onClick={handleCancel} className="text-xs text-gray-600 hover:text-red-400 transition-colors">✕ Cancelar factura</button>
+                <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-red-400 transition-colors">✕ Cancelar factura</button>
               )}
             </div>
           </div>
         ) : !notFound ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-700">
+          <div className="flex flex-col items-center justify-center h-48 text-gray-500">
             <span className="text-4xl mb-2">🔢</span>
             <p className="text-sm">Ingresa un código de 4 dígitos</p>
           </div>
@@ -385,7 +385,7 @@ export default function CajaPage() {
         {invoice ? (
           <div className="flex-1 flex flex-col gap-4">
             <div>
-              <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Observaciones (opcional)</label>
+              <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Observaciones (opcional)</label>
               <textarea value={observations} onChange={e => setObservations(e.target.value)}
                 placeholder="Ej: Se obsequió producto x con autorización del jefe"
                 rows={2} className="input text-xs resize-none" />
@@ -395,7 +395,7 @@ export default function CajaPage() {
               onSelect={setPayMethod} onConfirm={handlePay} loading={paying} />
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-700 text-center">
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-center">
             <span className="text-4xl mb-2">💳</span>
             <p className="text-sm">Busca una factura para cobrar</p>
           </div>
@@ -432,7 +432,7 @@ export default function CajaPage() {
                 🖥 <span className="text-white font-medium">{register?.name || 'Sin caja'}</span>
               </span>
               <button onClick={() => setChangingReg(true)}
-                className="text-[10px] text-gray-600 hover:text-brand-400 transition-colors">
+                className="text-[10px] text-gray-400 hover:text-brand-400 transition-colors">
                 Cambiar
               </button>
             </div>
@@ -464,11 +464,11 @@ export default function CajaPage() {
                 )}
                 <div className="flex items-center gap-3">
                   {canEdit && <button onClick={() => setEditing(true)} className="text-xs text-brand-400">✏️ Editar</button>}
-                  {canEdit && <button onClick={handleCancel} className="text-xs text-gray-600 hover:text-red-400">✕ Cancelar</button>}
+                  {canEdit && <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-red-400">✕ Cancelar</button>}
                 </div>
               </div>
             ) : !notFound ? (
-              <div className="flex flex-col items-center justify-center h-40 text-gray-700">
+              <div className="flex flex-col items-center justify-center h-40 text-gray-500">
                 <span className="text-4xl mb-2">🔢</span>
                 <p className="text-sm">Ingresa un código de 4 dígitos</p>
               </div>
@@ -483,11 +483,11 @@ export default function CajaPage() {
                 <div className="card bg-surface-400 text-center">
                   <p className="font-mono font-bold text-brand-400 text-2xl tracking-[0.2em] mb-1">#{invoice.code}</p>
                   <p className="font-syne font-bold text-lg text-white">{formatCOP(invoice.total)}</p>
-                  <p className="text-xs text-gray-600 mt-1">{invoice.seller_name}</p>
+                  <p className="text-xs text-gray-400 mt-1">{invoice.seller_name}</p>
                   {canEdit && <button onClick={() => setEditing(true)} className="text-[10px] text-brand-400 mt-2">✏️ Editar items</button>}
                 </div>
                 <div>
-                  <label className="block text-[10px] text-gray-600 uppercase tracking-wider mb-1">Observaciones (opcional)</label>
+                  <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Observaciones (opcional)</label>
                   <textarea value={observations} onChange={e => setObservations(e.target.value)}
                     placeholder="Ej: Se obsequió producto x con autorización del jefe"
                     rows={2} className="input text-xs resize-none" />
@@ -496,7 +496,7 @@ export default function CajaPage() {
                   onSelect={setPayMethod} onConfirm={handlePay} loading={paying} />
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-40 text-gray-700 text-center">
+              <div className="flex flex-col items-center justify-center h-40 text-gray-500 text-center">
                 <span className="text-4xl mb-2">💳</span>
                 <p className="text-sm">Busca una factura para cobrar</p>
               </div>
@@ -510,7 +510,7 @@ export default function CajaPage() {
         {CAJA_TABS.map(t => (
           <button key={t.id} onClick={() => setMobileTab(t.id)}
             className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors relative
-              ${mobileTab === t.id ? 'text-brand-400' : 'text-gray-600'}`}>
+              ${mobileTab === t.id ? 'text-brand-400' : 'text-gray-400'}`}>
             <span className="text-lg">{t.icon}</span>
             <span>{t.label}</span>
             {t.id === 'pendientes' && pendingInvoices.length > 0 && (

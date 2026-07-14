@@ -56,7 +56,7 @@ export default function CodeDisplay({ invoice, onNewSale }) {
       </div>
 
       {/* Meta */}
-      <div className="flex flex-col items-center gap-1 text-xs text-gray-600 mb-6">
+      <div className="flex flex-col items-center gap-1 text-xs text-gray-400 mb-6">
         <span>{invoice.location_name}</span>
         {invoice.seller_name && <span>Vendedor: {invoice.seller_name}</span>}
       </div>

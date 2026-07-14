@@ -10,7 +10,7 @@ export default function LocationComparison({ data, loading }) {
   }
 
   if (!data?.length) {
-    return <p className="text-gray-600 text-sm">Sin datos para mostrar.</p>
+    return <p className="text-gray-400 text-sm">Sin datos para mostrar.</p>
   }
 
   const maxRevenue = Math.max(...data.map(l => l.total_revenue), 1)
@@ -27,11 +27,11 @@ export default function LocationComparison({ data, loading }) {
               <span className="text-2xl">{medals[idx] || '📍'}</span>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-white">{loc.location_name}</h3>
-                {loc.address && <p className="text-xs text-gray-600 truncate">{loc.address}</p>}
+                {loc.address && <p className="text-xs text-gray-400 truncate">{loc.address}</p>}
               </div>
               <div className="text-right">
                 <p className="font-syne font-bold text-xl text-brand-400">{formatCOP(loc.total_revenue)}</p>
-                <p className="text-xs text-gray-600">{loc.invoice_count} facturas</p>
+                <p className="text-xs text-gray-400">{loc.invoice_count} facturas</p>
               </div>
             </div>
 
@@ -44,7 +44,7 @@ export default function LocationComparison({ data, loading }) {
             </div>
 
             {/* Detalle */}
-            <div className="flex justify-between text-xs text-gray-600 mt-2">
+            <div className="flex justify-between text-xs text-gray-400 mt-2">
               <span>Ticket prom: {formatCOP(loc.avg_ticket)}</span>
               <span className="flex gap-3">
                 <span className="text-yellow-600">⏳ {loc.pending_count}</span>

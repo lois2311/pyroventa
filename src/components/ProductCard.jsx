@@ -28,7 +28,7 @@ export default function ProductCard({ product }) {
         <div className="min-w-0">
           <h3 className="font-medium text-white text-sm leading-tight">{product.name}</h3>
           {product.categories?.name && (
-            <span className="text-xs text-gray-600">{product.categories.name}</span>
+            <span className="text-xs text-gray-400">{product.categories.name}</span>
           )}
         </div>
       </div>

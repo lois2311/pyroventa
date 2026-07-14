@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { X } from 'lucide-react'
 import { api, getProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useAuthStore } from '../store/authStore.js'
@@ -125,13 +126,19 @@ export default function EditInvoiceModal({ invoice, onClose, onSaved }) {
             </h2>
             <p className="text-xs text-gray-500">Vendedor: {invoice?.seller_name}</p>
           </div>
-          <button onClick={onClose} className="text-gray-600 hover:text-white text-xl px-2">✕</button>
+          <button
+            onClick={onClose}
+            className="btn-touch-safe inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-surface-50 transition-colors"
+            aria-label="Cerrar"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Lista de items editables */}
         <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
           {items.length === 0 ? (
-            <p className="text-gray-600 text-sm text-center py-4">Sin items. Agrega productos del catálogo.</p>
+            <p className="text-gray-400 text-sm text-center py-4">Sin items. Agrega productos del catálogo.</p>
           ) : items.map((item, idx) => (
             <div key={idx} className="bg-surface-400 rounded-lg px-3 py-2 flex items-center gap-2">
               <div className="flex-1 min-w-0">
@@ -162,9 +169,10 @@ export default function EditInvoiceModal({ invoice, onClose, onSaved }) {
 
               <button
                 onClick={() => removeItem(idx)}
-                className="text-gray-700 hover:text-red-400 transition-colors text-sm ml-1"
+                className="text-gray-500 hover:text-red-400 transition-colors p-1.5 -m-1 ml-0.5"
+                aria-label={`Quitar ${item.product_name}`}
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}
@@ -189,7 +197,13 @@ export default function EditInvoiceModal({ invoice, onClose, onSaved }) {
                 className="input flex-1 text-sm"
                 autoFocus
               />
-              <button onClick={() => { setShowCatalog(false); setQuery('') }} className="text-gray-500 hover:text-white text-sm px-2">✕</button>
+              <button
+                onClick={() => { setShowCatalog(false); setQuery('') }}
+                className="text-gray-500 hover:text-white p-2 -m-1 shrink-0"
+                aria-label="Cerrar búsqueda"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
             <div className="max-h-48 overflow-y-auto space-y-1">
               {filteredProducts.map(product => (
@@ -208,7 +222,7 @@ export default function EditInvoiceModal({ invoice, onClose, onSaved }) {
                 </div>
               ))}
               {filteredProducts.length === 0 && (
-                <p className="text-gray-600 text-xs text-center py-3">Sin resultados</p>
+                <p className="text-gray-400 text-xs text-center py-3">Sin resultados</p>
               )}
             </div>
           </div>

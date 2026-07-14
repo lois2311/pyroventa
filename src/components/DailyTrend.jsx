@@ -14,7 +14,7 @@ export default function DailyTrend({ data, loading }) {
     <div className="card bg-surface-300 overflow-x-auto">
       <table className="w-full text-sm min-w-[560px]">
         <thead>
-          <tr className="text-left text-xs text-gray-600">
+          <tr className="text-left text-xs text-gray-400">
             <th className="py-1.5 pr-3 font-medium">Día</th>
             <th className="py-1.5 pr-3 font-medium text-right">Facturas</th>
             <th className="py-1.5 pr-3 font-medium text-right">Efectivo</th>

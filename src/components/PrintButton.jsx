@@ -63,7 +63,7 @@ export default function PrintButton({ invoice }) {
           <span>🖨</span>
         )}
         Imprimir recibo
-        <span className="text-gray-600">▾</span>
+        <span className="text-gray-400">▾</span>
       </button>
 
       {open && (

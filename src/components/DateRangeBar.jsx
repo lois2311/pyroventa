@@ -15,13 +15,13 @@ export default function DateRangeBar({ from, to, onChange }) {
   return (
     <div className="flex items-end gap-3 flex-wrap">
       <div>
-        <label className="block text-xs text-gray-600 mb-1">Desde</label>
+        <label className="block text-xs text-gray-400 mb-1">Desde</label>
         <input type="date" value={from} max={to}
           onChange={e => onChange(e.target.value, to < e.target.value ? e.target.value : to)}
           className="input w-40 text-sm" />
       </div>
       <div>
-        <label className="block text-xs text-gray-600 mb-1">Hasta</label>
+        <label className="block text-xs text-gray-400 mb-1">Hasta</label>
         <input type="date" value={to} min={from}
           onChange={e => onChange(from > e.target.value ? e.target.value : from, e.target.value)}
           className="input w-40 text-sm" />

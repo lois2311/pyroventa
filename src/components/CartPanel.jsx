@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { useCartStore }    from '../store/cartStore.js'
 import { formatCOP }       from '../lib/format.js'
 
@@ -7,7 +8,7 @@ export default function CartPanel({ onCheckout, loading }) {
 
   if (!items.length) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-600">
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-400">
         <span className="text-4xl mb-3">🛒</span>
         <p className="text-sm font-medium">Carrito vacío</p>
         <p className="text-xs mt-1">Selecciona productos del catálogo</p>
@@ -24,7 +25,7 @@ export default function CartPanel({ onCheckout, loading }) {
         </span>
         <button
           onClick={clear}
-          className="text-xs text-gray-600 hover:text-red-400 transition-colors"
+          className="text-xs text-gray-400 hover:text-red-400 transition-colors"
         >
           Limpiar
         </button>
@@ -104,9 +105,10 @@ function CartItem({ item, onUpdateQty, onRemove }) {
       {/* Eliminar */}
       <button
         onClick={onRemove}
-        className="text-gray-700 hover:text-red-400 transition-colors text-sm ml-1"
+        className="text-gray-500 hover:text-red-400 transition-colors p-1.5 -m-1 ml-0.5"
+        aria-label={`Quitar ${item.productName}`}
       >
-        ✕
+        <X className="w-3.5 h-3.5" />
       </button>
     </div>
   )

@@ -22,7 +22,7 @@ export default function SellerStats({ data, loading, from, to, locationId }) {
   }
 
   if (!data?.length) {
-    return <p className="text-gray-600 text-sm">Sin ventas registradas para este período.</p>
+    return <p className="text-gray-400 text-sm">Sin ventas registradas para este período.</p>
   }
 
   const maxRevenue = Math.max(...data.map(s => s.total), 1)
@@ -45,14 +45,14 @@ export default function SellerStats({ data, loading, from, to, locationId }) {
                   {idx < 3 ? (
                     <span className="text-xl">{MEDALS[idx]}</span>
                   ) : (
-                    <span className="text-sm font-mono font-bold text-gray-600">#{idx + 1}</span>
+                    <span className="text-sm font-mono font-bold text-gray-400">#{idx + 1}</span>
                   )}
                 </div>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-white text-sm">{s.seller_name}</p>
-                  <p className="text-[10px] text-gray-600">
+                  <p className="text-[10px] text-gray-400">
                     {s.count} factura{s.count !== 1 ? 's' : ''} · Ticket prom: {formatCOP(s.avg_ticket)}
                   </p>
                 </div>
@@ -90,7 +90,7 @@ export default function SellerStats({ data, loading, from, to, locationId }) {
                 )}
               </div>
 
-              <p className="text-[10px] text-gray-700 mt-1">Click para ver detalle →</p>
+              <p className="text-[10px] text-gray-500 mt-1">Click para ver detalle →</p>
             </button>
           )
         })}

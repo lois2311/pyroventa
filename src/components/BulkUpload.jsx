@@ -195,7 +195,7 @@ export default function BulkUpload({ onDone }) {
                       ))}
                     </tr>
                   ))}
-                  <tr><td colSpan={5} className="py-1 text-gray-600">...</td></tr>
+                  <tr><td colSpan={5} className="py-1 text-gray-400">...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -219,8 +219,8 @@ export default function BulkUpload({ onDone }) {
           </div>
 
           <div className="mt-3 space-y-1">
-            <p className="text-[10px] text-gray-600">Notas:</p>
-            <ul className="text-[10px] text-gray-600 list-disc list-inside space-y-0.5">
+            <p className="text-[10px] text-gray-400">Notas:</p>
+            <ul className="text-[10px] text-gray-400 list-disc list-inside space-y-0.5">
               <li>Productos con nombre duplicado se omiten (no se sobreescriben)</li>
               <li>Categorías nuevas se crean automáticamente</li>
               <li>El precio debe ser numérico (ej: 2500, no $2.500)</li>
@@ -275,7 +275,7 @@ export default function BulkUpload({ onDone }) {
                 <span className="text-sm">🎆</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white">{product.name}</p>
-                  <div className="flex gap-2 text-[10px] text-gray-600">
+                  <div className="flex gap-2 text-[10px] text-gray-400">
                     {product.category && <span className="bg-surface-50 px-1.5 py-0.5 rounded">{product.category}</span>}
                     {product.description && <span className="italic">{product.description}</span>}
                   </div>

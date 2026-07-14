@@ -12,7 +12,7 @@ export default function TopProducts({ data, loading }) {
   }
 
   if (!data?.length) {
-    return <p className="text-gray-600 text-sm">Sin ventas registradas para este período.</p>
+    return <p className="text-gray-400 text-sm">Sin ventas registradas para este período.</p>
   }
 
   const maxRevenue = Math.max(...data.map(p => p.total_revenue), 1)
@@ -30,7 +30,7 @@ export default function TopProducts({ data, loading }) {
                 {idx < 3 ? (
                   <span className="text-xl">{MEDALS[idx]}</span>
                 ) : (
-                  <span className="text-sm font-mono font-bold text-gray-600">#{idx + 1}</span>
+                  <span className="text-sm font-mono font-bold text-gray-400">#{idx + 1}</span>
                 )}
               </div>
 
@@ -49,7 +49,7 @@ export default function TopProducts({ data, loading }) {
               {/* Metrics */}
               <div className="text-right shrink-0">
                 <p className="font-mono font-semibold text-brand-400 text-sm">{formatCOP(product.total_revenue)}</p>
-                <p className="text-[10px] text-gray-600">{product.total_qty} uds vendidas</p>
+                <p className="text-[10px] text-gray-400">{product.total_qty} uds vendidas</p>
               </div>
             </div>
 

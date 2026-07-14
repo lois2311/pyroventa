@@ -8,7 +8,7 @@ function MetricCard({ label, value, sub, color = 'text-white', icon }) {
         <span>{label}</span>
       </div>
       <p className={`font-syne font-bold text-2xl ${color}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-600">{sub}</p>}
+      {sub && <p className="text-xs text-gray-400">{sub}</p>}
     </div>
   )
 }

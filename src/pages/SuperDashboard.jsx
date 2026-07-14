@@ -150,7 +150,7 @@ function LicenseEditor({ tenant, onSaved }) {
     <div className="flex items-center gap-2">
       <input type="date" value={start} onChange={e => setStart(e.target.value)}
         className="px-2 py-1 rounded-lg bg-surface-400 border border-white/10 text-white text-xs" />
-      <span className="text-gray-600 text-xs">→</span>
+      <span className="text-gray-400 text-xs">→</span>
       <input type="date" value={end} onChange={e => setEnd(e.target.value)}
         className="px-2 py-1 rounded-lg bg-surface-400 border border-white/10 text-white text-xs" />
       {dirty && (
@@ -184,7 +184,7 @@ function MetricsSection() {
       <div className="flex items-end gap-2 flex-wrap mb-3">
         <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)}
           className="px-3 py-2 rounded-xl bg-surface-400 border border-white/10 text-white text-sm" />
-        <span className="text-gray-600 pb-2">→</span>
+        <span className="text-gray-400 pb-2">→</span>
         <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)}
           className="px-3 py-2 rounded-xl bg-surface-400 border border-white/10 text-white text-sm" />
         <button onClick={load} disabled={loading} className="btn btn-primary btn-sm">
@@ -195,7 +195,7 @@ function MetricsSection() {
         <div className="card bg-surface-300 border-white/8 overflow-x-auto">
           <table className="w-full text-sm min-w-[420px]">
             <thead>
-              <tr className="text-left text-xs text-gray-600">
+              <tr className="text-left text-xs text-gray-400">
                 <th className="py-1.5 pr-3 font-medium">Cliente</th>
                 <th className="py-1.5 pr-3 font-medium text-right">Facturas</th>
                 <th className="py-1.5 font-medium text-right">Total vendido</th>
@@ -213,7 +213,7 @@ function MetricsSection() {
           </table>
         </div>
       ) : (
-        <p className="text-gray-600 text-sm">{loading ? 'Cargando…' : 'Sin ventas en el rango.'}</p>
+        <p className="text-gray-400 text-sm">{loading ? 'Cargando…' : 'Sin ventas en el rango.'}</p>
       )}
     </div>
   )
@@ -273,7 +273,7 @@ export default function SuperDashboard() {
           <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}</div>
         ) : tenants.length === 0 ? (
           <div className="card bg-surface-300 border-white/8 p-10 text-center">
-            <Building2 className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+            <Building2 className="w-10 h-10 text-gray-400 mx-auto mb-3" />
             <p className="text-gray-400">Aún no hay clientes. Crea el primero.</p>
           </div>
         ) : (

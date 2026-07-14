@@ -33,7 +33,7 @@ function NumPad({ value, onChange, onSubmit, loading }) {
               w-11 h-11 rounded-xl border-2 flex items-center justify-center font-mono text-xl font-bold transition-all duration-150
               ${i < value.length
                 ? 'bg-brand-500/20 border-brand-500 text-brand-400'
-                : 'bg-surface-300 border-white/10 text-gray-700'
+                : 'bg-surface-300 border-white/10 text-gray-500'
               }
             `}
           >
@@ -89,7 +89,7 @@ function RegisterSelector({ locationId, value, onChange }) {
       <p className="text-gray-500 text-sm text-center py-4">
         No hay cajas registradas para este punto de venta.
         <br />
-        <span className="text-xs text-gray-600">Un admin debe crear cajas desde Administración.</span>
+        <span className="text-xs text-gray-400">Un admin debe crear cajas desde Administración.</span>
       </p>
     )
   }
@@ -290,7 +290,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={handleChangeCompany}
-                className="text-xs text-gray-600 hover:text-gray-400 transition-colors mt-3 w-full text-center"
+                className="text-xs text-gray-400 hover:text-white transition-colors mt-3 w-full text-center"
               >
                 Cambiar de empresa
               </button>
@@ -382,7 +382,7 @@ export default function LoginPage() {
 
               <button
                 onClick={handleSkipRegister}
-                className="text-xs text-gray-600 hover:text-gray-400 transition-colors mt-3 w-full text-center"
+                className="text-xs text-gray-400 hover:text-white transition-colors mt-3 w-full text-center"
               >
                 Continuar sin seleccionar caja
               </button>
@@ -391,7 +391,7 @@ export default function LoginPage() {
 
         </div>
 
-        <p className="text-center text-gray-700 text-xs mt-4">
+        <p className="text-center text-gray-500 text-xs mt-4">
           PyroVenta · Multitenant
         </p>
       </div>

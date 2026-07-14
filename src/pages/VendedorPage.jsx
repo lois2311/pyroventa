@@ -202,7 +202,7 @@ export default function VendedorPage() {
                 ))}
               </div>
             ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-gray-600">
+              <div className="flex flex-col items-center justify-center h-40 text-gray-400">
                 <span className="text-3xl mb-2">🔍</span>
                 <p className="text-sm">Sin resultados para "{query}"</p>
               </div>
