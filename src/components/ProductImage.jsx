@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react'
 /**
  * Foto de producto con zoom: miniatura (o placeholder 🎆 si no hay foto o
  * falla la carga) que al tocarla se amplía a pantalla completa.
- * `className` define el tamaño del slot (ej: "w-9 h-9" o "w-full h-24").
+ * `className` define el tamaño del slot (ej: "w-9 h-9" o "w-full h-36").
+ * `fit`: 'cover' recorta para llenar (miniaturas pequeñas);
+ *        'contain' muestra la foto completa sin recortar (tarjetas del catálogo).
  */
-export default function ProductImage({ src, name, className = 'w-9 h-9' }) {
+export default function ProductImage({ src, name, className = 'w-9 h-9', fit = 'cover' }) {
   const [zoomed, setZoomed] = useState(false)
   const [failed, setFailed] = useState(false)
 
@@ -42,7 +44,7 @@ export default function ProductImage({ src, name, className = 'w-9 h-9' }) {
           loading="lazy"
           crossOrigin="anonymous"
           onError={() => setFailed(true)}
-          className="w-full h-full object-cover"
+          className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
         />
       </button>
 

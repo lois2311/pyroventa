@@ -23,10 +23,15 @@ export default function ProductCard({ product }) {
 
   return (
     <div className="card bg-surface-300 hover:border-white/10 transition-all duration-150">
-      {/* Foto — tocar para ampliar (referencia visual para el cliente) */}
+      {/* Foto — completa, sin recortar; tocar para ampliar */}
       {product.image_url && (
         <div className="mb-3">
-          <ProductImage src={product.image_url} name={product.name} className="w-full h-24 block" />
+          <ProductImage
+            src={product.image_url}
+            name={product.name}
+            fit="contain"
+            className="w-full h-36 block bg-surface-400"
+          />
         </div>
       )}
 
