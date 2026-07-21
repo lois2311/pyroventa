@@ -6,9 +6,18 @@ export default function ProductCard({ product }) {
   const addItem = useCartStore(s => s.addItem)
   const items   = useCartStore(s => s.items)
   const [imgFailed, setImgFailed] = useState(false)
+  const [zoomed,    setZoomed]    = useState(false)
 
   // Reintentar si la URL cambia (foto corregida) tras un fallo de carga
   useEffect(() => { setImgFailed(false) }, [product.image_url])
+
+  // Cerrar el zoom con Escape
+  useEffect(() => {
+    if (!zoomed) return
+    const onKey = (e) => { if (e.key === 'Escape') setZoomed(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [zoomed])
 
   const presentations = (product.presentations || []).filter(p => p.active !== false)
   if (!presentations.length) return null
@@ -29,16 +38,49 @@ export default function ProductCard({ product }) {
 
   return (
     <div className="card bg-surface-300 hover:border-white/10 transition-all duration-150">
-      {/* Foto */}
+      {/* Foto — tocar para ampliar (referencia visual para el cliente) */}
       {showImage && (
-        <img
-          src={product.image_url}
-          alt={product.name}
-          loading="lazy"
-          crossOrigin="anonymous"
-          onError={() => setImgFailed(true)}
-          className="w-full h-24 object-cover rounded-lg mb-3 border border-white/5"
-        />
+        <button
+          type="button"
+          onClick={() => setZoomed(true)}
+          aria-label={`Ampliar foto de ${product.name}`}
+          className="block w-full mb-3 cursor-zoom-in rounded-lg overflow-hidden border border-white/5"
+        >
+          <img
+            src={product.image_url}
+            alt={product.name}
+            loading="lazy"
+            crossOrigin="anonymous"
+            onError={() => setImgFailed(true)}
+            className="w-full h-24 object-cover"
+          />
+        </button>
+      )}
+
+      {/* Overlay de zoom */}
+      {zoomed && showImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setZoomed(false)}
+          role="dialog"
+          aria-label={`Foto de ${product.name}`}
+        >
+          <button
+            type="button"
+            onClick={() => setZoomed(false)}
+            aria-label="Cerrar foto"
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-surface-300 text-gray-300 hover:text-white flex items-center justify-center text-lg"
+          >
+            ✕
+          </button>
+          <img
+            src={product.image_url}
+            alt={product.name}
+            crossOrigin="anonymous"
+            className="max-w-full max-h-[80dvh] object-contain rounded-xl"
+          />
+          <p className="text-white text-sm font-medium mt-3 text-center">{product.name}</p>
+        </div>
       )}
 
       {/* Cabecera */}

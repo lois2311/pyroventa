@@ -37,10 +37,11 @@ export default defineConfig({
           },
           {
             // API de productos — stale-while-revalidate
+            // (v2: fuerza refetch tras el deploy de fotos de productos)
             urlPattern: /\/api\/products/,
             handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'api-products',
+              cacheName: 'api-products-v2',
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 4 }, // 4 horas
             },
           },

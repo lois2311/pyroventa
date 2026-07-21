@@ -31,35 +31,29 @@ export default function VendedorPage() {
   useEffect(() => {
     if (!location?.id) return
 
+    // Mostrar el cache de inmediato (aunque sea stale)…
     const cached = getProductsCache(location.id)
     if (cached) {
-      // Usar cache inmediatamente (aunque sea stale)
-      const isStale = Array.isArray(cached) ? false : cached._stale
-      setProducts(Array.isArray(cached) ? cached : cached)
+      setProducts(cached)
       setLoading(false)
-
-      // Si es stale, refrescar en background
-      if (isStale && navigator.onLine) {
-        api.get(`/products?location_id=${location.id}`)
-          .then(data => {
-            if (data?.length) {
-              setProducts(data)
-              setProductsCache(location.id, data)
-            }
-          })
-          .catch(() => {}) // silencioso, ya tenemos stale data
-      }
-      return
     }
 
-    // Sin cache: cargar del servidor
-    api.get(`/products?location_id=${location.id}`)
-      .then(data => {
-        setProducts(data || [])
-        setProductsCache(location.id, data || [])
-      })
-      .catch(err => toastError(`Error cargando catálogo: ${err.message}`))
-      .finally(() => setLoading(false))
+    // …y revalidar SIEMPRE en background: los cambios de catálogo (fotos,
+    // precios, productos nuevos) llegan al vendedor sin esperar el TTL
+    if (!cached || navigator.onLine) {
+      api.get(`/products?location_id=${location.id}`)
+        .then(data => {
+          if (data?.length) {
+            setProducts(data)
+            setProductsCache(location.id, data)
+          }
+        })
+        .catch(err => {
+          if (!cached) toastError(`Error cargando catálogo: ${err.message}`)
+          // con cache ya en pantalla, el fallo de red es silencioso
+        })
+        .finally(() => setLoading(false))
+    }
   }, [location?.id])
 
   // ---- Categorías únicas ---------------------------------

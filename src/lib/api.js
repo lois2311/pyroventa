@@ -93,10 +93,13 @@ export const api = {
 // ---- Caché de productos (TTL 1 hora, stale-while-revalidate) ----
 const PRODUCT_CACHE_TTL    = 60 * 60 * 1000  // 1 hora fresh
 const PRODUCT_CACHE_STALE  = 24 * 60 * 60 * 1000 // 24 horas stale máximo
+// Subir la versión invalida el catálogo cacheado en TODOS los dispositivos
+// tras un deploy (ej: v2 = catálogo con fotos de productos)
+const PRODUCT_CACHE_KEY = (locationId) => `pv_products_v2_${locationId}`
 
 export function getProductsCache(locationId) {
   try {
-    const raw = localStorage.getItem(`pv_products_${locationId}`)
+    const raw = localStorage.getItem(PRODUCT_CACHE_KEY(locationId))
     if (!raw) return null
     const { data, ts } = JSON.parse(raw)
     const age = Date.now() - ts
@@ -115,13 +118,14 @@ export function getProductsCache(locationId) {
 
 export function setProductsCache(locationId, data) {
   try {
-    localStorage.setItem(`pv_products_${locationId}`, JSON.stringify({ data, ts: Date.now() }))
+    localStorage.removeItem(`pv_products_${locationId}`) // limpiar clave legacy (pre-v2)
+    localStorage.setItem(PRODUCT_CACHE_KEY(locationId), JSON.stringify({ data, ts: Date.now() }))
   } catch { /* ignore quota errors */ }
 }
 
 export function clearProductsCache(locationId) {
   if (locationId) {
-    localStorage.removeItem(`pv_products_${locationId}`)
+    localStorage.removeItem(PRODUCT_CACHE_KEY(locationId))
   } else {
     Object.keys(localStorage)
       .filter(k => k.startsWith('pv_products_'))
@@ -130,7 +134,8 @@ export function clearProductsCache(locationId) {
   // También el cache del service worker (stale-while-revalidate serviría el
   // catálogo viejo y volvería a poblar localStorage con datos pre-cambio)
   if (typeof caches !== 'undefined') {
-    caches.delete('api-products').catch(() => {})
+    caches.delete('api-products').catch(() => {})     // nombre legacy
+    caches.delete('api-products-v2').catch(() => {})
   }
 }
 
