@@ -1,6 +1,7 @@
 import { formatCOP, formatDate } from '../lib/format.js'
+import ProductImage from './ProductImage.jsx'
 
-export default function InvoiceDetail({ invoice }) {
+export default function InvoiceDetail({ invoice, productImages = {} }) {
   if (!invoice) return null
 
   const items = Array.isArray(invoice.items) ? invoice.items : []
@@ -38,7 +39,12 @@ export default function InvoiceDetail({ invoice }) {
           <span className="w-20 text-right">Valor</span>
         </div>
         {items.map((item, idx) => (
-          <div key={idx} className="flex items-center px-3 py-2.5 border-b border-white/5 last:border-0">
+          <div key={idx} className="flex items-center gap-2.5 px-3 py-2.5 border-b border-white/5 last:border-0">
+            <ProductImage
+              src={productImages[item.productId]}
+              name={item.product_name || item.productName}
+              className="w-9 h-9"
+            />
             <div className="flex-1 min-w-0">
               <p className="text-sm text-white truncate">
                 {item.product_name || item.productName}

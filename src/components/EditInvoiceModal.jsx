@@ -4,8 +4,9 @@ import { api, getProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useAuthStore } from '../store/authStore.js'
 import { useToast } from './Toast.jsx'
+import ProductImage from './ProductImage.jsx'
 
-export default function EditInvoiceModal({ invoice, onClose, onSaved }) {
+export default function EditInvoiceModal({ invoice, productImages = {}, onClose, onSaved }) {
   const { location } = useAuthStore()
   const { error: toastError, success: toastSuccess } = useToast()
 
@@ -141,6 +142,7 @@ export default function EditInvoiceModal({ invoice, onClose, onSaved }) {
             <p className="text-gray-400 text-sm text-center py-4">Sin items. Agrega productos del catálogo.</p>
           ) : items.map((item, idx) => (
             <div key={idx} className="bg-surface-400 rounded-lg px-3 py-2 flex items-center gap-2">
+              <ProductImage src={productImages[item.productId]} name={item.product_name} className="w-8 h-8" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-white truncate">{item.product_name}</p>
                 <p className="text-[10px] text-gray-500">{item.label} · {formatCOP(item.price)} c/u</p>
@@ -208,7 +210,10 @@ export default function EditInvoiceModal({ invoice, onClose, onSaved }) {
             <div className="max-h-48 overflow-y-auto space-y-1">
               {filteredProducts.map(product => (
                 <div key={product.id} className="space-y-0.5">
-                  <p className="text-[10px] text-gray-500 font-medium px-1">{product.name}</p>
+                  <div className="flex items-center gap-1.5 px-1">
+                    {product.image_url && <ProductImage src={product.image_url} name={product.name} className="w-6 h-6" />}
+                    <p className="text-[10px] text-gray-500 font-medium">{product.name}</p>
+                  </div>
                   {(product.presentations || []).filter(p => p.active !== false).map(pres => (
                     <button
                       key={pres.id}

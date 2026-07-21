@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuthStore }    from '../store/authStore.js'
 import { useInvoiceStore } from '../store/invoiceStore.js'
 import { supabase }        from '../lib/supabase.js'
-import { api }             from '../lib/api.js'
+import { api, getProductsCache, setProductsCache } from '../lib/api.js'
 import Topbar          from '../components/Topbar.jsx'
 import PendingList     from '../components/PendingList.jsx'
 import InvoiceDetail   from '../components/InvoiceDetail.jsx'
@@ -182,6 +182,25 @@ export default function CajaPage() {
 
   const pollRef = useRef(null)
 
+  // ---- Fotos de productos (productId → image_url) --------
+  // Los items de la factura son snapshots sin foto; el catálogo la aporta.
+  const [productImages, setProductImages] = useState({})
+  useEffect(() => {
+    if (!location?.id) return
+    const build = (list) => {
+      const m = {}
+      ;(list || []).forEach(p => { if (p.image_url) m[p.id] = p.image_url })
+      setProductImages(m)
+    }
+    const cached = getProductsCache(location.id)
+    if (cached) build(cached)
+    if (!cached || navigator.onLine) {
+      api.get(`/products?location_id=${location.id}`)
+        .then(data => { if (data?.length) { build(data); setProductsCache(location.id, data) } })
+        .catch(() => {}) // sin fotos no se bloquea el cobro
+    }
+  }, [location?.id])
+
   // ---- Si no hay caja seleccionada, mostrar gate --------
   const handleRegisterSelect = (reg) => {
     setRegister(reg)
@@ -353,7 +372,7 @@ export default function CajaPage() {
           </div>
         ) : invoice ? (
           <div className="max-w-lg space-y-4">
-            <InvoiceDetail invoice={invoice} />
+            <InvoiceDetail invoice={invoice} productImages={productImages} />
             {invoice.edited_at && (
               <p className="text-[10px] text-yellow-500/70">✏️ Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}</p>
             )}
@@ -452,7 +471,7 @@ export default function CajaPage() {
               </div>
             ) : invoice ? (
               <div className="space-y-4">
-                <InvoiceDetail invoice={invoice} />
+                <InvoiceDetail invoice={invoice} productImages={productImages} />
                 {invoice.edited_at && (
                   <p className="text-[10px] text-yellow-500/70">✏️ Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}</p>
                 )}
@@ -531,7 +550,7 @@ export default function CajaPage() {
       {DesktopLayout}
       {MobileLayout}
       {editing && invoice && (
-        <EditInvoiceModal invoice={invoice} onClose={() => setEditing(false)} onSaved={handleInvoiceSaved} />
+        <EditInvoiceModal invoice={invoice} productImages={productImages} onClose={() => setEditing(false)} onSaved={handleInvoiceSaved} />
       )}
       {paidInv && <PaidOverlay invoice={paidInv} onDone={() => setPaidInv(null)} />}
     </div>
