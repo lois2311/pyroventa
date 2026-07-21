@@ -293,7 +293,7 @@ export default function BulkUpload({ onDone }) {
           <div className="mt-3 space-y-1">
             <p className="text-[10px] text-gray-400">Notas:</p>
             <ul className="text-[10px] text-gray-400 list-disc list-inside space-y-0.5">
-              <li>Productos con nombre duplicado se omiten (no se sobreescriben)</li>
+              <li>Productos con nombre duplicado se omiten (no se sobreescriben), pero si adjuntas foto y el existente no tiene, la foto sí se le agrega</li>
               <li>Categorías nuevas se crean automáticamente</li>
               <li>El precio debe ser numérico (ej: 2500, no $2.500)</li>
               <li>La columna Imagen es opcional: escribe el nombre del archivo de la foto (ej: volcan.jpg)</li>

@@ -376,13 +376,31 @@ async function productsBulk(req, res) {
       }
     }
   }
-  const results = { created: 0, skipped: 0, errors: [] }
+  const results = { created: 0, skipped: 0, photos_added: 0, errors: [] }
   for (const p of products) {
     const cid = p.category?.trim() ? catMap[p.category.trim().toLowerCase()] || null : null
     // Escapar comodines de ILIKE para comparar el nombre literal
-    const { data: ex } = await supabaseAdmin.from('products')
-      .select('id').eq('tenant_id', auth.tenantId).ilike('name', p.name.trim().replace(/([%_\\])/g, '\\$1')).limit(1)
-    if (ex?.length) { results.skipped++; continue }
+    const namePattern = p.name.trim().replace(/([%_\\])/g, '\\$1')
+    let { data: ex, error: exErr } = await supabaseAdmin.from('products')
+      .select('id, image_url').eq('tenant_id', auth.tenantId).ilike('name', namePattern).limit(1)
+    if (exErr && isMissingImageColumn(exErr)) {
+      ;({ data: ex, error: exErr } = await supabaseAdmin.from('products')
+        .select('id').eq('tenant_id', auth.tenantId).ilike('name', namePattern).limit(1))
+    }
+    if (exErr) { results.errors.push(`"${p.name}": ${exErr.message}`); continue }
+    if (ex?.length) {
+      // Duplicado: no se sobreescribe, pero si trae foto y el existente no
+      // tiene, se le agrega (permite re-importar el Excel solo para las fotos)
+      const existing = ex[0]
+      if (p.image_url && 'image_url' in existing && !existing.image_url) {
+        const { error: ie } = await supabaseAdmin.from('products')
+          .update({ image_url: p.image_url }).eq('id', existing.id).eq('tenant_id', auth.tenantId)
+        if (ie) results.errors.push(`"${p.name}" foto: ${imageErrMsg(ie)}`)
+        else results.photos_added++
+      }
+      results.skipped++
+      continue
+    }
     const { data: np, error: pe } = await supabaseAdmin.from('products')
       .insert({ tenant_id: auth.tenantId, name: p.name.trim(), category_id: cid, description: p.description?.trim() || null, ...(p.image_url ? { image_url: p.image_url } : {}), active: true })
       .select('id').single()
@@ -392,7 +410,9 @@ async function productsBulk(req, res) {
     if (pre) { results.errors.push(`"${p.name}" pres: ${pre.message}`); continue }
     results.created++
   }
-  return res.status(200).json({ message: `${results.created} creado(s), ${results.skipped} omitido(s)`, ...results })
+  const message = `${results.created} creado(s), ${results.skipped} omitido(s)` +
+    (results.photos_added ? `, ${results.photos_added} foto(s) agregada(s) a productos existentes` : '')
+  return res.status(200).json({ message, ...results })
 }
 
 // Sube una foto de producto (data URL base64, ya comprimida por el cliente)
