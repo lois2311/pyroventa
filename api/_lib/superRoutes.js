@@ -5,6 +5,7 @@ import { signToken } from './jwt.js'
 import { getTenantStatus, bogotaDate } from './tenantStatus.js'
 import { slugify } from './slug.js'
 import { parseRange, bogotaDayBounds } from './range.js'
+import { defaultPrinterConfig } from './printerConfig.js'
 
 // =====================================================
 // PyroVenta — Rutas del super admin (plataforma)
@@ -41,10 +42,14 @@ export async function superTenantsList(req, res) {
 
   const hoy = bogotaDate()
   const { start: todayStart } = bogotaDayBounds(hoy, hoy)
-  const [{ data: todayInvoices }, { data: lastActivity }] = await Promise.all([
+  const [{ data: todayInvoices }, { data: lastActivity }, { data: locRows }] = await Promise.all([
     supabaseAdmin.from('invoices').select('tenant_id, total, status').gte('created_at', todayStart),
     supabaseAdmin.rpc('tenant_last_activity'),
+    supabaseAdmin.from('locations').select('tenant_id').eq('active', true),
   ])
+
+  const locCount = {}
+  ;(locRows || []).forEach(l => { locCount[l.tenant_id] = (locCount[l.tenant_id] || 0) + 1 })
 
   const sales = {}
   ;(todayInvoices || []).forEach(i => {
@@ -60,22 +65,26 @@ export async function superTenantsList(req, res) {
     const st = getTenantStatus(t)
     return {
       ...t,
-      today_sales:    sales[t.id]?.total || 0,
-      today_invoices: sales[t.id]?.count || 0,
-      last_activity:  last[t.id] || null,
-      status:         st.ok ? 'active' : st.code,
+      today_sales:     sales[t.id]?.total || 0,
+      today_invoices:  sales[t.id]?.count || 0,
+      last_activity:   last[t.id] || null,
+      locations_count: locCount[t.id] || 0,
+      status:          st.ok ? 'active' : st.code,
     }
   }))
 }
 
 export async function superTenantsCreate(req, res) {
   const auth = await requireSuperAdmin(req, res); if (!auth) return
-  const { name, slug: rawSlug, license_start, license_end, admin } = req.body || {}
+  const { name, slug: rawSlug, license_start, license_end, admin, location } = req.body || {}
   if (!name?.trim()) return res.status(400).json({ error: 'El nombre es requerido' })
   if (!license_start || !license_end) return res.status(400).json({ error: 'license_start y license_end son requeridos' })
   if (license_end < license_start) return res.status(400).json({ error: 'license_end debe ser posterior a license_start' })
   if (admin && (!admin.name?.trim() || !/^\d{4}$/.test(admin.pin || ''))) {
     return res.status(400).json({ error: 'El admin inicial requiere nombre y PIN de 4 dígitos' })
+  }
+  if (location && !location.name?.trim()) {
+    return res.status(400).json({ error: 'El punto de venta inicial requiere nombre' })
   }
 
   const slug = slugify(rawSlug || name)
@@ -90,6 +99,15 @@ export async function superTenantsCreate(req, res) {
     return res.status(500).json({ error: error.message })
   }
 
+  // Sin al menos un punto de venta nadie puede iniciar sesión en la empresa
+  // (el login exige elegir punto), así que se crea junto con el tenant.
+  if (location) {
+    const address = location.address?.trim() || null
+    const { error: le } = await supabaseAdmin.from('locations')
+      .insert({ tenant_id: tenant.id, name: location.name.trim(), address, printer_config: defaultPrinterConfig(tenant.name, address) })
+    if (le) return res.status(500).json({ error: `Cliente creado pero falló el punto de venta: ${le.message}` })
+  }
+
   if (admin) {
     const { error: se } = await supabaseAdmin.from('sellers')
       .insert({ tenant_id: tenant.id, name: admin.name.trim(), pin: admin.pin, role: 'admin' })
@@ -97,6 +115,22 @@ export async function superTenantsCreate(req, res) {
   }
 
   return res.status(201).json({ tenant, link: `/c/${slug}` })
+}
+
+// Punto de venta para una empresa existente (rescata tenants creados sin puntos,
+// que de otro modo no pueden iniciar sesión para crearlos ellos mismos).
+export async function superTenantLocationCreate(req, res, tenantId) {
+  const auth = await requireSuperAdmin(req, res); if (!auth) return
+  const { name, address } = req.body || {}
+  if (!name?.trim()) return res.status(400).json({ error: 'El nombre es requerido' })
+  const { data: tenant } = await supabaseAdmin.from('tenants').select('id, name').eq('id', tenantId).single()
+  if (!tenant) return res.status(404).json({ error: 'Empresa no encontrada' })
+  const addr = address?.trim() || null
+  const { data, error } = await supabaseAdmin.from('locations')
+    .insert({ tenant_id: tenant.id, name: name.trim(), address: addr, printer_config: defaultPrinterConfig(tenant.name, addr) })
+    .select('id, name, address').single()
+  if (error) return res.status(500).json({ error: error.message })
+  return res.status(201).json(data)
 }
 
 export async function superTenantsPatch(req, res, id) {

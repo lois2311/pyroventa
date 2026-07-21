@@ -3,9 +3,12 @@ import { handleCors }    from './_lib/cors.js'
 import { requireAuth, requireAdmin } from './_lib/auth.js'
 import { signToken }       from './_lib/jwt.js'
 import { getTenantStatus } from './_lib/tenantStatus.js'
-import { superLogin, superTenantsList, superTenantsCreate, superTenantsPatch, superTenantAdminCreate, superMetrics } from './_lib/superRoutes.js'
+import { superLogin, superTenantsList, superTenantsCreate, superTenantsPatch, superTenantAdminCreate, superTenantLocationCreate, superMetrics } from './_lib/superRoutes.js'
+import { defaultPrinterConfig } from './_lib/printerConfig.js'
 import { parseRange, bogotaDayBounds } from './_lib/range.js'
 import { tenantOwns } from './_lib/tenantOwns.js'
+import { parseImageDataUrl, isAllowedImageUrl, imagePathFromUrl, ensureProductImagesBucket, PRODUCT_IMAGES_BUCKET } from './_lib/productImages.js'
+import { randomUUID } from 'node:crypto'
 
 // =====================================================
 // PyroVenta — API Router (catch-all)
@@ -41,6 +44,9 @@ export default async function handler(req, res) {
   if (segments[0] === 'super' && segments[1] === 'tenants' && segments[2] && segments[3] === 'admin' && method === 'POST') {
     return superTenantAdminCreate(req, res, segments[2])
   }
+  if (segments[0] === 'super' && segments[1] === 'tenants' && segments[2] && segments[3] === 'locations' && method === 'POST') {
+    return superTenantLocationCreate(req, res, segments[2])
+  }
   if (route === '/super/metrics' && method === 'GET')     return superMetrics(req, res)
 
   // ---- LOCATIONS ------------------------------------
@@ -53,8 +59,9 @@ export default async function handler(req, res) {
   if (route === '/products' && method === 'GET')   return productsGet(req, res)
   if (route === '/products' && method === 'POST')  return productsCreate(req, res)
   if (route === '/products/bulk' && method === 'POST') return productsBulk(req, res)
-  if (segments[0] === 'products' && segments[1] && segments[1] !== 'bulk' && method === 'PUT')    return productsUpdate(req, res, segments[1])
-  if (segments[0] === 'products' && segments[1] && segments[1] !== 'bulk' && method === 'DELETE') return productsDelete(req, res, segments[1])
+  if (route === '/products/upload-image' && method === 'POST') return productsUploadImage(req, res)
+  if (segments[0] === 'products' && segments[1] && !['bulk', 'upload-image'].includes(segments[1]) && method === 'PUT')    return productsUpdate(req, res, segments[1])
+  if (segments[0] === 'products' && segments[1] && !['bulk', 'upload-image'].includes(segments[1]) && method === 'DELETE') return productsDelete(req, res, segments[1])
 
   // ---- SELLERS --------------------------------------
   if (route === '/sellers' && method === 'GET')  return sellersGet(req, res)
@@ -204,9 +211,8 @@ async function locationsCreate(req, res) {
   const auth = await requireAdmin(req, res); if (!auth) return
   const { name, address, printer_config } = req.body || {}
   if (!name) return res.status(400).json({ error: 'El nombre es requerido' })
-  const defaultConfig = { printer_name: 'POS-80', paper_width: '80mm', chars_per_line: 48, header_lines: [auth.tenant.name.toUpperCase(), address || ''], footer_lines: ['¡Gracias por su compra!', 'Manipule con responsabilidad'], use_qz_tray: false }
   const { data, error } = await supabaseAdmin.from('locations')
-    .insert({ tenant_id: auth.tenantId, name, address, printer_config: printer_config || defaultConfig })
+    .insert({ tenant_id: auth.tenantId, name, address, printer_config: printer_config || defaultPrinterConfig(auth.tenant.name, address) })
     .select().single()
   if (error) return res.status(500).json({ error: error.message })
   return res.status(201).json(data)
@@ -238,9 +244,16 @@ async function locationsDelete(req, res, id) {
 async function productsGet(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
   const { location_id } = req.query
-  const { data: products, error } = await supabaseAdmin.from('products')
-    .select('id, name, description, active, categories(id, name, icon, sort_order), presentations(id, label, price, active)')
+  const selectProducts = (withImage) => supabaseAdmin.from('products')
+    .select(`id, name, description, ${withImage ? 'image_url, ' : ''}active, categories(id, name, icon, sort_order), presentations(id, label, price, active)`)
     .eq('tenant_id', auth.tenantId).eq('active', true).order('name')
+  let { data: products, error } = await selectProducts(productsHasImageColumn)
+  // Fallback pre-migración: si la columna image_url aún no existe, responder sin
+  // fotos y recordarlo para no pagar la doble query en cada request de la instancia.
+  if (error && productsHasImageColumn && isMissingImageColumn(error)) {
+    productsHasImageColumn = false
+    ;({ data: products, error } = await selectProducts(false))
+  }
   if (error) return res.status(500).json({ error: error.message })
   let result = products.map(p => ({ ...p, presentations: (p.presentations || []).filter(pr => pr.active) }))
   if (location_id) {
@@ -259,14 +272,29 @@ async function productsGet(req, res) {
   return res.status(200).json(result)
 }
 
+// Mensaje claro cuando la columna image_url aún no existe en la BD.
+// 42703 = undefined_column (Postgres), PGRST204 = columna ausente del schema cache (PostgREST).
+const IMAGE_MIGRATION_HINT = 'Falta la migración de fotos: ejecuta supabase/migrations/2026-07-20_product_images.sql en Supabase'
+const isMissingImageColumn = (e) => (e?.code === '42703' || e?.code === 'PGRST204') && /image_url/.test(e?.message || '')
+const imageErrMsg = (e) => isMissingImageColumn(e) ? IMAGE_MIGRATION_HINT : e.message
+// Se degrada una vez por instancia si la columna no existe; vuelve a true al reciclar la función
+let productsHasImageColumn = true
+
+function validateImageUrl(image_url, tenantId) {
+  // null = quitar foto; undefined = no tocar
+  if (image_url === undefined || image_url === null) return true
+  return isAllowedImageUrl(image_url, { supabaseUrl: process.env.SUPABASE_URL, tenantId })
+}
+
 async function productsCreate(req, res) {
   const auth = await requireAdmin(req, res); if (!auth) return
-  const { name, category_id, description, presentations = [] } = req.body || {}
+  const { name, category_id, description, image_url, presentations = [] } = req.body || {}
   if (!name) return res.status(400).json({ error: 'El nombre es requerido' })
   if (!(await tenantOwns('categories', category_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+  if (!validateImageUrl(image_url, auth.tenantId)) return res.status(400).json({ error: 'URL de imagen inválida' })
   const { data: product, error: pe } = await supabaseAdmin.from('products')
-    .insert({ tenant_id: auth.tenantId, name, category_id, description }).select().single()
-  if (pe) return res.status(500).json({ error: pe.message })
+    .insert({ tenant_id: auth.tenantId, name, category_id, description, ...(image_url ? { image_url } : {}) }).select().single()
+  if (pe) return res.status(500).json({ error: imageErrMsg(pe) })
   if (presentations.length > 0) {
     await supabaseAdmin.from('presentations')
       .insert(presentations.map(p => ({ tenant_id: auth.tenantId, product_id: product.id, label: p.label, price: p.price })))
@@ -278,15 +306,30 @@ async function productsCreate(req, res) {
 
 async function productsUpdate(req, res, id) {
   const auth = await requireAdmin(req, res); if (!auth) return
-  const { name, category_id, description, active, presentations } = req.body || {}
+  const { name, category_id, description, image_url, active, presentations } = req.body || {}
   if (category_id !== undefined && !(await tenantOwns('categories', category_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+  if (!validateImageUrl(image_url, auth.tenantId)) return res.status(400).json({ error: 'URL de imagen inválida' })
   const u = {}
   if (name !== undefined) u.name = name
   if (category_id !== undefined) u.category_id = category_id
   if (description !== undefined) u.description = description
+  if (image_url !== undefined) u.image_url = image_url
   if (active !== undefined) u.active = active
+  // Si la foto cambia o se quita, borrar el archivo anterior de Storage (best effort)
+  let oldImagePath = null
+  if (image_url !== undefined) {
+    const { data: cur } = await supabaseAdmin.from('products')
+      .select('image_url').eq('id', id).eq('tenant_id', auth.tenantId).single()
+    if (cur?.image_url && cur.image_url !== image_url) {
+      oldImagePath = imagePathFromUrl(cur.image_url, { supabaseUrl: process.env.SUPABASE_URL })
+    }
+  }
   if (Object.keys(u).length > 0) {
-    await supabaseAdmin.from('products').update(u).eq('id', id).eq('tenant_id', auth.tenantId)
+    const { error: ue } = await supabaseAdmin.from('products').update(u).eq('id', id).eq('tenant_id', auth.tenantId)
+    if (ue) return res.status(500).json({ error: imageErrMsg(ue) })
+  }
+  if (oldImagePath) {
+    await supabaseAdmin.storage.from(PRODUCT_IMAGES_BUCKET).remove([oldImagePath]).catch(() => {})
   }
   if (presentations) {
     await supabaseAdmin.from('presentations').delete().eq('product_id', id).eq('tenant_id', auth.tenantId)
@@ -317,6 +360,7 @@ async function productsBulk(req, res) {
     for (const pres of p.presentations) {
       if (!pres.label?.trim() || !pres.price || isNaN(pres.price) || pres.price <= 0) return res.status(400).json({ error: `"${p.name}": presentación inválida` })
     }
+    if (!validateImageUrl(p.image_url, auth.tenantId)) return res.status(400).json({ error: `"${p.name}": URL de imagen inválida` })
   }
   const catNames = [...new Set(products.map(p => p.category?.trim()).filter(Boolean))]
   const catMap = {}
@@ -335,19 +379,41 @@ async function productsBulk(req, res) {
   const results = { created: 0, skipped: 0, errors: [] }
   for (const p of products) {
     const cid = p.category?.trim() ? catMap[p.category.trim().toLowerCase()] || null : null
+    // Escapar comodines de ILIKE para comparar el nombre literal
     const { data: ex } = await supabaseAdmin.from('products')
-      .select('id').eq('tenant_id', auth.tenantId).ilike('name', p.name.trim()).limit(1)
+      .select('id').eq('tenant_id', auth.tenantId).ilike('name', p.name.trim().replace(/([%_\\])/g, '\\$1')).limit(1)
     if (ex?.length) { results.skipped++; continue }
     const { data: np, error: pe } = await supabaseAdmin.from('products')
-      .insert({ tenant_id: auth.tenantId, name: p.name.trim(), category_id: cid, description: p.description?.trim() || null, active: true })
+      .insert({ tenant_id: auth.tenantId, name: p.name.trim(), category_id: cid, description: p.description?.trim() || null, ...(p.image_url ? { image_url: p.image_url } : {}), active: true })
       .select('id').single()
-    if (pe) { results.errors.push(`"${p.name}": ${pe.message}`); continue }
+    if (pe) { results.errors.push(`"${p.name}": ${imageErrMsg(pe)}`); continue }
     const { error: pre } = await supabaseAdmin.from('presentations')
       .insert(p.presentations.map(pr => ({ tenant_id: auth.tenantId, product_id: np.id, label: pr.label.trim(), price: Number(pr.price), active: true })))
     if (pre) { results.errors.push(`"${p.name}" pres: ${pre.message}`); continue }
     results.created++
   }
   return res.status(200).json({ message: `${results.created} creado(s), ${results.skipped} omitido(s)`, ...results })
+}
+
+// Sube una foto de producto (data URL base64, ya comprimida por el cliente)
+// al bucket público product-images bajo la carpeta del tenant.
+async function productsUploadImage(req, res) {
+  const auth = await requireAdmin(req, res); if (!auth) return
+  const { data } = req.body || {}
+  const parsed = parseImageDataUrl(data)
+  if (!parsed) return res.status(400).json({ error: 'Imagen inválida: se espera webp/jpeg/png en base64, máximo 2MB' })
+  try {
+    await ensureProductImagesBucket(supabaseAdmin)
+  } catch (err) {
+    return res.status(500).json({ error: `No se pudo preparar el almacenamiento de fotos: ${err.message}` })
+  }
+  const path = `${auth.tenantId}/${randomUUID()}.${parsed.ext}`
+  const { error: upErr } = await supabaseAdmin.storage
+    .from(PRODUCT_IMAGES_BUCKET)
+    .upload(path, parsed.buffer, { contentType: parsed.mime, cacheControl: '31536000', upsert: false })
+  if (upErr) return res.status(500).json({ error: `Error subiendo la imagen: ${upErr.message}` })
+  const { data: pub } = supabaseAdmin.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path)
+  return res.status(201).json({ url: pub.publicUrl })
 }
 
 // =====================================================

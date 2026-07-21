@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuthStore }    from '../store/authStore.js'
-import { api }             from '../lib/api.js'
+import { api, clearProductsCache } from '../lib/api.js'
 import { formatCOP, formatDate, formatDateShort } from '../lib/format.js'
 import Topbar              from '../components/Topbar.jsx'
 import DailyMetrics        from '../components/DailyMetrics.jsx'
@@ -581,7 +581,11 @@ function ProductosTab() {
           {products.map(p => (
             <div key={p.id} className={`card bg-surface-300 ${!p.active ? 'opacity-50' : ''}`}>
               <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                <span className="hidden sm:block">{p.categories?.icon || '🎆'}</span>
+                {p.image_url ? (
+                  <img src={p.image_url} alt={p.name} loading="lazy" crossOrigin="anonymous" className="hidden sm:block w-10 h-10 rounded-lg object-cover border border-white/10 shrink-0" />
+                ) : (
+                  <span className="hidden sm:block">{p.categories?.icon || '🎆'}</span>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-white">{p.name}</p>
                   <p className="text-xs text-gray-500">{p.categories?.name}</p>
@@ -625,6 +629,22 @@ function ProductForm({ product, onClose, onSave }) {
     (product?.presentations || []).map(p => ({ label: p.label, price: String(p.price) }))
   )
   const [saving, setSaving] = useState(false)
+  // Foto: url existente, File nuevo pendiente de subir, o null explícito (quitar)
+  const [imageUrl,  setImageUrl]  = useState(product?.image_url || null)
+  const [imageFile, setImageFile] = useState(null)
+  const photoRef = useRef(null)
+
+  const filePreview = useMemo(() => imageFile ? URL.createObjectURL(imageFile) : null, [imageFile])
+  useEffect(() => () => { if (filePreview) URL.revokeObjectURL(filePreview) }, [filePreview])
+  const photoPreview = filePreview || imageUrl
+
+  const handlePhoto = (e) => {
+    const file = e.target.files?.[0]
+    if (file) setImageFile(file)
+    if (photoRef.current) photoRef.current.value = ''
+  }
+
+  const removePhoto = () => { setImageFile(null); setImageUrl(null) }
 
   const addPres = () => setPresentations(p => [...p, { label: '', price: '' }])
   const updatePres = (i, field, val) => setPresentations(p =>
@@ -638,11 +658,20 @@ function ProductForm({ product, onClose, onSave }) {
     setSaving(true)
     const presToSave = presentations.map(p => ({ label: p.label, price: Number(p.price) }))
     try {
-      if (product?.id) {
-        await api.put(`/products/${product.id}`, { name, category_id: catId || null, description: desc, presentations: presToSave })
-      } else {
-        await api.post('/products', { name, category_id: catId || null, description: desc, presentations: presToSave })
+      let finalImageUrl = imageUrl
+      if (imageFile) {
+        const { uploadProductImage } = await import('../lib/imageCompress.js')
+        finalImageUrl = await uploadProductImage(imageFile)
       }
+      const body = { name, category_id: catId || null, description: desc, presentations: presToSave }
+      // Solo enviar image_url si cambió (evita tocar la columna en BDs sin la migración)
+      if (finalImageUrl !== (product?.image_url ?? null)) body.image_url = finalImageUrl
+      if (product?.id) {
+        await api.put(`/products/${product.id}`, body)
+      } else {
+        await api.post('/products', body)
+      }
+      clearProductsCache() // que el POS vea el cambio sin esperar el TTL
       onSave()
     } catch (err) { toastError(err.message) }
     finally { setSaving(false) }
@@ -654,6 +683,26 @@ function ProductForm({ product, onClose, onSave }) {
         <h3 className="font-syne font-semibold text-white">{product ? 'Editar producto' : 'Nuevo producto'}</h3>
         <input placeholder="Nombre del producto" value={name} onChange={e => setName(e.target.value)} className="input" />
         <input placeholder="Descripción (opcional)" value={desc} onChange={e => setDesc(e.target.value)} className="input" />
+
+        {/* Foto del producto */}
+        <div className="flex items-center gap-3">
+          {photoPreview ? (
+            <img src={photoPreview} alt={`Foto de ${name || 'producto'}`} className="w-14 h-14 rounded-lg object-cover border border-white/10" />
+          ) : (
+            <span className="w-14 h-14 rounded-lg bg-surface-400 flex items-center justify-center text-xl">🎆</span>
+          )}
+          <div className="flex flex-col gap-1">
+            <label className="btn btn-ghost btn-sm border border-white/10 cursor-pointer text-xs">
+              📷 {photoPreview ? 'Cambiar foto' : 'Agregar foto'}
+              <input ref={photoRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
+            </label>
+            {photoPreview && (
+              <button onClick={removePhoto} className="btn btn-ghost btn-sm text-xs text-gray-400 hover:text-red-400">
+                Quitar foto
+              </button>
+            )}
+          </div>
+        </div>
 
         <div>
           <div className="flex items-center justify-between mb-2">

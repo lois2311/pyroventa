@@ -1,12 +1,19 @@
+import { useState, useEffect } from 'react'
 import { useCartStore } from '../store/cartStore.js'
 import { formatCOP }    from '../lib/format.js'
 
 export default function ProductCard({ product }) {
   const addItem = useCartStore(s => s.addItem)
   const items   = useCartStore(s => s.items)
+  const [imgFailed, setImgFailed] = useState(false)
+
+  // Reintentar si la URL cambia (foto corregida) tras un fallo de carga
+  useEffect(() => { setImgFailed(false) }, [product.image_url])
 
   const presentations = (product.presentations || []).filter(p => p.active !== false)
   if (!presentations.length) return null
+
+  const showImage = product.image_url && !imgFailed
 
   const handleAdd = (pres) => {
     addItem({
@@ -22,9 +29,21 @@ export default function ProductCard({ product }) {
 
   return (
     <div className="card bg-surface-300 hover:border-white/10 transition-all duration-150">
+      {/* Foto */}
+      {showImage && (
+        <img
+          src={product.image_url}
+          alt={product.name}
+          loading="lazy"
+          crossOrigin="anonymous"
+          onError={() => setImgFailed(true)}
+          className="w-full h-24 object-cover rounded-lg mb-3 border border-white/5"
+        />
+      )}
+
       {/* Cabecera */}
       <div className="flex items-start gap-2 mb-3">
-        <span className="text-xl shrink-0">{product.categories?.icon || '🎆'}</span>
+        {!showImage && <span className="text-xl shrink-0">{product.categories?.icon || '🎆'}</span>}
         <div className="min-w-0">
           <h3 className="font-medium text-white text-sm leading-tight">{product.name}</h3>
           {product.categories?.name && (

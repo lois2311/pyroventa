@@ -25,6 +25,17 @@ export default defineConfig({
             },
           },
           {
+            // Fotos de productos (Supabase Storage) — inmutables (nombre UUID)
+            urlPattern: /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/product-images\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'product-images',
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 30 }, // 30 días
+              // status 0 = respuesta opaca (img sin CORS) — sin esto no se cachearía nada
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // API de productos — stale-while-revalidate
             urlPattern: /\/api\/products/,
             handler: 'StaleWhileRevalidate',

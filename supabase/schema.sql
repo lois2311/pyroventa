@@ -83,6 +83,7 @@ CREATE TABLE products (
   name        TEXT NOT NULL,
   category_id UUID REFERENCES categories(id),
   description TEXT,
+  image_url   TEXT, -- foto en Storage (bucket product-images, ruta {tenant_id}/...)
   active      BOOLEAN NOT NULL DEFAULT true,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

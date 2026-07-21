@@ -114,6 +114,28 @@ Las políticas ya están incluidas en el `schema.sql`. Verifica en:
 - `anon` puede hacer SELECT en `locations`, `categories`, `products`, `presentations`
 - Todo lo demás requiere la service key (usada solo en serverless functions)
 
+### Paso 5: Fotos de productos (Storage)
+
+Los productos pueden tener foto (carga individual o masiva vía Excel).
+
+1. Si tu base de datos es anterior a esta funcionalidad, ejecuta en el SQL Editor
+   [`supabase/migrations/2026-07-20_product_images.sql`](./supabase/migrations/2026-07-20_product_images.sql)
+   (solo agrega la columna `products.image_url`; el `schema.sql` completo ya la incluye)
+2. Crea el bucket de Storage ejecutando:
+
+```bash
+node scripts/setup-product-images.mjs
+```
+
+Esto crea el bucket público `product-images` (máx 2MB por foto, webp/jpeg/png) y
+verifica la columna. La API también crea el bucket automáticamente en el primer upload.
+
+**Carga masiva con fotos:** la plantilla Excel tiene una columna opcional `Imagen` con el
+nombre del archivo de la foto (ej: `volcan.jpg`). En la vista previa de importación se
+adjuntan las fotos: se emparejan por esa columna o por el nombre del producto
+(sin importar tildes, mayúsculas o guiones), y se comprimen en el navegador
+(WebP, máx 800px) antes de subirse a Storage bajo la carpeta del tenant.
+
 ---
 
 ## Configuración de impresión térmica

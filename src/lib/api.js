@@ -127,6 +127,11 @@ export function clearProductsCache(locationId) {
       .filter(k => k.startsWith('pv_products_'))
       .forEach(k => localStorage.removeItem(k))
   }
+  // También el cache del service worker (stale-while-revalidate serviría el
+  // catálogo viejo y volvería a poblar localStorage con datos pre-cambio)
+  if (typeof caches !== 'undefined') {
+    caches.delete('api-products').catch(() => {})
+  }
 }
 
 // ---- Caché genérico para locations, registers, etc. ----

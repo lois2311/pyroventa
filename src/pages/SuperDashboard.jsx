@@ -30,6 +30,8 @@ function NewTenantModal({ onClose, onCreated }) {
   const [end,    setEnd]    = useState('')
   const [adminName, setAdminName] = useState('')
   const [adminPin,  setAdminPin]  = useState('')
+  const [locName,    setLocName]    = useState('Principal')
+  const [locAddress, setLocAddress] = useState('')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState(null)
   const [created, setCreated] = useState(null) // { tenant, link }
@@ -41,6 +43,7 @@ function NewTenantModal({ onClose, onCreated }) {
     try {
       const body = { name, slug, license_start: start, license_end: end }
       if (adminName.trim()) body.admin = { name: adminName.trim(), pin: adminPin }
+      if (locName.trim())   body.location = { name: locName.trim(), address: locAddress.trim() || undefined }
       const data = await superApi.post('/super/tenants', body)
       setCreated(data)
       onCreated()
@@ -88,6 +91,16 @@ function NewTenantModal({ onClose, onCreated }) {
               </div>
             </div>
             <div className="border-t border-white/10 pt-4">
+              <p className="text-gray-400 text-sm mb-1">Primer punto de venta</p>
+              <p className="text-gray-500 text-xs mb-3">Sin al menos un punto de venta, nadie puede iniciar sesión en la empresa.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <input value={locName} onChange={e => setLocName(e.target.value)} placeholder="Nombre (ej: Principal)"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+                <input value={locAddress} onChange={e => setLocAddress(e.target.value)} placeholder="Dirección (opcional)"
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+              </div>
+            </div>
+            <div className="border-t border-white/10 pt-4">
               <p className="text-gray-400 text-sm mb-3">Primer administrador (opcional)</p>
               <div className="grid grid-cols-2 gap-3">
                 <input value={adminName} onChange={e => setAdminName(e.target.value)} placeholder="Nombre"
@@ -123,6 +136,51 @@ function NewTenantModal({ onClose, onCreated }) {
             <button onClick={onClose} className="btn btn-primary w-full">Listo</button>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ---- Nuevo punto de venta para una empresa existente ------
+function AddLocationModal({ tenant, onClose, onCreated }) {
+  const [name,    setName]    = useState(tenant.locations_count === 0 ? 'Principal' : '')
+  const [address, setAddress] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState(null)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true); setError(null)
+    try {
+      await superApi.post(`/super/tenants/${tenant.id}/locations`, { name, address: address.trim() || undefined })
+      onCreated()
+      onClose()
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[1100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="card bg-surface-300 border-white/10 p-6 w-full max-w-md">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <h2 className="font-syne text-lg font-bold text-white">Nuevo punto de venta</h2>
+          <p className="text-gray-400 text-sm">Para <span className="text-white">{tenant.name}</span></p>
+          <input value={name} onChange={e => setName(e.target.value)} required autoFocus
+            placeholder="Nombre (ej: Principal, Stand Norte)"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+          <input value={address} onChange={e => setAddress(e.target.value)}
+            placeholder="Dirección (opcional)"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="btn btn-ghost flex-1">Cancelar</button>
+            <button type="submit" disabled={loading || !name.trim()} className="btn btn-primary flex-1">
+              {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Crear'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )
@@ -224,6 +282,7 @@ export default function SuperDashboard() {
   const navigate = useNavigate()
   const [tenants, setTenants] = useState(null)
   const [showNew, setShowNew] = useState(false)
+  const [locTenant, setLocTenant] = useState(null) // tenant al que se le agrega punto de venta
   const [error,   setError]   = useState(null)
 
   const load = useCallback(async () => {
@@ -282,12 +341,18 @@ export default function SuperDashboard() {
               <div key={t.id} className="card bg-surface-300 border-white/8 p-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-white truncate">{t.name}</p>
                       <StatusChip status={t.status} />
+                      {t.locations_count === 0 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
+                          Sin puntos de venta — no pueden ingresar
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       /c/{t.slug}
+                      {` · ${t.locations_count} punto${t.locations_count === 1 ? '' : 's'} de venta`}
                       {t.last_activity && ` · última venta: ${new Date(t.last_activity).toLocaleString('es-CO')}`}
                     </p>
                   </div>
@@ -295,6 +360,13 @@ export default function SuperDashboard() {
                     <p className="text-white font-semibold">{formatCOP(t.today_sales)}</p>
                     <p className="text-xs text-gray-500">{t.today_invoices} facturas hoy</p>
                   </div>
+                  <button
+                    onClick={() => setLocTenant(t)}
+                    className="btn btn-ghost btn-sm"
+                    title="Agregar punto de venta"
+                  >
+                    <Plus className="w-4 h-4" /> Punto
+                  </button>
                   <button
                     onClick={() => toggleActive(t)}
                     className={`btn btn-sm ${t.active ? 'btn-ghost text-red-400' : 'btn-primary'}`}
@@ -316,6 +388,7 @@ export default function SuperDashboard() {
       </div>
 
       {showNew && <NewTenantModal onClose={() => setShowNew(false)} onCreated={load} />}
+      {locTenant && <AddLocationModal tenant={locTenant} onClose={() => setLocTenant(null)} onCreated={load} />}
     </div>
   )
 }
