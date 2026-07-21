@@ -6,6 +6,7 @@ import { getTenantStatus, bogotaDate } from './tenantStatus.js'
 import { slugify } from './slug.js'
 import { parseRange, bogotaDayBounds } from './range.js'
 import { defaultPrinterConfig } from './printerConfig.js'
+import { clientIp, rejectIfLocked, recordFailedAttempt, clearAttempts } from './loginLock.js'
 
 // =====================================================
 // PyroVenta — Rutas del super admin (plataforma)
@@ -19,6 +20,9 @@ export async function superLogin(req, res) {
   const { email, password } = req.body || {}
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' })
 
+  const lockKey = `super:${String(email).toLowerCase().trim()}:${clientIp(req)}`
+  if (await rejectIfLocked(supabaseAdmin, lockKey, res)) return
+
   const { data: sa } = await supabaseAdmin
     .from('super_admins').select('id, email, password_hash')
     .eq('email', String(email).toLowerCase().trim()).single()
@@ -26,8 +30,10 @@ export async function superLogin(req, res) {
   const hash = sa?.password_hash || DUMMY_HASH
   const valid = bcrypt.compareSync(password, hash)
   if (!sa || !valid) {
+    await recordFailedAttempt(supabaseAdmin, lockKey)
     return res.status(401).json({ error: 'Credenciales inválidas' })
   }
+  await clearAttempts(supabaseAdmin, lockKey)
 
   const token = await signToken({ role: 'super_admin', superAdminId: sa.id }, '24h')
   return res.status(200).json({ token, email: sa.email })

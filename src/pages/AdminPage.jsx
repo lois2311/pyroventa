@@ -838,6 +838,83 @@ function CajasTab({ locations }) {
           onSave={() => { fetch(); setShowForm(false) }}
         />
       )}
+
+      <ClosuresSection locations={locations} />
+    </div>
+  )
+}
+
+// ---- Cierres de caja (arqueos) ---------------------------
+function ClosuresSection({ locations }) {
+  const { error: toastError } = useToast()
+  const hoy = toISO(new Date())
+  const [from, setFrom] = useState(hoy)
+  const [to,   setTo]   = useState(hoy)
+  const [locFilter, setLocFilter] = useState('')
+  const [closures, setClosures] = useState(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams({ from, to })
+    if (locFilter) params.set('location_id', locFilter)
+    api.get(`/closures?${params.toString()}`)
+      .then(d => setClosures(d || []))
+      .catch(err => { setClosures([]); toastError(err.message) })
+  }, [from, to, locFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const locName = (id) => locations.find(l => l.id === id)?.name || ''
+
+  return (
+    <div className="pt-6 border-t border-white/5 space-y-3">
+      <h3 className="font-syne font-semibold text-white">🧾 Cierres de caja</h3>
+      <div className="flex items-end gap-2 flex-wrap">
+        <DateRangeBar from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
+          <select value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input w-44 text-sm">
+            <option value="">Todos</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {!closures ? (
+        <div className="space-y-2">{[1, 2].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>
+      ) : closures.length === 0 ? (
+        <p className="text-xs text-gray-400">Sin cierres en el rango. La cajera cierra su caja desde la pantalla de Caja (botón 🧾 Cerrar caja).</p>
+      ) : (
+        <div className="space-y-1.5">
+          {closures.map(c => {
+            const diff = Number(c.difference)
+            return (
+              <div key={c.id} className="card bg-surface-300 py-2.5">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <div className="flex-1 min-w-[140px]">
+                    <p className="text-sm text-white font-medium">🖥 {c.register_name || 'Sin caja'}</p>
+                    <p className="text-[10px] text-gray-400">
+                      {c.business_date} · {locName(c.location_id)} · {c.cashier_name}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-500">Esperado</p>
+                    <p className="font-mono text-xs text-gray-300">{formatCOP(c.expected_cash)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-500">Contado</p>
+                    <p className="font-mono text-xs text-white">{formatCOP(c.declared_cash)}</p>
+                  </div>
+                  <div className="text-right w-24">
+                    <p className="text-[10px] text-gray-500">Diferencia</p>
+                    <p className={`font-mono text-sm font-bold ${diff === 0 ? 'text-green-400' : diff > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {diff > 0 ? '+' : ''}{formatCOP(diff)}
+                    </p>
+                  </div>
+                </div>
+                {c.notes && <p className="text-[10px] text-gray-400 italic mt-1.5">📝 {c.notes}</p>}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -914,9 +991,20 @@ function HistorialTab({ locations }) {
     pending:   'badge-pending',
     paid:      'badge-paid',
     cancelled: 'badge-cancelled',
+    refunded:  'badge-cancelled',
   }
-  const STATUS_LABEL  = { pending: 'Pendiente', paid: 'Pagada', cancelled: 'Cancelada' }
+  const STATUS_LABEL  = { pending: 'Pendiente', paid: 'Pagada', cancelled: 'Cancelada', refunded: 'Devuelta' }
   const METHOD_LABEL  = { cash: 'Efectivo', transfer: 'Transferencia', card: 'Datáfono' }
+
+  const handleRefund = async (inv) => {
+    const reason = window.prompt(`Motivo de la devolución de la factura #${inv.code} (${formatCOP(inv.total)}):`)
+    if (reason === null) return
+    if (!reason.trim()) return toastError('El motivo es requerido')
+    try {
+      await api.post(`/invoices/${inv.id}/refund`, { reason: reason.trim() })
+      fetchInvoices()
+    } catch (err) { toastError(err.message) }
+  }
 
   const fetchInvoices = useCallback(() => {
     setLoading(true)
@@ -956,6 +1044,7 @@ function HistorialTab({ locations }) {
             <option value="paid">Pagadas</option>
             <option value="pending">Pendientes</option>
             <option value="cancelled">Canceladas</option>
+            <option value="refunded">Devueltas</option>
           </select>
         </div>
         <button onClick={fetchInvoices} className="btn btn-ghost border border-white/10">↻</button>
@@ -1016,6 +1105,12 @@ function HistorialTab({ locations }) {
                       </div>
                     ))}
                   </div>
+                  {Number(inv.discount) > 0 && (
+                    <div className="flex justify-between mt-2 text-xs">
+                      <span className="text-amber-400">🏷 Descuento</span>
+                      <span className="font-mono text-amber-400">−{formatCOP(inv.discount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between mt-3 pt-2 border-t border-white/5">
                     <span className="font-semibold text-white text-sm">Total</span>
                     <span className="font-mono font-bold text-brand-400">{formatCOP(inv.total)}</span>
@@ -1026,10 +1121,23 @@ function HistorialTab({ locations }) {
                   {inv.edited_at && (
                     <p className="text-[10px] text-yellow-500/70 mt-1">✏️ Editada: {formatDate(inv.edited_at)}</p>
                   )}
+                  {inv.status === 'refunded' && (
+                    <div className="mt-2 bg-red-500/10 rounded-lg px-2 py-1.5 border border-red-500/20">
+                      <p className="text-[10px] text-red-400">↩ Devuelta{inv.refunded_at ? `: ${formatDate(inv.refunded_at)}` : ''}</p>
+                      {inv.refund_reason && <p className="text-xs text-red-300 italic">"{inv.refund_reason}"</p>}
+                    </div>
+                  )}
                   {inv.observations && (
                     <div className="mt-2 bg-surface-300 rounded-lg px-2 py-1.5 border border-white/5">
                       <p className="text-[10px] text-gray-500">📝 Observaciones:</p>
                       <p className="text-xs text-gray-300 italic">{inv.observations}</p>
+                    </div>
+                  )}
+                  {inv.status === 'paid' && (
+                    <div className="mt-3 pt-2 border-t border-white/5 flex justify-end">
+                      <button onClick={() => handleRefund(inv)} className="btn btn-ghost btn-sm text-xs text-red-400 border border-red-500/20">
+                        ↩ Registrar devolución
+                      </button>
                     </div>
                   )}
                 </div>

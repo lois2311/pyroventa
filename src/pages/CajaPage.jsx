@@ -9,6 +9,8 @@ import InvoiceDetail   from '../components/InvoiceDetail.jsx'
 import PaymentMethods  from '../components/PaymentMethods.jsx'
 import PrintButton     from '../components/PrintButton.jsx'
 import EditInvoiceModal from '../components/EditInvoiceModal.jsx'
+import CloseRegisterModal from '../components/CloseRegisterModal.jsx'
+import RefundModal     from '../components/RefundModal.jsx'
 import { useToast }    from '../components/Toast.jsx'
 import { formatCOP }   from '../lib/format.js'
 
@@ -55,6 +57,10 @@ function PaidOverlay({ invoice, onDone }) {
           {invoice?.code}
         </div>
         <p className="font-syne font-bold text-xl sm:text-3xl text-white mb-2">{formatCOP(invoice?.total)}</p>
+
+        {Number(invoice?.discount) > 0 && (
+          <p className="text-xs text-amber-400 mb-2">🏷 Descuento aplicado: −{formatCOP(invoice.discount)}</p>
+        )}
 
         {invoice?.register_name && (
           <p className="text-xs text-gray-500 mb-2">🖥 {invoice.register_name}</p>
@@ -176,6 +182,10 @@ export default function CajaPage() {
   const [editing,      setEditing]      = useState(false)
   const [observations, setObservations] = useState('')
   const [changingReg,  setChangingReg]  = useState(false) // cambiar caja
+  const [closingReg,   setClosingReg]   = useState(false) // cierre de caja (arqueo)
+  const [refunding,    setRefunding]    = useState(false) // devolución
+  const [discountStr,  setDiscountStr]  = useState('')    // descuento al cobrar
+  const [cashReceived, setCashReceived] = useState('')    // con cuánto paga (efectivo)
 
   const canEdit = seller?.role === 'cashier' || seller?.role === 'admin'
   const needsRegister = !register && !changingReg
@@ -252,6 +262,7 @@ export default function CajaPage() {
   const handleSearch = async () => {
     if (code.length !== 4 || !location?.id) return
     setSearching(true); setNotFound(false); setInvoice(null); setPayMethod(null); setObservations('')
+    setDiscountStr(''); setCashReceived('')
     try {
       const data = await api.get(`/invoices/${code}?location_id=${location.id}`)
       setInvoice(data)
@@ -266,7 +277,13 @@ export default function CajaPage() {
   const handleSelectPending = (inv) => {
     setCode(inv.code); setInvoice(inv); setPayMethod(null)
     setNotFound(false); setObservations(inv.observations || ''); setMobileTab('pagar')
+    setDiscountStr(''); setCashReceived('')
   }
+
+  // Total a cobrar con el descuento aplicado
+  const discountNum = Number(discountStr) || 0
+  const invalidDiscount = invoice && (discountNum < 0 || discountNum > Number(invoice.total))
+  const totalToPay = invoice ? Math.max(0, Number(invoice.total) - (invalidDiscount ? 0 : discountNum)) : 0
 
   const handleInvoiceSaved = (updatedInvoice) => {
     setInvoice(updatedInvoice); updatePending(updatedInvoice.id, updatedInvoice); setEditing(false)
@@ -275,6 +292,7 @@ export default function CajaPage() {
   // ---- Cobrar --------------------------------------------
   const handlePay = async () => {
     if (!invoice || !payMethod) return
+    if (invalidDiscount) return toastError('El descuento no puede superar el total')
     setPaying(true)
     try {
       const paid = await api.post(`/invoices/${invoice.code}/pay`, {
@@ -283,10 +301,12 @@ export default function CajaPage() {
         observations:  observations.trim() || undefined,
         register_id:   register?.id || undefined,
         register_name: register?.name || undefined,
+        ...(discountNum > 0 ? { discount: discountNum } : {}),
       })
       removePending(paid.id)
       setPaidInv(paid)
       setInvoice(null); setCode(''); setPayMethod(null); setObservations(''); setMobileTab('cobrar')
+      setDiscountStr(''); setCashReceived('')
       toastSuccess(`Factura #${paid.code} cobrada · ${register?.name || 'Sin caja'}`)
     } catch (err) {
       toastError(err.message || 'Error al cobrar la factura')
@@ -341,7 +361,7 @@ export default function CajaPage() {
       {/* Central: buscar + detalle */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto p-5 lg:p-6">
         {/* Badge de caja activa */}
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
           <span className="text-xs bg-surface-300 border border-white/5 rounded-lg px-2.5 py-1.5 text-gray-400 flex items-center gap-1.5">
             🖥 <span className="text-white font-medium">{register?.name || 'Sin caja'}</span>
           </span>
@@ -351,6 +371,17 @@ export default function CajaPage() {
           >
             Cambiar caja
           </button>
+          <div className="flex-1" />
+          {canEdit && (
+            <button onClick={() => setRefunding(true)} className="btn btn-ghost btn-sm text-xs border border-white/10">
+              ↩ Devolución
+            </button>
+          )}
+          {canEdit && (
+            <button onClick={() => setClosingReg(true)} className="btn btn-ghost btn-sm text-xs border border-white/10">
+              🧾 Cerrar caja
+            </button>
+          )}
         </div>
 
         <div className="mb-6 max-w-md">
@@ -404,14 +435,25 @@ export default function CajaPage() {
         {invoice ? (
           <div className="flex-1 flex flex-col gap-4">
             <div>
+              <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Descuento en $ (opcional)</label>
+              <input type="number" inputMode="numeric" min="0" value={discountStr}
+                onChange={e => setDiscountStr(e.target.value)}
+                placeholder="0" className="input text-sm font-mono" />
+              {invalidDiscount && <p className="text-xs text-red-400 mt-1">No puede superar {formatCOP(invoice.total)}</p>}
+              {!invalidDiscount && discountNum > 0 && (
+                <p className="text-xs text-green-400 mt-1">Nuevo total: {formatCOP(totalToPay)}</p>
+              )}
+            </div>
+            <div>
               <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Observaciones (opcional)</label>
               <textarea value={observations} onChange={e => setObservations(e.target.value)}
                 placeholder="Ej: Se obsequió producto x con autorización del jefe"
                 rows={2} className="input text-xs resize-none" />
             </div>
             <div className="flex-1" />
-            <PaymentMethods total={invoice.total} selected={payMethod}
-              onSelect={setPayMethod} onConfirm={handlePay} loading={paying} />
+            <PaymentMethods total={totalToPay} selected={payMethod}
+              onSelect={setPayMethod} onConfirm={handlePay} loading={paying}
+              cashReceived={cashReceived} onCashReceived={setCashReceived} />
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-center">
@@ -446,7 +488,7 @@ export default function CajaPage() {
         {mobileTab === 'cobrar' && (
           <div className="p-4 space-y-4">
             {/* Badge de caja activa */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs bg-surface-300 border border-white/5 rounded-lg px-2.5 py-1.5 text-gray-400 flex items-center gap-1.5">
                 🖥 <span className="text-white font-medium">{register?.name || 'Sin caja'}</span>
               </span>
@@ -454,6 +496,13 @@ export default function CajaPage() {
                 className="text-[10px] text-gray-400 hover:text-brand-400 transition-colors">
                 Cambiar
               </button>
+              <div className="flex-1" />
+              {canEdit && (
+                <button onClick={() => setRefunding(true)} className="btn btn-ghost btn-sm text-xs border border-white/10">↩</button>
+              )}
+              {canEdit && (
+                <button onClick={() => setClosingReg(true)} className="btn btn-ghost btn-sm text-xs border border-white/10">🧾 Cierre</button>
+              )}
             </div>
 
             <div>
@@ -501,9 +550,21 @@ export default function CajaPage() {
               <div className="space-y-4">
                 <div className="card bg-surface-400 text-center">
                   <p className="font-mono font-bold text-brand-400 text-2xl tracking-[0.2em] mb-1">#{invoice.code}</p>
-                  <p className="font-syne font-bold text-lg text-white">{formatCOP(invoice.total)}</p>
+                  <p className="font-syne font-bold text-lg text-white">
+                    {formatCOP(totalToPay)}
+                    {discountNum > 0 && !invalidDiscount && (
+                      <span className="text-xs text-gray-500 line-through ml-2">{formatCOP(invoice.total)}</span>
+                    )}
+                  </p>
                   <p className="text-xs text-gray-400 mt-1">{invoice.seller_name}</p>
                   {canEdit && <button onClick={() => setEditing(true)} className="text-[10px] text-brand-400 mt-2">✏️ Editar items</button>}
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Descuento en $ (opcional)</label>
+                  <input type="number" inputMode="numeric" min="0" value={discountStr}
+                    onChange={e => setDiscountStr(e.target.value)}
+                    placeholder="0" className="input text-sm font-mono" />
+                  {invalidDiscount && <p className="text-xs text-red-400 mt-1">No puede superar {formatCOP(invoice.total)}</p>}
                 </div>
                 <div>
                   <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Observaciones (opcional)</label>
@@ -511,8 +572,9 @@ export default function CajaPage() {
                     placeholder="Ej: Se obsequió producto x con autorización del jefe"
                     rows={2} className="input text-xs resize-none" />
                 </div>
-                <PaymentMethods total={invoice.total} selected={payMethod}
-                  onSelect={setPayMethod} onConfirm={handlePay} loading={paying} />
+                <PaymentMethods total={totalToPay} selected={payMethod}
+                  onSelect={setPayMethod} onConfirm={handlePay} loading={paying}
+                  cashReceived={cashReceived} onCashReceived={setCashReceived} />
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-40 text-gray-500 text-center">
@@ -553,6 +615,12 @@ export default function CajaPage() {
         <EditInvoiceModal invoice={invoice} productImages={productImages} onClose={() => setEditing(false)} onSaved={handleInvoiceSaved} />
       )}
       {paidInv && <PaidOverlay invoice={paidInv} onDone={() => setPaidInv(null)} />}
+      {closingReg && (
+        <CloseRegisterModal register={register} location={location} onClose={() => setClosingReg(false)} />
+      )}
+      {refunding && (
+        <RefundModal location={location} onClose={() => setRefunding(false)} />
+      )}
     </div>
   )
 }

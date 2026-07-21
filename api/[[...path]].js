@@ -8,6 +8,8 @@ import { defaultPrinterConfig } from './_lib/printerConfig.js'
 import { parseRange, bogotaDayBounds } from './_lib/range.js'
 import { tenantOwns } from './_lib/tenantOwns.js'
 import { parseImageDataUrl, isAllowedImageUrl, imagePathFromUrl, ensureProductImagesBucket, PRODUCT_IMAGES_BUCKET } from './_lib/productImages.js'
+import { clientIp, rejectIfLocked, recordFailedAttempt, clearAttempts } from './_lib/loginLock.js'
+import { bogotaDate } from './_lib/tenantStatus.js'
 import { randomUUID } from 'node:crypto'
 
 // =====================================================
@@ -17,6 +19,17 @@ import { randomUUID } from 'node:crypto'
 // =====================================================
 
 export default async function handler(req, res) {
+  try {
+    return await route(req, res)
+  } catch (err) {
+    // Excepción no controlada: reportar a Sentry (si está configurado) y responder 500
+    const { reportError } = await import('./_lib/sentry.js')
+    await reportError(err, { url: req.url, method: req.method })
+    if (!res.headersSent) res.status(500).json({ error: 'Error interno del servidor' })
+  }
+}
+
+async function route(req, res) {
   if (handleCors(req, res)) return
 
   // Extraer segmentos de ruta desde la URL (más confiable que req.query.path en Vercel)
@@ -75,6 +88,11 @@ export default async function handler(req, res) {
   if (segments[0] === 'registers' && segments[1] && method === 'PUT')    return registersUpdate(req, res, segments[1])
   if (segments[0] === 'registers' && segments[1] && method === 'DELETE') return registersDelete(req, res, segments[1])
 
+  // ---- CIERRES DE CAJA ------------------------------
+  if (route === '/closures/summary' && method === 'GET')  return closuresSummary(req, res)
+  if (route === '/closures' && method === 'GET')          return closuresList(req, res)
+  if (route === '/closures' && method === 'POST')         return closuresCreate(req, res)
+
   // ---- INVOICES -------------------------------------
   if (route === '/invoices' && method === 'POST') return invoicesCreate(req, res)
   if (route === '/invoices/pending' && method === 'GET') return invoicesPending(req, res)
@@ -83,6 +101,8 @@ export default async function handler(req, res) {
   if (segments[0] === 'invoices' && segments[1] && segments[2] === 'pay'    && method === 'POST') return invoicesPay(req, res, segments[1])
   if (segments[0] === 'invoices' && segments[1] && segments[2] === 'cancel' && method === 'POST') return invoicesCancel(req, res, segments[1])
   if (segments[0] === 'invoices' && segments[1] && segments[2] === 'edit'   && method === 'POST') return invoicesEdit(req, res, segments[1])
+  // /invoices/:id/refund — por id (el código se recicla entre facturas pagadas)
+  if (segments[0] === 'invoices' && segments[1] && segments[2] === 'refund' && method === 'POST') return invoicesRefund(req, res, segments[1])
   // /invoices/:code (GET)
   if (segments[0] === 'invoices' && segments[1] && !segments[2] && method === 'GET') return invoicesGetByCode(req, res, segments[1])
 
@@ -123,6 +143,10 @@ async function authLogin(req, res) {
     return res.status(httpCode).json({ error: status.message, code: status.code })
   }
 
+  // Anti fuerza bruta: un PIN de 4 dígitos son solo 10.000 combinaciones
+  const lockKey = `pin:${tenant.id}:${clientIp(req)}`
+  if (await rejectIfLocked(supabaseAdmin, lockKey, res)) return
+
   const { data: sellers, error } = await supabaseAdmin
     .from('sellers')
     .select('id, name, pin, role, active, seller_locations!inner(location_id)')
@@ -141,7 +165,11 @@ async function authLogin(req, res) {
     seller = admins?.[0]
   }
 
-  if (!seller) return res.status(401).json({ error: 'PIN incorrecto o no autorizado para este punto de venta' })
+  if (!seller) {
+    await recordFailedAttempt(supabaseAdmin, lockKey)
+    return res.status(401).json({ error: 'PIN incorrecto o no autorizado para este punto de venta' })
+  }
+  await clearAttempts(supabaseAdmin, lockKey)
 
   const { data: location, error: locErr } = await supabaseAdmin
     .from('locations').select('id, name, address, printer_config')
@@ -552,6 +580,103 @@ async function registersDelete(req, res, id) {
 }
 
 // =====================================================
+// CIERRES DE CAJA (arqueo)
+// =====================================================
+const CLOSURES_MIGRATION_HINT = 'Falta la migración: ejecuta supabase/migrations/2026-07-21_caja_v2.sql en Supabase'
+const closuresErrMsg = (e) => /register_closures/.test(e?.message || '') ? CLOSURES_MIGRATION_HINT : e.message
+
+// Totales esperados del día (hora Bogotá) según facturas pagadas
+async function closureExpected(auth, { register_id, location_id }) {
+  const hoy = bogotaDate()
+  const { data, error } = await supabaseAdmin.rpc('report_range_summary', {
+    p_tenant_id: auth.tenantId, p_from: hoy, p_to: hoy,
+    p_location_id: location_id || null,
+    p_register_id: register_id || null,
+  })
+  if (error) throw new Error(error.message)
+  const s = data?.[0] || {}
+  return {
+    date: hoy,
+    invoice_count:     Number(s.invoice_count || 0),
+    expected_cash:     Number(s.cash || 0),
+    expected_transfer: Number(s.transfer || 0),
+    expected_card:     Number(s.card || 0),
+  }
+}
+
+async function closuresSummary(req, res) {
+  const auth = await requireAuth(req, res); if (!auth) return
+  if (!['cashier', 'admin'].includes(auth.seller.role)) return res.status(403).json({ error: 'Solo cajero o admin pueden cerrar caja' })
+  const { register_id, location_id } = req.query
+  if (!location_id) return res.status(400).json({ error: 'location_id requerido' })
+  let expected
+  try { expected = await closureExpected(auth, { register_id, location_id }) }
+  catch (e) { return res.status(500).json({ error: e.message }) }
+  // ¿Ya se cerró esta caja hoy?
+  let existing = null
+  if (register_id) {
+    const { data } = await supabaseAdmin.from('register_closures')
+      .select('*').eq('tenant_id', auth.tenantId)
+      .eq('register_id', register_id).eq('business_date', expected.date).limit(1)
+    existing = data?.[0] || null
+  }
+  return res.status(200).json({ ...expected, existing })
+}
+
+async function closuresCreate(req, res) {
+  const auth = await requireAuth(req, res); if (!auth) return
+  if (!['cashier', 'admin'].includes(auth.seller.role)) return res.status(403).json({ error: 'Solo cajero o admin pueden cerrar caja' })
+  const { register_id, register_name, location_id, declared_cash, notes } = req.body || {}
+  if (!location_id) return res.status(400).json({ error: 'location_id requerido' })
+  const declared = Number(declared_cash)
+  if (isNaN(declared) || declared < 0) return res.status(400).json({ error: 'El efectivo contado debe ser un número válido' })
+  if (!(await tenantOwns('locations', location_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+  if (register_id && !(await tenantOwns('registers', register_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+
+  let expected
+  try { expected = await closureExpected(auth, { register_id, location_id }) }
+  catch (e) { return res.status(500).json({ error: e.message }) }
+
+  const { data, error } = await supabaseAdmin.from('register_closures').insert({
+    tenant_id:         auth.tenantId,
+    location_id,
+    register_id:       register_id || null,
+    register_name:     register_name || null,
+    cashier_id:        auth.seller.id,
+    cashier_name:      auth.seller.name,
+    business_date:     expected.date,
+    expected_cash:     expected.expected_cash,
+    expected_transfer: expected.expected_transfer,
+    expected_card:     expected.expected_card,
+    declared_cash:     declared,
+    difference:        declared - expected.expected_cash,
+    invoice_count:     expected.invoice_count,
+    notes:             notes?.trim() || null,
+  }).select().single()
+  if (error) {
+    if (error.code === '23505') return res.status(409).json({ error: 'Esta caja ya fue cerrada hoy' })
+    return res.status(500).json({ error: closuresErrMsg(error) })
+  }
+  return res.status(201).json(data)
+}
+
+async function closuresList(req, res) {
+  const auth = await requireAuth(req, res); if (!auth) return
+  if (!['cashier', 'admin'].includes(auth.seller.role)) return res.status(403).json({ error: 'Solo cajero o admin' })
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const { location_id } = req.query
+  let q = supabaseAdmin.from('register_closures').select('*')
+    .eq('tenant_id', auth.tenantId)
+    .gte('business_date', range.from).lte('business_date', range.to)
+    .order('closed_at', { ascending: false }).limit(100)
+  if (location_id) q = q.eq('location_id', location_id)
+  const { data, error } = await q
+  if (error) return res.status(500).json({ error: closuresErrMsg(error) })
+  return res.status(200).json(data || [])
+}
+
+// =====================================================
 // INVOICES
 // =====================================================
 async function invoicesCreate(req, res) {
@@ -601,17 +726,51 @@ async function invoicesGetByCode(req, res, code) {
 
 async function invoicesPay(req, res, code) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, pay_method, observations, register_id, register_name } = req.body || {}
+  const { location_id, pay_method, observations, register_id, register_name, discount } = req.body || {}
   if (!location_id || !pay_method) return res.status(400).json({ error: 'location_id y pay_method requeridos' })
   if (!['cash', 'transfer', 'card'].includes(pay_method)) return res.status(400).json({ error: 'pay_method inválido' })
+
+  // Descuento opcional al cobrar (monto en pesos sobre el total)
+  const d = Number(discount || 0)
+  if (isNaN(d) || d < 0) return res.status(400).json({ error: 'Descuento inválido' })
+  const discountUpdate = {}
+  if (d > 0) {
+    const { data: cur } = await supabaseAdmin.from('invoices')
+      .select('total').eq('tenant_id', auth.tenantId).eq('code', code)
+      .eq('location_id', location_id).eq('status', 'pending').single()
+    if (!cur) return res.status(409).json({ error: 'Factura no existe, ya cobrada o cancelada' })
+    if (d > Number(cur.total)) return res.status(400).json({ error: 'El descuento no puede superar el total' })
+    discountUpdate.discount = d
+    discountUpdate.total = Number(cur.total) - d
+  }
+
   const { data, error } = await supabaseAdmin.from('invoices').update({
     status: 'paid', pay_method, paid_at: new Date().toISOString(),
     cashier_id: auth.seller.id, cashier_name: auth.seller.name,
     ...(register_id ? { register_id } : {}), ...(register_name ? { register_name } : {}),
     ...(observations ? { observations } : {}),
+    ...discountUpdate,
   }).eq('tenant_id', auth.tenantId).eq('code', code).eq('location_id', location_id).eq('status', 'pending').select().single()
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) return res.status(500).json({ error: /discount/.test(error.message) ? CLOSURES_MIGRATION_HINT : error.message })
   if (!data) return res.status(409).json({ error: 'Factura no existe, ya cobrada o cancelada' })
+  return res.status(200).json(data)
+}
+
+// Devolución de una factura pagada (anulación total con motivo).
+// Por id: el código de 4 dígitos se recicla entre facturas ya pagadas.
+async function invoicesRefund(req, res, id) {
+  const auth = await requireAuth(req, res); if (!auth) return
+  if (!['cashier', 'admin'].includes(auth.seller.role)) return res.status(403).json({ error: 'Solo cajero o admin pueden registrar devoluciones' })
+  const { reason } = req.body || {}
+  if (!reason?.trim()) return res.status(400).json({ error: 'El motivo de la devolución es requerido' })
+  const { data, error } = await supabaseAdmin.from('invoices').update({
+    status: 'refunded',
+    refunded_at: new Date().toISOString(),
+    refund_reason: reason.trim(),
+    refunded_by: auth.seller.id,
+  }).eq('id', id).eq('tenant_id', auth.tenantId).eq('status', 'paid').select().single()
+  if (error) return res.status(500).json({ error: /refund|invoices_status_check/.test(error.message) ? CLOSURES_MIGRATION_HINT : error.message })
+  if (!data) return res.status(409).json({ error: 'Solo las facturas pagadas pueden devolverse' })
   return res.status(200).json(data)
 }
 
@@ -654,8 +813,9 @@ async function invoicesHistory(req, res) {
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
   const bounds = bogotaDayBounds(range.from, range.to)
+  // '*': incluye discount/refund_* cuando existan sin romper pre-migración
   let q = supabaseAdmin.from('invoices')
-    .select('id, code, location_id, location_name, seller_id, seller_name, total, status, pay_method, items, observations, edited_at, edited_by, register_name, cashier_name, created_at, paid_at', { count: 'exact' })
+    .select('*', { count: 'exact' })
     .eq('tenant_id', auth.tenantId)
     .gte('created_at', bounds.start).lt('created_at', bounds.end).order('created_at', { ascending: false })
     .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1)

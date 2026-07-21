@@ -4,6 +4,8 @@
 -- ¡DESTRUCTIVO! Borra y recrea todas las tablas.
 -- =====================================================
 
+DROP TABLE IF EXISTS register_closures CASCADE;
+DROP TABLE IF EXISTS login_attempts   CASCADE;
 DROP TABLE IF EXISTS invoices         CASCADE;
 DROP TABLE IF EXISTS registers        CASCADE;
 DROP TABLE IF EXISTS stock            CASCADE;
@@ -127,8 +129,9 @@ CREATE TABLE invoices (
   seller_id     UUID REFERENCES sellers(id),
   seller_name   TEXT,
   total         NUMERIC(12,2) NOT NULL DEFAULT 0,
+  discount      NUMERIC(12,2) NOT NULL DEFAULT 0, -- aplicado al cobrar; total ya lo descuenta
   status        TEXT NOT NULL DEFAULT 'pending'
-                CHECK (status IN ('pending', 'paid', 'cancelled')),
+                CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded')),
   pay_method    TEXT CHECK (pay_method IN ('cash', 'transfer', 'card')),
   items         JSONB NOT NULL DEFAULT '[]',
   register_id   UUID REFERENCES registers(id),
@@ -141,7 +144,38 @@ CREATE TABLE invoices (
   printed       BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   paid_at       TIMESTAMPTZ,
-  cancelled_at  TIMESTAMPTZ
+  cancelled_at  TIMESTAMPTZ,
+  refunded_at   TIMESTAMPTZ,
+  refund_reason TEXT,
+  refunded_by   UUID REFERENCES sellers(id)
+);
+
+-- ---- CIERRES DE CAJA (arqueo diario) ----------------
+CREATE TABLE register_closures (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  location_id       UUID NOT NULL REFERENCES locations(id),
+  register_id       UUID REFERENCES registers(id),
+  register_name     TEXT,
+  cashier_id        UUID REFERENCES sellers(id),
+  cashier_name      TEXT,
+  business_date     DATE NOT NULL,                       -- día Bogotá que se cierra
+  expected_cash     NUMERIC(12,2) NOT NULL DEFAULT 0,    -- según facturas pagadas
+  expected_transfer NUMERIC(12,2) NOT NULL DEFAULT 0,
+  expected_card     NUMERIC(12,2) NOT NULL DEFAULT 0,
+  declared_cash     NUMERIC(12,2) NOT NULL DEFAULT 0,    -- efectivo contado por la cajera
+  difference        NUMERIC(12,2) NOT NULL DEFAULT 0,    -- declarado - esperado
+  invoice_count     INTEGER NOT NULL DEFAULT 0,
+  notes             TEXT,
+  closed_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---- INTENTOS DE LOGIN (bloqueo por fuerza bruta) ---
+CREATE TABLE login_attempts (
+  key          TEXT PRIMARY KEY,          -- ej: pin:<tenant_id>:<ip> | super:<email>:<ip>
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  window_start TIMESTAMPTZ NOT NULL DEFAULT now(),
+  locked_until TIMESTAMPTZ
 );
 
 -- ---- ÍNDICES ----------------------------------------
@@ -164,6 +198,11 @@ CREATE INDEX idx_invoices_code_location   ON invoices(code, location_id);
 CREATE INDEX idx_invoices_location_status ON invoices(location_id, status);
 CREATE INDEX idx_invoices_created_at      ON invoices(created_at);
 CREATE INDEX idx_invoices_tenant_created  ON invoices(tenant_id, created_at);
+
+CREATE INDEX idx_closures_tenant_date ON register_closures(tenant_id, business_date);
+-- Un cierre por caja por día
+CREATE UNIQUE INDEX closures_register_day
+  ON register_closures(register_id, business_date) WHERE register_id IS NOT NULL;
 
 -- =====================================================
 -- FUNCIÓN: Generación atómica de código aleatorio (sin cambios de firma)
@@ -491,3 +530,5 @@ ALTER TABLE presentations    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stock            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registers        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE register_closures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE login_attempts   ENABLE ROW LEVEL SECURITY;

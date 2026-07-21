@@ -136,6 +136,39 @@ adjuntan las fotos: se emparejan por esa columna o por el nombre del producto
 (sin importar tildes, mayúsculas o guiones), y se comprimen en el navegador
 (WebP, máx 800px) antes de subirse a Storage bajo la carpeta del tenant.
 
+### Paso 6: Cierre de caja, devoluciones, descuentos y bloqueo de login
+
+Si tu base de datos es anterior a estas funciones, ejecuta en el SQL Editor
+[`supabase/migrations/2026-07-21_caja_v2.sql`](./supabase/migrations/2026-07-21_caja_v2.sql)
+(no destructivo). Habilita:
+
+- **Cierre de caja (arqueo)**: la cajera cierra su caja desde la pantalla de Caja
+  (🧾 Cerrar caja): el sistema muestra lo esperado según las facturas pagadas del día
+  (efectivo/transferencia/datáfono), ella declara el efectivo contado y queda registrada
+  la diferencia. El admin ve todos los cierres en Administración → Cajas.
+- **Devoluciones**: facturas pagadas se pueden devolver con motivo obligatorio
+  (↩ en Caja para las de hoy, o desde el Historial del admin para cualquier fecha).
+  Las devueltas salen de los ingresos de los reportes automáticamente.
+- **Descuentos**: al cobrar, la cajera puede aplicar un descuento en pesos; queda
+  registrado en la factura y el total se ajusta.
+- **Cambio en efectivo**: al cobrar en efectivo se puede digitar con cuánto paga el
+  cliente y el sistema calcula el cambio a devolver.
+- **Bloqueo de fuerza bruta**: 5 intentos fallidos de PIN (o de contraseña súper) en
+  15 minutos bloquean nuevos intentos por 15 minutos (por empresa + IP).
+
+### Monitoreo de errores (opcional, Sentry)
+
+Crea un proyecto gratuito en [sentry.io](https://sentry.io) y configura:
+
+```env
+# Frontend (errores del browser)
+VITE_SENTRY_DSN=https://...@...ingest.sentry.io/...
+# Backend (excepciones no controladas del API)
+SENTRY_DSN=https://...@...ingest.sentry.io/...
+```
+
+Sin estas variables el SDK ni siquiera se carga — cero impacto.
+
 ---
 
 ## Configuración de impresión térmica
