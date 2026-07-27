@@ -539,7 +539,9 @@ function ProductosTab() {
 
   const fetch = () => {
     setLoading(true)
-    api.get('/products')
+    // include_inactive: sin esto, desactivar un producto lo hacía desaparecer de
+    // esta lista y el botón "Activar" quedaba inalcanzable.
+    api.get('/products?include_inactive=1')
       .then(d => setProducts(d || []))
       .catch(err => toastError(err.message))
       .finally(() => setLoading(false))
@@ -550,14 +552,30 @@ function ProductosTab() {
   const handleToggle = async (p) => {
     try {
       await api.put(`/products/${p.id}`, { active: !p.active })
+      clearProductsCache() // que el POS deje de ofrecerlo sin esperar el TTL
       fetch()
     } catch (err) { toastError(err.message) }
   }
 
+  const handleDelete = async (p) => {
+    const msg = `¿Eliminar "${p.name}" definitivamente?\n\n` +
+      'Se borran también sus presentaciones y su foto. No se puede deshacer.\n' +
+      'El histórico de facturas no se ve afectado.'
+    if (!window.confirm(msg)) return
+    try {
+      await api.post('/products/bulk-delete', { ids: [p.id], hard: true })
+      clearProductsCache()
+      toastSuccess(`"${p.name}" eliminado`)
+      fetch()
+    } catch (err) { toastError(err.message) }
+  }
+
+  const inactiveCount = products.filter(p => !p.active).length
+
   if (showBulk) {
     return (
       <div className="max-w-3xl space-y-4">
-        <BulkUpload onDone={() => { setShowBulk(false); fetch() }} />
+        <BulkUpload onDone={() => { setShowBulk(false); fetch() }} onProductsChanged={fetch} />
       </div>
     )
   }
@@ -565,10 +583,18 @@ function ProductosTab() {
   return (
     <div className="max-w-3xl space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <h2 className="font-syne font-semibold text-white">Productos</h2>
+        <div>
+          <h2 className="font-syne font-semibold text-white">Productos</h2>
+          {!loading && products.length > 0 && (
+            <p className="text-xs text-gray-500">
+              {products.length} en el catálogo
+              {inactiveCount > 0 && ` · ${inactiveCount} inactivo(s)`}
+            </p>
+          )}
+        </div>
         <div className="flex gap-2">
           <button onClick={() => setShowBulk(true)} className="btn btn-ghost border border-white/10 text-sm">
-            📤 Carga masiva
+            📤 Carga y borrado masivo
           </button>
           <button onClick={() => { setEditProd(null); setShowForm(true) }} className="btn btn-primary">+ Nuevo</button>
         </div>
@@ -576,6 +602,20 @@ function ProductosTab() {
 
       {loading ? (
         <div className="space-y-2">{[1,2,3,4].map(i => <div key={i} className="skeleton h-16 rounded-xl" />)}</div>
+      ) : products.length === 0 ? (
+        <div className="card bg-surface-400 border-dashed border-white/10 text-center py-8">
+          <div className="text-3xl mb-2">🎆</div>
+          <p className="text-sm text-gray-300">El catálogo está vacío</p>
+          <p className="text-xs text-gray-500 mt-1 mb-4">
+            Crea un producto a mano o impórtalos todos desde un Excel.
+          </p>
+          <div className="flex gap-2 justify-center">
+            <button onClick={() => setShowBulk(true)} className="btn btn-ghost border border-white/10 text-sm">
+              📤 Importar desde Excel
+            </button>
+            <button onClick={() => { setEditProd(null); setShowForm(true) }} className="btn btn-primary">+ Nuevo</button>
+          </div>
+        </div>
       ) : (
         <div className="space-y-2">
           {products.map(p => (
@@ -587,7 +627,14 @@ function ProductosTab() {
                   <span className="hidden sm:block">{p.categories?.icon || '🎆'}</span>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-white">{p.name}</p>
+                  <p className="font-medium text-white">
+                    {p.name}
+                    {!p.active && (
+                      <span className="ml-2 align-middle text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-500">
+                        Inactivo
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-gray-500">{p.categories?.name}</p>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {(p.presentations || []).map(pr => (
@@ -599,8 +646,20 @@ function ProductosTab() {
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button onClick={() => { setEditProd(p); setShowForm(true) }} className="btn btn-ghost btn-sm">Editar</button>
-                  <button onClick={() => handleToggle(p)} className="btn btn-ghost btn-sm text-yellow-500">
+                  <button
+                    onClick={() => handleToggle(p)}
+                    className="btn btn-ghost btn-sm text-yellow-500"
+                    title={p.active ? 'Se oculta del POS, se puede reactivar' : 'Vuelve a estar disponible en el POS'}
+                  >
                     {p.active ? 'Desactivar' : 'Activar'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(p)}
+                    className="btn btn-ghost btn-sm text-gray-400 hover:text-red-400"
+                    title="Eliminar definitivamente"
+                    aria-label={`Eliminar ${p.name} definitivamente`}
+                  >
+                    Eliminar
                   </button>
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { formatCOP } from '../lib/format.js'
 import { useToast } from './Toast.jsx'
 import { TEMPLATE_COLUMNS, TEMPLATE_EXAMPLE, parseExcelRows, matchImagesToProducts } from '../lib/bulkParse.js'
 import { uploadProductImage } from '../lib/imageCompress.js'
+import BulkDelete from './BulkDelete.jsx'
 
 // xlsx se importa dinámicamente solo cuando se necesita (490KB gzipped)
 const loadXLSX = () => import('xlsx')
@@ -43,7 +44,7 @@ async function downloadTemplate() {
 
 const keyOf = (product) => product.name.toLowerCase()
 
-export default function BulkUpload({ onDone }) {
+export default function BulkUpload({ onDone, onProductsChanged }) {
   const { error: toastError, success: toastSuccess, info: toastInfo } = useToast()
   const fileRef = useRef(null)
   const photosRef = useRef(null)
@@ -299,9 +300,12 @@ export default function BulkUpload({ onDone }) {
               <li>La columna Imagen es opcional: escribe el nombre del archivo de la foto (ej: volcan.jpg)</li>
               <li>Las fotos se adjuntan en el paso de vista previa y se comprimen automáticamente</li>
               <li>Soporta .xlsx, .xls y .csv</li>
+              <li>¿Vas a re-importar el catálogo? Elimina antes los productos aquí abajo: los duplicados por nombre se omiten</li>
             </ul>
           </div>
         </div>
+
+        <BulkDelete onChanged={onProductsChanged} />
       </div>
     )
   }

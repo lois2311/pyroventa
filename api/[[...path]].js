@@ -72,9 +72,10 @@ async function route(req, res) {
   if (route === '/products' && method === 'GET')   return productsGet(req, res)
   if (route === '/products' && method === 'POST')  return productsCreate(req, res)
   if (route === '/products/bulk' && method === 'POST') return productsBulk(req, res)
+  if (route === '/products/bulk-delete' && method === 'POST') return productsBulkDelete(req, res)
   if (route === '/products/upload-image' && method === 'POST') return productsUploadImage(req, res)
-  if (segments[0] === 'products' && segments[1] && !['bulk', 'upload-image'].includes(segments[1]) && method === 'PUT')    return productsUpdate(req, res, segments[1])
-  if (segments[0] === 'products' && segments[1] && !['bulk', 'upload-image'].includes(segments[1]) && method === 'DELETE') return productsDelete(req, res, segments[1])
+  if (segments[0] === 'products' && segments[1] && !PRODUCT_SUBROUTES.includes(segments[1]) && method === 'PUT')    return productsUpdate(req, res, segments[1])
+  if (segments[0] === 'products' && segments[1] && !PRODUCT_SUBROUTES.includes(segments[1]) && method === 'DELETE') return productsDelete(req, res, segments[1])
 
   // ---- SELLERS --------------------------------------
   if (route === '/sellers' && method === 'GET')  return sellersGet(req, res)
@@ -269,12 +270,24 @@ async function locationsDelete(req, res, id) {
 // =====================================================
 // PRODUCTS
 // =====================================================
+// Segmentos de /products/* que son endpoints, no ids de producto
+const PRODUCT_SUBROUTES = ['bulk', 'bulk-delete', 'upload-image']
+
 async function productsGet(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
   const { location_id } = req.query
-  const selectProducts = (withImage) => supabaseAdmin.from('products')
-    .select(`id, name, description, ${withImage ? 'image_url, ' : ''}active, categories(id, name, icon, sort_order), presentations(id, label, price, active)`)
-    .eq('tenant_id', auth.tenantId).eq('active', true).order('name')
+  // include_inactive: solo admin — lo usa el panel de borrado masivo, que debe
+  // ver también los productos desactivados para poder eliminarlos de verdad.
+  const includeInactive = ['1', 'true'].includes(String(req.query.include_inactive || ''))
+  if (includeInactive && auth.seller.role !== 'admin') {
+    return res.status(403).json({ error: 'Solo el administrador puede ver productos inactivos' })
+  }
+  const selectProducts = (withImage) => {
+    const q = supabaseAdmin.from('products')
+      .select(`id, name, description, ${withImage ? 'image_url, ' : ''}active, categories(id, name, icon, sort_order), presentations(id, label, price, active)`)
+      .eq('tenant_id', auth.tenantId)
+    return (includeInactive ? q : q.eq('active', true)).order('name')
+  }
   let { data: products, error } = await selectProducts(productsHasImageColumn)
   // Fallback pre-migración: si la columna image_url aún no existe, responder sin
   // fotos y recordarlo para no pagar la doble query en cada request de la instancia.
@@ -295,7 +308,8 @@ async function productsGet(req, res) {
   // Vary: Authorization separa las entradas por token (HTTP y Cache API del SW).
   // Cualquier endpoint /api futuro con max-age > 0 debe replicar este par.
   // private: la respuesta es por tenant — NUNCA cachear en CDN compartido
-  res.setHeader('Cache-Control', 'private, max-age=300')
+  // include_inactive es una vista de administración: siempre fresca.
+  res.setHeader('Cache-Control', includeInactive ? 'private, no-store' : 'private, max-age=300')
   res.setHeader('Vary', 'Authorization')
   return res.status(200).json(result)
 }
@@ -376,6 +390,84 @@ async function productsDelete(req, res, id) {
   await supabaseAdmin.from('products').update({ active: false }).eq('id', id).eq('tenant_id', auth.tenantId)
   return res.status(204).end()
 }
+
+/**
+ * Borrado masivo de productos del tenant autenticado.
+ *
+ * Body: { ids?: string[], all?: boolean, hard?: boolean }
+ *   - ids  → borra solo esos productos; all: true → todo el catálogo del tenant.
+ *   - hard: false (default) → desactiva (active = false), reversible.
+ *   - hard: true            → borra las filas y las fotos de Storage.
+ *
+ * Por qué existe el modo hard: la carga masiva deduplica por nombre sin mirar
+ * `active`, así que un producto solo desactivado sigue bloqueando su re-importación.
+ * Para "vaciar y volver a cargar el catálogo" hace falta borrarlo de verdad.
+ * El histórico de facturas no se ve afectado: invoices.items es JSONB con los
+ * nombres y precios ya copiados, no un FK a products.
+ */
+async function productsBulkDelete(req, res) {
+  const auth = await requireAdmin(req, res); if (!auth) return
+  const { ids, all = false, hard = false } = req.body || {}
+
+  if (!all) {
+    if (!Array.isArray(ids) || !ids.length) {
+      return res.status(400).json({ error: 'Se requiere un arreglo de ids, o all: true para vaciar el catálogo' })
+    }
+    if (ids.some(id => typeof id !== 'string' || !id.trim())) {
+      return res.status(400).json({ error: 'Ids inválidos' })
+    }
+    if (ids.length > MAX_BULK_DELETE) {
+      return res.status(400).json({ error: `Máximo ${MAX_BULK_DELETE} productos por solicitud` })
+    }
+  }
+
+  // Toda consulta queda acotada al tenant del token: nunca puede tocar otro.
+  const scoped = (q) => (all ? q.eq('tenant_id', auth.tenantId) : q.eq('tenant_id', auth.tenantId).in('id', ids))
+
+  if (!hard) {
+    const { data, error } = await scoped(supabaseAdmin.from('products').update({ active: false })).select('id')
+    if (error) return res.status(500).json({ error: error.message })
+    const count = data?.length || 0
+    return res.status(200).json({
+      deleted: count, hard: false,
+      message: `${count} producto(s) desactivado(s)`,
+    })
+  }
+
+  // Hard delete: primero leer las fotos para poder limpiarlas de Storage.
+  let { data: rows, error: se } = await scoped(supabaseAdmin.from('products').select('id, image_url'))
+  if (se && isMissingImageColumn(se)) {
+    ;({ data: rows, error: se } = await scoped(supabaseAdmin.from('products').select('id')))
+  }
+  if (se) return res.status(500).json({ error: se.message })
+  if (!rows?.length) return res.status(200).json({ deleted: 0, hard: true, photos_removed: 0, message: 'No había productos para eliminar' })
+
+  // presentations y stock caen por ON DELETE CASCADE
+  const { data: del, error: de } = await scoped(supabaseAdmin.from('products').delete()).select('id')
+  if (de) return res.status(500).json({ error: de.message })
+
+  // Limpiar fotos huérfanas del bucket (best effort: la fila ya no existe)
+  const paths = rows
+    .map(r => r.image_url && imagePathFromUrl(r.image_url, { supabaseUrl: process.env.SUPABASE_URL }))
+    // Doble candado: solo rutas dentro de la carpeta del propio tenant
+    .filter(p => p && p.startsWith(`${auth.tenantId}/`))
+  let photosRemoved = 0
+  for (let i = 0; i < paths.length; i += 100) {
+    const batch = paths.slice(i, i + 100)
+    const { error: re } = await supabaseAdmin.storage.from(PRODUCT_IMAGES_BUCKET).remove(batch)
+    if (!re) photosRemoved += batch.length
+  }
+
+  const count = del?.length || 0
+  return res.status(200).json({
+    deleted: count, hard: true, photos_removed: photosRemoved,
+    message: `${count} producto(s) eliminado(s) definitivamente` +
+      (photosRemoved ? `, ${photosRemoved} foto(s) borrada(s)` : ''),
+  })
+}
+
+// Tope por solicitud para no agotar el tiempo de la función serverless
+const MAX_BULK_DELETE = 500
 
 async function productsBulk(req, res) {
   const auth = await requireAdmin(req, res); if (!auth) return
