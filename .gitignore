@@ -5,3 +5,9 @@ dist
 *.local
 .DS_Store
 .playwright-mcp
+
+# Data de trabajo local para la carga masiva de productos (no es codigo).
+# La plantilla vacia si esta versionada: plantilla_productos_pyroventa*.xlsx
+/DOCUMENTO PARA SISTEMA DE FACTURACION.xlsx
+/productos_para_cargar.xlsx
+/fotos_sin_producto/
