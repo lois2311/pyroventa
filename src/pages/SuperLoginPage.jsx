@@ -32,7 +32,7 @@ export default function SuperLoginPage() {
             <Lock className="w-8 h-8 text-brand-500" />
           </div>
           <h1 className="font-syne text-2xl font-bold text-white">PyroVenta</h1>
-          <p className="text-gray-500 text-sm mt-1">Panel de plataforma</p>
+          <p className="text-gray-400 text-sm mt-1">Panel de plataforma</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card bg-surface-300 border-white/8 p-6 space-y-4">

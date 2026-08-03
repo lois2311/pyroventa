@@ -1,14 +1,15 @@
+import { ArrowRightLeft, Banknote, CreditCard } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
 import TransferBreakdown from './TransferBreakdown.jsx'
 
 function MetricCard({ label, value, sub, color = 'text-white', icon }) {
   return (
     <div className="card bg-surface-300 space-y-1">
-      <div className="flex items-center gap-2 text-gray-500 text-xs">
+      <div className="flex items-center gap-2 text-gray-400 text-xs">
         {icon && <span>{icon}</span>}
         <span>{label}</span>
       </div>
-      <p className={`font-syne font-bold text-2xl ${color}`}>{value}</p>
+      <p className={`font-mono font-bold text-2xl ${color}`}>{value}</p>
       {sub && <p className="text-xs text-gray-400">{sub}</p>}
     </div>
   )
@@ -35,10 +36,12 @@ export default function DailyMetrics({ data, loading }) {
     by_transfer_provider = null,
   } = data
 
+  // Mismos iconos que PaymentMethods.jsx (pantalla de cobro): dos idiomas
+  // visuales distintos para cash/transfer/card era la inconsistencia real.
   const methods = [
-    { key: 'cash',     label: 'Efectivo',       emoji: '💵', color: 'text-green-400'  },
-    { key: 'transfer', label: 'Transferencia',   emoji: '🔁', color: 'text-blue-400'   },
-    { key: 'card',     label: 'Datáfono',        emoji: '💳', color: 'text-violet-400' },
+    { key: 'cash',     label: 'Efectivo',       Icon: Banknote,       color: 'text-green-400'  },
+    { key: 'transfer', label: 'Transferencia',   Icon: ArrowRightLeft, color: 'text-blue-400'   },
+    { key: 'card',     label: 'Datáfono',        Icon: CreditCard,     color: 'text-violet-400' },
   ]
 
   const maxMethod = Math.max(...methods.map(m => by_pay_method[m.key] || 0), 1)
@@ -84,7 +87,7 @@ export default function DailyMetrics({ data, loading }) {
               <div key={m.key}>
                 <div className="flex items-center justify-between text-sm mb-1">
                   <span className="flex items-center gap-1.5 text-gray-400">
-                    {m.emoji} {m.label}
+                    <m.Icon className="w-3.5 h-3.5" /> {m.label}
                   </span>
                   <span className={`font-mono font-semibold ${m.color}`}>{formatCOP(val)}</span>
                 </div>

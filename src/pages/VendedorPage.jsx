@@ -11,6 +11,7 @@ import CartPanel       from '../components/CartPanel.jsx'
 import CodeDisplay     from '../components/CodeDisplay.jsx'
 import SuccessAnimation from '../components/SuccessAnimation.jsx'
 import { useToast }    from '../components/Toast.jsx'
+import { useModalA11y } from '../hooks/useModalA11y.js'
 
 export default function VendedorPage() {
   const { seller, location } = useAuthStore()
@@ -26,6 +27,9 @@ export default function VendedorPage() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [showCode,    setShowCode]    = useState(false)
   const [cartOpen,    setCartOpen]    = useState(false) // mobile cart sheet
+
+  const codePanelRef = useModalA11y(() => handleNewSale())
+  const cartPanelRef = useModalA11y(() => setCartOpen(false))
 
   // ---- Cargar catálogo (stale-while-revalidate) ----------
   useEffect(() => {
@@ -250,7 +254,8 @@ export default function VendedorPage() {
       {/* ---- MOBILE: Código flotante post-venta ---- */}
       {showCode && lastCreated && (
         <div className="fixed inset-0 z-50 bg-black/90 md:hidden flex items-center justify-center p-4">
-          <div className="w-full max-w-sm">
+          <div ref={codePanelRef} role="dialog" aria-modal="true" aria-label="Código de factura generado" tabIndex={-1}
+            className="w-full max-w-sm">
             <CodeDisplay invoice={lastCreated} onNewSale={handleNewSale} />
           </div>
         </div>
@@ -264,6 +269,7 @@ export default function VendedorPage() {
 
           {/* Sheet */}
           <div
+            ref={cartPanelRef} role="dialog" aria-modal="true" aria-label="Carrito de compra" tabIndex={-1}
             className="absolute bottom-0 left-0 right-0 bg-surface-500 border-t border-white/10 rounded-t-2xl max-h-[85dvh] flex flex-col animate-slide-up"
             onClick={e => e.stopPropagation()}
           >
@@ -291,6 +297,7 @@ function CatChip({ active, onClick, label, icon }) {
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={`
         flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap
         border transition-all duration-100 shrink-0

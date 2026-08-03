@@ -21,7 +21,7 @@ export default function CartPanel({ onCheckout, loading }) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
         <span className="font-semibold text-sm text-white">
-          Carrito <span className="text-gray-500 font-normal">({items.length} ítem{items.length !== 1 ? 's' : ''})</span>
+          Carrito <span className="text-gray-400 font-normal">({items.length} ítem{items.length !== 1 ? 's' : ''})</span>
         </span>
         <button
           onClick={clear}
@@ -47,7 +47,7 @@ export default function CartPanel({ onCheckout, loading }) {
       <div className="border-t border-white/5 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-gray-400 text-sm">Total</span>
-          <span className="font-syne font-bold text-xl text-white">{formatCOP(cartTotal)}</span>
+          <span className="font-mono font-bold text-xl text-white">{formatCOP(cartTotal)}</span>
         </div>
         <button
           onClick={onCheckout}
@@ -77,7 +77,7 @@ function CartItem({ item, onUpdateQty, onRemove }) {
     <div className="bg-surface-400 rounded-lg px-3 py-2 flex items-center gap-2">
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium text-white truncate">{item.productName}</p>
-        <p className="text-xs text-gray-500">{item.label}</p>
+        <p className="text-xs text-gray-400">{item.label}</p>
       </div>
 
       {/* Controles cantidad */}
@@ -105,7 +105,7 @@ function CartItem({ item, onUpdateQty, onRemove }) {
       {/* Eliminar */}
       <button
         onClick={onRemove}
-        className="text-gray-500 hover:text-red-400 transition-colors p-1.5 -m-1 ml-0.5"
+        className="text-gray-400 hover:text-red-400 transition-colors p-1.5 -m-1 ml-0.5"
         aria-label={`Quitar ${item.productName}`}
       >
         <X className="w-3.5 h-3.5" />

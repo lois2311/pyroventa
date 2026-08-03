@@ -137,7 +137,7 @@ export default function BulkDelete({ onChanged }) {
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
           <div>
             <h3 className="font-syne font-semibold text-white text-sm">Eliminar productos</h3>
-            <p className="text-[11px] text-gray-500">
+            <p className="text-[11px] text-gray-400">
               Borra productos en bloque o vacía el catálogo antes de volver a importarlo.
             </p>
           </div>
@@ -156,7 +156,7 @@ export default function BulkDelete({ onChanged }) {
     <div className="card bg-surface-400 border-red-500/20 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-syne font-semibold text-white text-sm">Eliminar productos</h3>
-        <button onClick={() => { setOpen(false); cancelConfirm() }} disabled={busy} className="btn btn-ghost btn-sm text-xs">
+        <button onClick={() => { setOpen(false); cancelConfirm() }} disabled={busy} className="btn btn-ghost btn-sm btn-touch-safe text-xs">
           Cerrar
         </button>
       </div>
@@ -183,7 +183,7 @@ export default function BulkDelete({ onChanged }) {
               />
               <span className="text-sm text-white">{opt.title}</span>
             </div>
-            <p className="text-[10px] text-gray-500 mt-1 ml-6">{opt.hint}</p>
+            <p className="text-[10px] text-gray-400 mt-1 ml-6">{opt.hint}</p>
           </label>
         ))}
       </div>
@@ -210,7 +210,7 @@ export default function BulkDelete({ onChanged }) {
       {loading ? (
         <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="skeleton h-12 rounded-lg" />)}</div>
       ) : products.length === 0 ? (
-        <p className="text-xs text-gray-500 py-4 text-center">No hay productos en el catálogo.</p>
+        <p className="text-xs text-gray-400 py-4 text-center">No hay productos en el catálogo.</p>
       ) : (
         <div className="space-y-1 max-h-[40vh] overflow-y-auto">
           {filtered.map(p => (
@@ -239,7 +239,7 @@ export default function BulkDelete({ onChanged }) {
                   {p.name}
                   {!p.active && <span className="ml-2 text-[10px] text-yellow-500">inactivo</span>}
                 </p>
-                <p className="text-[10px] text-gray-500 truncate">
+                <p className="text-[10px] text-gray-400 truncate">
                   {p.categories?.name || 'Sin categoría'}
                   {p.presentations?.length ? ` · ${p.presentations.length} presentación(es) desde ${formatCOP(Math.min(...p.presentations.map(pr => pr.price)))}` : ''}
                 </p>
@@ -247,7 +247,7 @@ export default function BulkDelete({ onChanged }) {
             </label>
           ))}
           {filtered.length === 0 && (
-            <p className="text-xs text-gray-500 py-4 text-center">Ningún producto coincide con «{query}».</p>
+            <p className="text-xs text-gray-400 py-4 text-center">Ningún producto coincide con «{query}».</p>
           )}
         </div>
       )}
@@ -289,11 +289,11 @@ export default function BulkDelete({ onChanged }) {
             />
           )}
           <div className="flex gap-2 justify-end">
-            <button onClick={cancelConfirm} disabled={busy} className="btn btn-ghost btn-sm">Cancelar</button>
+            <button onClick={cancelConfirm} disabled={busy} className="btn btn-ghost btn-sm btn-touch-safe">Cancelar</button>
             <button
               onClick={handleDelete}
               disabled={busy || !canConfirm}
-              className="btn btn-danger btn-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn btn-danger btn-sm btn-touch-safe disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {busy
                 ? (progress ? `Eliminando (${progress.done}/${progress.total})...` : 'Eliminando...')

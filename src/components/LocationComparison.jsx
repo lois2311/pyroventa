@@ -30,7 +30,7 @@ export default function LocationComparison({ data, loading }) {
                 {loc.address && <p className="text-xs text-gray-400 truncate">{loc.address}</p>}
               </div>
               <div className="text-right">
-                <p className="font-syne font-bold text-xl text-brand-400">{formatCOP(loc.total_revenue)}</p>
+                <p className="font-mono font-bold text-xl text-brand-400">{formatCOP(loc.total_revenue)}</p>
                 <p className="text-xs text-gray-400">{loc.invoice_count} facturas</p>
               </div>
             </div>

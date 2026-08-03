@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
-import { Download, X } from 'lucide-react'
+import { useState, useEffect, useId } from 'react'
+import { ArrowRightLeft, Banknote, CreditCard, Download, X } from 'lucide-react'
 import { api } from '../lib/api.js'
-import { formatCOP, formatDate } from '../lib/format.js'
+import { formatCOP, formatDate, payMethodLabel } from '../lib/format.js'
 import TransferBreakdown, { transferColumns } from './TransferBreakdown.jsx'
 import { exportToExcel } from '../lib/exportExcel.js'
+import { useModalA11y } from '../hooks/useModalA11y.js'
 
 const STATUS_STYLES = {
   pending:   'badge-pending',
@@ -16,6 +17,8 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
   const [data,     setData]     = useState(null)
   const [loading,  setLoading]  = useState(true)
   const [expanded, setExpanded] = useState(null)
+  const titleId = useId()
+  const panelRef = useModalA11y(onClose)
 
   useEffect(() => {
     if (!sellerId) return
@@ -47,14 +50,15 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
       <div
+        ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="card bg-surface-200 w-full max-w-2xl my-4 space-y-5 animate-scale-in"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-syne font-bold text-xl text-white">{sellerName}</h2>
-            <p className="text-xs text-gray-500">Detalle de ventas · {from === to ? from : `${from} → ${to}`}</p>
+            <h2 id={titleId} className="font-syne font-bold text-xl text-white">{sellerName}</h2>
+            <p className="text-xs text-gray-400">Detalle de ventas · {from === to ? from : `${from} → ${to}`}</p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
@@ -91,25 +95,25 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
               <KpiCard
                 label="Pendientes"
                 value={data.summary.pending_count}
-                color={data.summary.pending_count > 0 ? 'text-yellow-400' : 'text-gray-500'}
+                color={data.summary.pending_count > 0 ? 'text-yellow-400' : 'text-gray-400'}
               />
             </div>
 
             {/* Por método de pago */}
             <div className="flex flex-wrap gap-2">
               {data.summary.by_pay_method.cash > 0 && (
-                <span className="text-xs px-2 py-1 rounded-lg bg-green-500/20 text-green-400 font-mono">
-                  💵 Efectivo: {formatCOP(data.summary.by_pay_method.cash)}
+                <span className="text-xs px-2 py-1 rounded-lg bg-green-500/20 text-green-400 font-mono inline-flex items-center gap-1">
+                  <Banknote className="w-3.5 h-3.5" /> Efectivo: {formatCOP(data.summary.by_pay_method.cash)}
                 </span>
               )}
               {data.summary.by_pay_method.transfer > 0 && (
-                <span className="text-xs px-2 py-1 rounded-lg bg-blue-500/20 text-blue-400 font-mono">
-                  🔁 Transferencia: {formatCOP(data.summary.by_pay_method.transfer)}
+                <span className="text-xs px-2 py-1 rounded-lg bg-blue-500/20 text-blue-400 font-mono inline-flex items-center gap-1">
+                  <ArrowRightLeft className="w-3.5 h-3.5" /> Transferencia: {formatCOP(data.summary.by_pay_method.transfer)}
                 </span>
               )}
               {data.summary.by_pay_method.card > 0 && (
-                <span className="text-xs px-2 py-1 rounded-lg bg-violet-500/20 text-violet-400 font-mono">
-                  💳 Datáfono: {formatCOP(data.summary.by_pay_method.card)}
+                <span className="text-xs px-2 py-1 rounded-lg bg-violet-500/20 text-violet-400 font-mono inline-flex items-center gap-1">
+                  <CreditCard className="w-3.5 h-3.5" /> Datáfono: {formatCOP(data.summary.by_pay_method.card)}
                 </span>
               )}
             </div>
@@ -128,7 +132,7 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
 
                     return (
                       <div key={h.hour} className="flex-1 flex flex-col items-center gap-1" title={`${h.hour}: ${h.count} ventas · ${formatCOP(h.revenue)}`}>
-                        <span className="text-[9px] text-gray-500 font-mono">{h.count}</span>
+                        <span className="text-[9px] text-gray-400 font-mono">{h.count}</span>
                         <div className="w-full bg-surface-50 rounded-t-sm overflow-hidden" style={{ height: '48px' }}>
                           <div
                             className="w-full bg-brand-500 rounded-t-sm transition-all duration-500"
@@ -176,11 +180,11 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
                         <span className="font-mono font-bold text-brand-400 text-base">#{inv.code}</span>
                         <span className={STATUS_STYLES[inv.status]}>{STATUS_LABEL[inv.status]}</span>
                         {inv.pay_method && (
-                          <span className="text-[10px] text-gray-500">{payMethodLabel(inv.pay_method, inv.transfer_provider)}</span>
+                          <span className="text-[10px] text-gray-400">{payMethodLabel(inv.pay_method, inv.transfer_provider)}</span>
                         )}
                         <span className="flex-1" />
                         <span className="font-mono font-semibold text-white text-sm">{formatCOP(inv.total)}</span>
-                        <span className="text-[10px] text-gray-500 font-mono">
+                        <span className="text-[10px] text-gray-400 font-mono">
                           {new Date(inv.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </span>
                       </div>
@@ -230,7 +234,7 @@ function KpiCard({ label, value, color = 'text-white' }) {
   return (
     <div className="bg-surface-400 border border-white/5 rounded-xl p-3">
       <p className="text-[10px] text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className={`font-syne font-bold text-lg ${color}`}>{value}</p>
+      <p className={`font-mono font-bold text-lg ${color}`}>{value}</p>
     </div>
   )
 }

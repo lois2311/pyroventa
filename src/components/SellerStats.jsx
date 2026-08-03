@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ArrowRightLeft, Banknote, CreditCard } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
 import SellerDetailModal from './SellerDetailModal.jsx'
 
@@ -74,23 +75,23 @@ export default function SellerStats({ data, loading, from, to, locationId }) {
               {/* Payment methods breakdown */}
               <div className="flex flex-wrap gap-1 mt-2">
                 {s.by_method.cash > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${METHOD_BADGE.cash}`}>
-                    💵 {formatCOP(s.by_method.cash)}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${METHOD_BADGE.cash} inline-flex items-center gap-0.5`}>
+                    <Banknote className="w-2.5 h-2.5" /> {formatCOP(s.by_method.cash)}
                   </span>
                 )}
                 {s.by_method.transfer > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${METHOD_BADGE.transfer}`}>
-                    🔁 {formatCOP(s.by_method.transfer)}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${METHOD_BADGE.transfer} inline-flex items-center gap-0.5`}>
+                    <ArrowRightLeft className="w-2.5 h-2.5" /> {formatCOP(s.by_method.transfer)}
                   </span>
                 )}
                 {s.by_method.card > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${METHOD_BADGE.card}`}>
-                    💳 {formatCOP(s.by_method.card)}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${METHOD_BADGE.card} inline-flex items-center gap-0.5`}>
+                    <CreditCard className="w-2.5 h-2.5" /> {formatCOP(s.by_method.card)}
                   </span>
                 )}
               </div>
 
-              <p className="text-[10px] text-gray-500 mt-1">Click para ver detalle →</p>
+              <p className="text-[10px] text-gray-400 mt-1">Click para ver detalle →</p>
             </button>
           )
         })}

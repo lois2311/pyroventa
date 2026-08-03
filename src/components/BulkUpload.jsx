@@ -241,18 +241,18 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
       <div className="space-y-4">
         <div className="card bg-surface-400 border-dashed border-brand-500/30">
           <h3 className="font-syne font-semibold text-white mb-2">Carga masiva de productos</h3>
-          <p className="text-xs text-gray-500 mb-4">
+          <p className="text-xs text-gray-400 mb-4">
             Sube un archivo Excel (.xlsx) con tus productos. Cada fila es una presentación.
             Un producto puede tener múltiples filas (una por cada presentación/precio).
             En el siguiente paso podrás adjuntar las fotos de los productos.
           </p>
 
           <div className="bg-surface-300 rounded-lg p-3 mb-4">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Formato requerido</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Formato requerido</p>
             <div className="overflow-x-auto">
               <table className="text-xs w-full">
                 <thead>
-                  <tr className="text-gray-500 border-b border-white/5">
+                  <tr className="text-gray-400 border-b border-white/5">
                     {TEMPLATE_COLUMNS.map(c => (
                       <th key={c} className="text-left pb-1.5 pr-4 font-medium">{c}</th>
                     ))}
@@ -322,10 +322,10 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h3 className="font-syne font-semibold text-white">Vista previa de importación</h3>
-            <p className="text-xs text-gray-500">{fileName}</p>
+            <p className="text-xs text-gray-400">{fileName}</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleReset} className="btn btn-ghost btn-sm" disabled={step === 'uploading'}>
+            <button onClick={handleReset} className="btn btn-ghost btn-sm btn-touch-safe" disabled={step === 'uploading'}>
               ← Atrás
             </button>
           </div>
@@ -334,20 +334,20 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
         {/* Resumen */}
         <div className="grid grid-cols-4 gap-3">
           <div className="card bg-surface-400 text-center">
-            <p className="font-syne font-bold text-xl text-brand-400">{parsed.length}</p>
-            <p className="text-[10px] text-gray-500">Productos</p>
+            <p className="font-mono font-bold text-xl text-brand-400">{parsed.length}</p>
+            <p className="text-[10px] text-gray-400">Productos</p>
           </div>
           <div className="card bg-surface-400 text-center">
-            <p className="font-syne font-bold text-xl text-white">{totalPres}</p>
-            <p className="text-[10px] text-gray-500">Presentaciones</p>
+            <p className="font-mono font-bold text-xl text-white">{totalPres}</p>
+            <p className="text-[10px] text-gray-400">Presentaciones</p>
           </div>
           <div className="card bg-surface-400 text-center">
-            <p className="font-syne font-bold text-xl text-white">{categories.length}</p>
-            <p className="text-[10px] text-gray-500">Categorías</p>
+            <p className="font-mono font-bold text-xl text-white">{categories.length}</p>
+            <p className="text-[10px] text-gray-400">Categorías</p>
           </div>
           <div className="card bg-surface-400 text-center">
-            <p className="font-syne font-bold text-xl text-white">{photoCount}</p>
-            <p className="text-[10px] text-gray-500">Fotos</p>
+            <p className="font-mono font-bold text-xl text-white">{photoCount}</p>
+            <p className="text-[10px] text-gray-400">Fotos</p>
           </div>
         </div>
 
@@ -492,16 +492,16 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
 
           <div className="grid grid-cols-3 gap-3 mt-4 max-w-sm mx-auto">
             <div>
-              <p className="font-syne font-bold text-xl text-green-400">{result?.created || 0}</p>
-              <p className="text-[10px] text-gray-500">Creados</p>
+              <p className="font-mono font-bold text-xl text-green-400">{result?.created || 0}</p>
+              <p className="text-[10px] text-gray-400">Creados</p>
             </div>
             <div>
-              <p className="font-syne font-bold text-xl text-yellow-400">{result?.skipped || 0}</p>
-              <p className="text-[10px] text-gray-500">Omitidos</p>
+              <p className="font-mono font-bold text-xl text-yellow-400">{result?.skipped || 0}</p>
+              <p className="text-[10px] text-gray-400">Omitidos</p>
             </div>
             <div>
-              <p className="font-syne font-bold text-xl text-red-400">{result?.errors?.length || 0}</p>
-              <p className="text-[10px] text-gray-500">Errores</p>
+              <p className="font-mono font-bold text-xl text-red-400">{result?.errors?.length || 0}</p>
+              <p className="text-[10px] text-gray-400">Errores</p>
             </div>
           </div>
 

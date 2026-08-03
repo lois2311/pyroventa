@@ -104,7 +104,7 @@ function PrintOption({ icon, label, desc, onClick }) {
       <span className="text-lg mt-0.5">{icon}</span>
       <div>
         <p className="text-sm text-white font-medium">{label}</p>
-        <p className="text-xs text-gray-500">{desc}</p>
+        <p className="text-xs text-gray-400">{desc}</p>
       </div>
     </button>
   )

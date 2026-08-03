@@ -1,7 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useId } from 'react'
 import { formatCOP } from '../lib/format.js'
+import { useModalA11y } from '../hooks/useModalA11y.js'
 
 export default function SuccessAnimation({ invoice, onDone }) {
+  const titleId = useId()
+  const panelRef = useModalA11y(onDone)
+
   // Auto-dismiss después de 2.5s
   useEffect(() => {
     const t = setTimeout(onDone, 2500)
@@ -14,6 +18,7 @@ export default function SuccessAnimation({ invoice, onDone }) {
       onClick={onDone}
     >
       <div
+        ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="bg-surface-300 border border-green-500/30 rounded-2xl p-8 max-w-xs w-full text-center shadow-2xl animate-scale-in"
         onClick={e => e.stopPropagation()}
       >
@@ -43,12 +48,12 @@ export default function SuccessAnimation({ invoice, onDone }) {
           </svg>
         </div>
 
-        <h2 className="font-syne font-bold text-xl text-green-400 mb-1">¡Factura creada!</h2>
+        <h2 id={titleId} className="font-syne font-bold text-xl text-green-400 mb-1">¡Factura creada!</h2>
 
         {/* Código grande */}
         {invoice?.code && (
           <div className="my-3">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Código</p>
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Código</p>
             <div className="font-mono font-bold text-brand-400 text-5xl tracking-[0.2em]">
               {invoice.code}
             </div>
@@ -59,7 +64,7 @@ export default function SuccessAnimation({ invoice, onDone }) {
           <p className="text-white font-semibold text-lg mb-4">{formatCOP(invoice.total)}</p>
         )}
 
-        <p className="text-gray-500 text-xs">Toca para continuar</p>
+        <p className="text-gray-400 text-xs">Toca para continuar</p>
       </div>
     </div>
   )

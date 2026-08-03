@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useId } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { api } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { toISO } from './DateRangeBar.jsx'
 import { useToast } from './Toast.jsx'
+import { useModalA11y } from '../hooks/useModalA11y.js'
 
 /**
  * Devolución de una factura pagada HOY: se busca por código entre las
@@ -12,6 +13,8 @@ import { useToast } from './Toast.jsx'
  */
 export default function RefundModal({ location, onClose }) {
   const { error: toastError, success: toastSuccess } = useToast()
+  const titleId = useId()
+  const panelRef = useModalA11y(onClose)
   const [code,      setCode]      = useState('')
   const [searching, setSearching] = useState(false)
   const [invoice,   setInvoice]   = useState(null)
@@ -59,11 +62,12 @@ export default function RefundModal({ location, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
-      <div className="card bg-surface-200 w-full max-w-md my-4 space-y-4 animate-scale-in" onClick={e => e.stopPropagation()}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        className="card bg-surface-200 w-full max-w-md my-4 space-y-4 animate-scale-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-syne font-bold text-lg text-white">↩ Devolución</h2>
-            <p className="text-xs text-gray-500">Facturas pagadas hoy en {location?.name}</p>
+            <h2 id={titleId} className="font-syne font-bold text-lg text-white">↩ Devolución</h2>
+            <p className="text-xs text-gray-400">Facturas pagadas hoy en {location?.name}</p>
           </div>
           <button onClick={onClose} aria-label="Cerrar"
             className="btn-touch-safe inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-surface-50 transition-colors">
@@ -92,13 +96,13 @@ export default function RefundModal({ location, onClose }) {
                 onKeyDown={e => { if (e.key === 'Enter' && code.length === 4) handleSearch() }}
                 placeholder="_ _ _ _"
                 autoFocus
-                className="input text-center font-mono text-xl tracking-[0.4em] placeholder-gray-700 flex-1"
+                className="input text-center font-mono text-xl tracking-[0.4em] placeholder-gray-400 flex-1"
               />
               <button onClick={handleSearch} disabled={code.length !== 4 || searching} className="btn btn-primary shrink-0">
                 {searching ? <Loader2 className="animate-spin h-4 w-4" /> : 'Buscar'}
               </button>
             </div>
-            <p className="text-[10px] text-gray-500">
+            <p className="text-[10px] text-gray-400">
               Solo se pueden devolver facturas pagadas hoy. Para días anteriores, el administrador puede hacerlo desde el Historial.
             </p>
           </div>
@@ -107,7 +111,7 @@ export default function RefundModal({ location, onClose }) {
             <div className="bg-surface-400 rounded-xl p-3 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="font-mono font-bold text-brand-400 text-xl">#{invoice.code}</span>
-                <span className="font-syne font-bold text-white">{formatCOP(invoice.total)}</span>
+                <span className="font-mono font-bold text-white">{formatCOP(invoice.total)}</span>
               </div>
               <p className="text-xs text-gray-400">
                 {invoice.seller_name} · {new Date(invoice.paid_at || invoice.created_at).toLocaleTimeString('es-CO')}
@@ -115,7 +119,7 @@ export default function RefundModal({ location, onClose }) {
               <div className="pt-1 space-y-0.5">
                 {(Array.isArray(invoice.items) ? invoice.items : []).map((item, i) => (
                   <p key={i} className="text-xs text-gray-300">
-                    {item.product_name || item.label} <span className="text-gray-500">×{item.qty}</span>
+                    {item.product_name || item.label} <span className="text-gray-400">×{item.qty}</span>
                   </p>
                 ))}
               </div>

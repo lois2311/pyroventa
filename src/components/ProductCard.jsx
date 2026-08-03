@@ -68,7 +68,7 @@ export default function ProductCard({ product }) {
                 <span className="font-semibold font-mono text-xs">{formatCOP(pres.price)}</span>
                 <span className={`
                   w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold
-                  ${active ? 'bg-brand-500 text-white' : 'bg-surface-50 text-gray-500'}
+                  ${active ? 'bg-brand-500 text-white' : 'bg-surface-50 text-gray-400'}
                 `}>
                   {active ? '✓' : '+'}
                 </span>

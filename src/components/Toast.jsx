@@ -62,7 +62,7 @@ function ToastContainer({ toasts, onDismiss }) {
             <span className="text-sm text-white/90 flex-1 leading-snug">{t.message}</span>
             <button
               onClick={() => onDismiss(t.id)}
-              className="text-gray-500 hover:text-white transition-colors shrink-0 text-lg leading-none"
+              className="text-gray-400 hover:text-white transition-colors shrink-0 text-lg leading-none"
             >
               ×
             </button>

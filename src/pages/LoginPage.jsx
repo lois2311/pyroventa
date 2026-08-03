@@ -33,7 +33,7 @@ function NumPad({ value, onChange, onSubmit, loading }) {
               w-11 h-11 rounded-xl border-2 flex items-center justify-center font-mono text-xl font-bold transition-all duration-150
               ${i < value.length
                 ? 'bg-brand-500/20 border-brand-500 text-brand-400'
-                : 'bg-surface-300 border-white/10 text-gray-500'
+                : 'bg-surface-300 border-white/10 text-gray-400'
               }
             `}
           >
@@ -86,7 +86,7 @@ function RegisterSelector({ locationId, value, onChange }) {
 
   if (registers.length === 0) {
     return (
-      <p className="text-gray-500 text-sm text-center py-4">
+      <p className="text-gray-400 text-sm text-center py-4">
         No hay cajas registradas para este punto de venta.
         <br />
         <span className="text-xs text-gray-400">Un admin debe crear cajas desde Administración.</span>
@@ -235,7 +235,7 @@ export default function LoginPage() {
             <Flame className="w-8 h-8 text-brand-500" />
           </div>
           <h1 className="font-syne text-3xl font-bold text-white tracking-tight">PyroVenta</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-400 text-sm mt-1">
             {tenant ? tenant.name : 'Sistema de control de ventas'}
           </p>
         </div>
@@ -246,7 +246,7 @@ export default function LoginPage() {
           {bootLoading && (
             <div className="py-10 text-center">
               <Loader2 className="animate-spin h-6 w-6 text-brand-500 mx-auto" />
-              <p className="text-gray-500 text-sm mt-3">Cargando empresa...</p>
+              <p className="text-gray-400 text-sm mt-3">Cargando empresa...</p>
             </div>
           )}
 
@@ -255,7 +255,7 @@ export default function LoginPage() {
               <h2 className="font-syne text-lg font-semibold text-white mb-1">
                 Código de empresa
               </h2>
-              <p className="text-gray-500 text-sm mb-4">
+              <p className="text-gray-400 text-sm mb-4">
                 Ingresa el código que te entregó tu proveedor (o abre el link de tu empresa).
               </p>
               <input
@@ -264,7 +264,7 @@ export default function LoginPage() {
                 onChange={e => setSlugInput(e.target.value)}
                 placeholder="ej: pirotecnia-el-coheton"
                 autoFocus
-                className="w-full px-4 py-3 rounded-xl bg-surface-400 border-2 border-white/10 text-white placeholder-gray-600 focus:border-brand-500 focus:outline-none"
+                className="w-full px-4 py-3 rounded-xl bg-surface-400 border-2 border-white/10 text-white placeholder-gray-400 focus:border-brand-500 focus:outline-none"
               />
               <button
                 type="submit"
@@ -283,7 +283,7 @@ export default function LoginPage() {
               <h2 className="font-syne text-lg font-semibold text-white mb-1">
                 Selecciona tu punto de venta
               </h2>
-              <p className="text-gray-500 text-sm mb-4">¿En cuál estación vas a trabajar hoy?</p>
+              <p className="text-gray-400 text-sm mb-4">¿En cuál estación vas a trabajar hoy?</p>
 
               <LocationSelector locations={locations} value={location} onChange={setLocation} />
 
@@ -311,7 +311,7 @@ export default function LoginPage() {
             <div className="animate-fade-in">
               <button
                 onClick={() => { setStep('location'); setPin('') }}
-                className="flex items-center gap-1.5 text-gray-500 hover:text-white text-sm mb-4 transition-colors"
+                className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm mb-4 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" /> <span>{location?.name}</span>
               </button>
@@ -319,7 +319,7 @@ export default function LoginPage() {
               <h2 className="font-syne text-lg font-semibold text-white mb-1 text-center">
                 Ingresa tu PIN
               </h2>
-              <p className="text-gray-500 text-sm mb-5 text-center">4 dígitos</p>
+              <p className="text-gray-400 text-sm mb-5 text-center">4 dígitos</p>
 
               <NumPad
                 value={pin}
@@ -353,7 +353,7 @@ export default function LoginPage() {
             <div className="animate-fade-in">
               <button
                 onClick={() => { setStep('pin'); setPin(''); setSelectedReg(null) }}
-                className="flex items-center gap-1.5 text-gray-500 hover:text-white text-sm mb-4 transition-colors"
+                className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm mb-4 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" /> <span>Cambiar PIN</span>
               </button>
@@ -361,7 +361,7 @@ export default function LoginPage() {
               <h2 className="font-syne text-lg font-semibold text-white mb-1 text-center">
                 Selecciona tu caja
               </h2>
-              <p className="text-gray-500 text-sm mb-4 text-center">
+              <p className="text-gray-400 text-sm mb-4 text-center">
                 ¿En cuál caja vas a cobrar?
               </p>
 
@@ -391,7 +391,7 @@ export default function LoginPage() {
 
         </div>
 
-        <p className="text-center text-gray-500 text-xs mt-4">
+        <p className="text-center text-gray-400 text-xs mt-4">
           PyroVenta · Multitenant
         </p>
       </div>

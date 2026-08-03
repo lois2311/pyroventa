@@ -92,7 +92,7 @@ function NewTenantModal({ onClose, onCreated }) {
             </div>
             <div className="border-t border-white/10 pt-4">
               <p className="text-gray-400 text-sm mb-1">Primer punto de venta</p>
-              <p className="text-gray-500 text-xs mb-3">Sin al menos un punto de venta, nadie puede iniciar sesión en la empresa.</p>
+              <p className="text-gray-400 text-xs mb-3">Sin al menos un punto de venta, nadie puede iniciar sesión en la empresa.</p>
               <div className="grid grid-cols-2 gap-3">
                 <input value={locName} onChange={e => setLocName(e.target.value)} placeholder="Nombre (ej: Principal)"
                   className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
@@ -315,7 +315,7 @@ export default function SuperDashboard() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="font-syne text-2xl font-bold text-white">Clientes</h1>
-            <p className="text-gray-500 text-sm">Panel de plataforma PyroVenta</p>
+            <p className="text-gray-400 text-sm">Panel de plataforma PyroVenta</p>
           </div>
           <div className="flex gap-2">
             <button onClick={load} className="btn btn-ghost btn-sm"><RefreshCw className="w-4 h-4" /></button>
@@ -350,7 +350,7 @@ export default function SuperDashboard() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-xs text-gray-400 mt-0.5">
                       /c/{t.slug}
                       {` · ${t.locations_count} punto${t.locations_count === 1 ? '' : 's'} de venta`}
                       {t.last_activity && ` · última venta: ${new Date(t.last_activity).toLocaleString('es-CO')}`}
@@ -358,18 +358,18 @@ export default function SuperDashboard() {
                   </div>
                   <div className="text-right">
                     <p className="text-white font-semibold">{formatCOP(t.today_sales)}</p>
-                    <p className="text-xs text-gray-500">{t.today_invoices} facturas hoy</p>
+                    <p className="text-xs text-gray-400">{t.today_invoices} facturas hoy</p>
                   </div>
                   <button
                     onClick={() => setLocTenant(t)}
-                    className="btn btn-ghost btn-sm"
+                    className="btn btn-ghost btn-sm btn-touch-safe"
                     title="Agregar punto de venta"
                   >
                     <Plus className="w-4 h-4" /> Punto
                   </button>
                   <button
                     onClick={() => toggleActive(t)}
-                    className={`btn btn-sm ${t.active ? 'btn-ghost text-red-400' : 'btn-primary'}`}
+                    className={`btn btn-sm btn-touch-safe ${t.active ? 'btn-ghost text-red-400' : 'btn-primary'}`}
                     title={t.active ? 'Suspender' : 'Reactivar'}
                   >
                     {t.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}

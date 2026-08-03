@@ -51,12 +51,12 @@ export default function TransferBreakdown({ data, compact = false }) {
         return (
           <div key={r.id}>
             <div className="flex items-center justify-between text-xs">
-              <span className={r.id === 'sin_detalle' ? 'text-gray-500 italic' : 'text-gray-400'}>
+              <span className={r.id === 'sin_detalle' ? 'text-gray-400 italic' : 'text-gray-400'}>
                 {r.label}
               </span>
               <span className="font-mono text-blue-300">
                 {formatCOP(r.value)}
-                <span className="text-gray-600 ml-1.5">{pct.toFixed(0)}%</span>
+                <span className="text-gray-400 ml-1.5">{pct.toFixed(0)}%</span>
               </span>
             </div>
             <div className="h-1 bg-surface-50 rounded-full overflow-hidden mt-0.5">

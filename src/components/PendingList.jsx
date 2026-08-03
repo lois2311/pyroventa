@@ -47,7 +47,7 @@ export default function PendingList({ invoices, selectedId, onSelect }) {
 
             {/* Vendedor + total */}
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-500 truncate max-w-[100px]">
+              <span className="text-gray-400 truncate max-w-[100px]">
                 {inv.seller_name || 'Sin vendedor'}
               </span>
               <span className="font-semibold font-mono text-brand-400">

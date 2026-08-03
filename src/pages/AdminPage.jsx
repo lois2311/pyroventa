@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, useId } from 'react'
 import { useAuthStore }    from '../store/authStore.js'
+import { useModalA11y }    from '../hooks/useModalA11y.js'
 import { api, clearProductsCache } from '../lib/api.js'
 import { formatCOP, formatDate, formatDateShort, payMethodLabel } from '../lib/format.js'
 import Topbar              from '../components/Topbar.jsx'
@@ -72,11 +73,12 @@ export default function AdminPage() {
             <button
               key={t.id}
               onClick={() => handleTabChange(t.id)}
+              aria-current={tab === t.id ? 'page' : undefined}
               className={`
                 flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-100 text-left
                 ${tab === t.id
                   ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
-                  : 'text-gray-500 hover:text-white hover:bg-surface-300 border border-transparent'
+                  : 'text-gray-400 hover:text-white hover:bg-surface-300 border border-transparent'
                 }
               `}
             >
@@ -327,11 +329,11 @@ function VendedoresTab({ locations }) {
             <div key={s.id} className="card bg-surface-300 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1 min-w-0">
                 <p className={`font-medium ${s.active ? 'text-white' : 'text-gray-400 line-through'}`}>{s.name}</p>
-                <p className="text-xs text-gray-500">{ROLE_LABEL[s.role]} · PIN: {s.pin}</p>
+                <p className="text-xs text-gray-400">{ROLE_LABEL[s.role]} · PIN: {s.pin}</p>
               </div>
               <div className="flex gap-2 shrink-0">
-                <button onClick={() => { setEditSeller(s); setShowForm(true) }} className="btn btn-ghost btn-sm">Editar</button>
-                <button onClick={() => handleToggle(s)} className={`btn btn-sm ${s.active ? 'btn-ghost text-yellow-500' : 'btn-ghost text-green-500'}`}>
+                <button onClick={() => { setEditSeller(s); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe">Editar</button>
+                <button onClick={() => handleToggle(s)} className={`btn btn-sm btn-touch-safe ${s.active ? 'btn-ghost text-yellow-500' : 'btn-ghost text-green-500'}`}>
                   {s.active ? 'Desactivar' : 'Activar'}
                 </button>
               </div>
@@ -354,6 +356,8 @@ function VendedoresTab({ locations }) {
 
 function SellerForm({ seller, locations, onClose, onSave }) {
   const { error: toastError } = useToast()
+  const titleId = useId()
+  const panelRef = useModalA11y(onClose)
   const [name,     setName]     = useState(seller?.name || '')
   const [pin,      setPin]      = useState(seller?.pin || '')
   const [role,     setRole]     = useState(seller?.role || 'seller')
@@ -381,8 +385,9 @@ function SellerForm({ seller, locations, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-        <h3 className="font-syne font-semibold text-white">{seller ? 'Editar vendedor' : 'Nuevo vendedor'}</h3>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+        <h3 id={titleId} className="font-syne font-semibold text-white">{seller ? 'Editar vendedor' : 'Nuevo vendedor'}</h3>
         <input placeholder="Nombre" value={name} onChange={e => setName(e.target.value)} className="input" />
         <input placeholder="PIN (4 dígitos)" maxLength={4} value={pin}
           onChange={e => setPin(e.target.value.replace(/\D/g,'').slice(0,4))} className="input font-mono" />
@@ -392,7 +397,7 @@ function SellerForm({ seller, locations, onClose, onSave }) {
           <option value="admin">Admin</option>
         </select>
         <div>
-          <p className="text-xs text-gray-500 mb-2">Puntos de venta asignados</p>
+          <p className="text-xs text-gray-400 mb-2">Puntos de venta asignados</p>
           <div className="space-y-1">
             {locations.map(l => (
               <label key={l.id} className="flex items-center gap-2 cursor-pointer">
@@ -445,14 +450,14 @@ function LocacionesTab({ locations, setLocations }) {
             <span className="text-xl hidden sm:block">📍</span>
             <div className="flex-1 min-w-0">
               <p className={`font-medium ${loc.active ? 'text-white' : 'text-gray-400 line-through'}`}>{loc.name}</p>
-              {loc.address && <p className="text-xs text-gray-500 truncate">{loc.address}</p>}
+              {loc.address && <p className="text-xs text-gray-400 truncate">{loc.address}</p>}
               {loc.printer_config?.paper_width && (
                 <p className="text-xs text-gray-400">Impresora: {loc.printer_config.paper_width}</p>
               )}
             </div>
             <div className="flex gap-2 shrink-0">
-              <button onClick={() => { setEditLoc(loc); setShowForm(true) }} className="btn btn-ghost btn-sm">Editar</button>
-              <button onClick={() => handleToggle(loc)} className="btn btn-ghost btn-sm text-yellow-500">
+              <button onClick={() => { setEditLoc(loc); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe">Editar</button>
+              <button onClick={() => handleToggle(loc)} className="btn btn-ghost btn-sm btn-touch-safe text-yellow-500">
                 {loc.active ? 'Desactivar' : 'Activar'}
               </button>
             </div>
@@ -473,6 +478,8 @@ function LocacionesTab({ locations, setLocations }) {
 
 function LocationForm({ location, onClose, onSave }) {
   const { error: toastError } = useToast()
+  const titleId = useId()
+  const panelRef = useModalA11y(onClose)
   const [name,   setName]   = useState(location?.name || '')
   const [addr,   setAddr]   = useState(location?.address || '')
   const [width,  setWidth]  = useState(location?.printer_config?.paper_width || '80mm')
@@ -502,12 +509,13 @@ function LocationForm({ location, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-        <h3 className="font-syne font-semibold text-white">{location ? 'Editar punto de venta' : 'Nuevo punto de venta'}</h3>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+        <h3 id={titleId} className="font-syne font-semibold text-white">{location ? 'Editar punto de venta' : 'Nuevo punto de venta'}</h3>
         <input placeholder="Nombre del punto de venta" value={name} onChange={e => setName(e.target.value)} className="input" />
         <input placeholder="Dirección (opcional)" value={addr} onChange={e => setAddr(e.target.value)} className="input" />
         <div>
-          <label className="text-xs text-gray-500 block mb-1">Ancho del papel</label>
+          <label className="text-xs text-gray-400 block mb-1">Ancho del papel</label>
           <select value={width} onChange={e => setWidth(e.target.value)} className="input">
             <option value="80mm">80mm (48 caracteres)</option>
             <option value="58mm">58mm (32 caracteres)</option>
@@ -588,7 +596,7 @@ function ProductosTab() {
         <div>
           <h2 className="font-syne font-semibold text-white">Productos</h2>
           {!loading && products.length > 0 && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-400">
               {products.length} en el catálogo
               {inactiveCount > 0 && ` · ${inactiveCount} inactivo(s)`}
             </p>
@@ -608,7 +616,7 @@ function ProductosTab() {
         <div className="card bg-surface-400 border-dashed border-white/10 text-center py-8">
           <div className="text-3xl mb-2">🎆</div>
           <p className="text-sm text-gray-300">El catálogo está vacío</p>
-          <p className="text-xs text-gray-500 mt-1 mb-4">
+          <p className="text-xs text-gray-400 mt-1 mb-4">
             Crea un producto a mano o impórtalos todos desde un Excel.
           </p>
           <div className="flex gap-2 justify-center">
@@ -637,7 +645,7 @@ function ProductosTab() {
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-gray-500">{p.categories?.name}</p>
+                  <p className="text-xs text-gray-400">{p.categories?.name}</p>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {(p.presentations || []).map(pr => (
                       <span key={pr.id} className="text-xs bg-surface-50 text-gray-400 px-2 py-0.5 rounded-full">
@@ -647,17 +655,17 @@ function ProductosTab() {
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={() => { setEditProd(p); setShowForm(true) }} className="btn btn-ghost btn-sm">Editar</button>
+                  <button onClick={() => { setEditProd(p); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe">Editar</button>
                   <button
                     onClick={() => handleToggle(p)}
-                    className="btn btn-ghost btn-sm text-yellow-500"
+                    className="btn btn-ghost btn-sm btn-touch-safe text-yellow-500"
                     title={p.active ? 'Se oculta del POS, se puede reactivar' : 'Vuelve a estar disponible en el POS'}
                   >
                     {p.active ? 'Desactivar' : 'Activar'}
                   </button>
                   <button
                     onClick={() => handleDelete(p)}
-                    className="btn btn-ghost btn-sm text-gray-400 hover:text-red-400"
+                    className="btn btn-ghost btn-sm btn-touch-safe text-gray-400 hover:text-red-400"
                     title="Eliminar definitivamente"
                     aria-label={`Eliminar ${p.name} definitivamente`}
                   >
@@ -683,6 +691,8 @@ function ProductosTab() {
 
 function ProductForm({ product, onClose, onSave }) {
   const { error: toastError } = useToast()
+  const titleId = useId()
+  const panelRef = useModalA11y(onClose)
   const [name,        setName]        = useState(product?.name || '')
   const [catId,       setCatId]       = useState(product?.categories?.id || '')
   const [desc,        setDesc]        = useState(product?.description || '')
@@ -740,8 +750,9 @@ function ProductForm({ product, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div className="card bg-surface-200 w-full max-w-lg space-y-4 my-4" onClick={e => e.stopPropagation()}>
-        <h3 className="font-syne font-semibold text-white">{product ? 'Editar producto' : 'Nuevo producto'}</h3>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        className="card bg-surface-200 w-full max-w-lg space-y-4 my-4" onClick={e => e.stopPropagation()}>
+        <h3 id={titleId} className="font-syne font-semibold text-white">{product ? 'Editar producto' : 'Nuevo producto'}</h3>
         <input placeholder="Nombre del producto" value={name} onChange={e => setName(e.target.value)} className="input" />
         <input placeholder="Descripción (opcional)" value={desc} onChange={e => setDesc(e.target.value)} className="input" />
 
@@ -767,7 +778,7 @@ function ProductForm({ product, onClose, onSave }) {
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-gray-500">Presentaciones y precios</p>
+            <p className="text-xs text-gray-400">Presentaciones y precios</p>
             <button onClick={addPres} className="btn btn-ghost btn-sm text-brand-400">+ Agregar</button>
           </div>
           <div className="space-y-2">
@@ -860,7 +871,7 @@ function CajasTab({ locations }) {
       ) : (
         Object.entries(byLocation).map(([locId, group]) => (
           <div key={locId}>
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               📍 {group.name}
             </p>
             <div className="space-y-1.5">
@@ -873,13 +884,13 @@ function CajasTab({ locations }) {
                   <div className="flex gap-2 shrink-0">
                     <button
                       onClick={() => { setEditReg(reg); setShowForm(true) }}
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm btn-touch-safe"
                     >
                       Editar
                     </button>
                     <button
                       onClick={() => handleDelete(reg)}
-                      className="btn btn-ghost btn-sm text-red-400"
+                      className="btn btn-ghost btn-sm btn-touch-safe text-red-400"
                     >
                       Quitar
                     </button>
@@ -956,15 +967,15 @@ function ClosuresSection({ locations }) {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-gray-500">Esperado</p>
+                    <p className="text-[10px] text-gray-400">Esperado</p>
                     <p className="font-mono text-xs text-gray-300">{formatCOP(c.expected_cash)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-gray-500">Contado</p>
+                    <p className="text-[10px] text-gray-400">Contado</p>
                     <p className="font-mono text-xs text-white">{formatCOP(c.declared_cash)}</p>
                   </div>
                   <div className="text-right w-24">
-                    <p className="text-[10px] text-gray-500">Diferencia</p>
+                    <p className="text-[10px] text-gray-400">Diferencia</p>
                     <p className={`font-mono text-sm font-bold ${diff === 0 ? 'text-green-400' : diff > 0 ? 'text-amber-400' : 'text-red-400'}`}>
                       {diff > 0 ? '+' : ''}{formatCOP(diff)}
                     </p>
@@ -982,6 +993,8 @@ function ClosuresSection({ locations }) {
 
 function RegisterForm({ register, locations, onClose, onSave }) {
   const { error: toastError } = useToast()
+  const titleId = useId()
+  const panelRef = useModalA11y(onClose)
   const [name,       setName]       = useState(register?.name || '')
   const [locationId, setLocationId] = useState(register?.location_id || locations[0]?.id || '')
   const [saving,     setSaving]     = useState(false)
@@ -1003,8 +1016,9 @@ function RegisterForm({ register, locations, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-        <h3 className="font-syne font-semibold text-white">{register ? 'Editar caja' : 'Nueva caja'}</h3>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+        <h3 id={titleId} className="font-syne font-semibold text-white">{register ? 'Editar caja' : 'Nueva caja'}</h3>
         <input
           placeholder="Ej: Caja 1, Caja Principal, Caja Norte"
           value={name}
@@ -1014,7 +1028,7 @@ function RegisterForm({ register, locations, onClose, onSave }) {
         />
         {!register && (
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Punto de venta</label>
+            <label className="text-xs text-gray-400 block mb-1">Punto de venta</label>
             <select value={locationId} onChange={e => setLocationId(e.target.value)} className="input">
               {locations.map(l => (
                 <option key={l.id} value={l.id}>{l.name}</option>
@@ -1140,7 +1154,7 @@ function HistorialTab({ locations }) {
                     {STATUS_LABEL[inv.status]}
                   </span>
                   {inv.pay_method && (
-                    <span className="text-xs text-gray-500">{payMethodLabel(inv.pay_method, inv.transfer_provider)}</span>
+                    <span className="text-xs text-gray-400">{payMethodLabel(inv.pay_method, inv.transfer_provider)}</span>
                   )}
                   <span className="font-mono font-semibold text-white text-sm">{formatCOP(inv.total)}</span>
                   <span className="text-xs text-gray-400 w-28 text-right shrink-0">
@@ -1152,7 +1166,7 @@ function HistorialTab({ locations }) {
               {/* Detalle expandido */}
               {expanded === inv.id && (
                 <div className="card bg-surface-400 border-brand-500/20 ml-0 sm:ml-4 mt-1 animate-fade-in">
-                  <p className="text-xs text-gray-500 mb-2">Items de la factura:</p>
+                  <p className="text-xs text-gray-400 mb-2">Items de la factura:</p>
                   <div className="space-y-1">
                     {(Array.isArray(inv.items) ? inv.items : []).map((item, idx) => (
                       <div key={idx} className="flex justify-between text-sm">
@@ -1189,7 +1203,7 @@ function HistorialTab({ locations }) {
                   )}
                   {inv.observations && (
                     <div className="mt-2 bg-surface-300 rounded-lg px-2 py-1.5 border border-white/5">
-                      <p className="text-[10px] text-gray-500">📝 Observaciones:</p>
+                      <p className="text-[10px] text-gray-400">📝 Observaciones:</p>
                       <p className="text-xs text-gray-300 italic">{inv.observations}</p>
                     </div>
                   )}

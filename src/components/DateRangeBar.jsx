@@ -27,9 +27,9 @@ export default function DateRangeBar({ from, to, onChange }) {
           className="input w-40 text-sm" />
       </div>
       <div className="flex gap-1.5">
-        <button onClick={() => setQuick(1)}  className="btn btn-ghost btn-sm border border-white/10">Hoy</button>
-        <button onClick={() => setQuick(7)}  className="btn btn-ghost btn-sm border border-white/10">7 días</button>
-        <button onClick={() => setQuick(30)} className="btn btn-ghost btn-sm border border-white/10">30 días</button>
+        <button onClick={() => setQuick(1)}  className="btn btn-ghost btn-sm btn-touch-safe border border-white/10">Hoy</button>
+        <button onClick={() => setQuick(7)}  className="btn btn-ghost btn-sm btn-touch-safe border border-white/10">7 días</button>
+        <button onClick={() => setQuick(30)} className="btn btn-ghost btn-sm btn-touch-safe border border-white/10">30 días</button>
       </div>
     </div>
   )

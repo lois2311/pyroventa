@@ -3,7 +3,7 @@ import { CheckCircle2, MapPin } from 'lucide-react'
 export default function LocationSelector({ locations = [], value, onChange }) {
   if (locations.length === 0) {
     return (
-      <p className="text-gray-500 text-sm text-center py-6">
+      <p className="text-gray-400 text-sm text-center py-6">
         Esta empresa aún no tiene puntos de venta configurados.
       </p>
     )
@@ -28,7 +28,7 @@ export default function LocationSelector({ locations = [], value, onChange }) {
             <div className="min-w-0">
               <p className="font-semibold text-white truncate">{loc.name}</p>
               {loc.address && (
-                <p className="text-xs text-gray-500 mt-0.5 truncate">{loc.address}</p>
+                <p className="text-xs text-gray-400 mt-0.5 truncate">{loc.address}</p>
               )}
             </div>
             {value?.id === loc.id && (

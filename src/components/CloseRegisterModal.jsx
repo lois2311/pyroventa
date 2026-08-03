@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { api } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useToast } from './Toast.jsx'
+import { useModalA11y } from '../hooks/useModalA11y.js'
 
 // Diferencia con color: verde = cuadra, ámbar = sobra, rojo = falta
 function DiffAmount({ value, className = '' }) {
@@ -29,6 +30,8 @@ function ExpectedRow({ label, value, strong }) {
  */
 export default function CloseRegisterModal({ register, location, onClose }) {
   const { error: toastError, success: toastSuccess } = useToast()
+  const titleId = useId()
+  const panelRef = useModalA11y(onClose)
   const [summary,  setSummary]  = useState(null)   // { expected_*, invoice_count, existing }
   const [declared, setDeclared] = useState('')
   const [notes,    setNotes]    = useState('')
@@ -75,11 +78,12 @@ export default function CloseRegisterModal({ register, location, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
-      <div className="card bg-surface-200 w-full max-w-md my-4 space-y-4 animate-scale-in" onClick={e => e.stopPropagation()}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        className="card bg-surface-200 w-full max-w-md my-4 space-y-4 animate-scale-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-syne font-bold text-lg text-white">Cierre de caja</h2>
-            <p className="text-xs text-gray-500">
+            <h2 id={titleId} className="font-syne font-bold text-lg text-white">Cierre de caja</h2>
+            <p className="text-xs text-gray-400">
               🖥 {register?.name || 'Sin caja'} · {location?.name} · {summary?.date || 'hoy'}
             </p>
           </div>
@@ -108,7 +112,7 @@ export default function CloseRegisterModal({ register, location, onClose }) {
               <ExpectedRow label="Transferencias" value={formatCOP(closure.expected_transfer)} />
               <ExpectedRow label="Datáfono" value={formatCOP(closure.expected_card)} />
               {closure.notes && <p className="text-xs text-gray-400 italic pt-1 border-t border-white/5">📝 {closure.notes}</p>}
-              <p className="text-[10px] text-gray-500 pt-1">
+              <p className="text-[10px] text-gray-400 pt-1">
                 Cerrada por {closure.cashier_name} · {new Date(closure.closed_at).toLocaleString('es-CO')}
               </p>
             </div>
@@ -118,7 +122,7 @@ export default function CloseRegisterModal({ register, location, onClose }) {
           /* ---- Formulario de cierre ---- */
           <div className="space-y-4">
             <div className="bg-surface-400 rounded-xl p-3 space-y-1.5">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Según el sistema (hoy)</p>
+              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Según el sistema (hoy)</p>
               <ExpectedRow label="Facturas cobradas" value={String(summary.invoice_count)} />
               <ExpectedRow label="Efectivo esperado" value={formatCOP(summary.expected_cash)} strong />
               <ExpectedRow label="Transferencias" value={formatCOP(summary.expected_transfer)} />
@@ -142,7 +146,7 @@ export default function CloseRegisterModal({ register, location, onClose }) {
                   <span className="text-gray-400">Diferencia:</span>
                   <DiffAmount value={difference} />
                   {difference !== 0 && (
-                    <span className="text-gray-500">({difference > 0 ? 'sobra' : 'falta'})</span>
+                    <span className="text-gray-400">({difference > 0 ? 'sobra' : 'falta'})</span>
                   )}
                 </p>
               )}

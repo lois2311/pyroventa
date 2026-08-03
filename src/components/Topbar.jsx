@@ -105,7 +105,7 @@ export default function Topbar({ title }) {
             <span className="hidden lg:block">
               <span className="inline-flex items-center gap-1.5">
                 {seller.role === 'admin' && <Shield className="w-3.5 h-3.5 text-brand-500" />}
-                {seller.name} · <span className="text-gray-500">{ROLE_LABELS[seller.role]}</span>
+                {seller.name} · <span className="text-gray-400">{ROLE_LABELS[seller.role]}</span>
               </span>
             </span>
             <button
@@ -169,7 +169,7 @@ export default function Topbar({ title }) {
                 <div className="text-xs text-gray-400">
                   <span className="inline-flex items-center gap-1.5">
                     {seller.role === 'admin' && <Shield className="w-3.5 h-3.5 text-brand-500" />}
-                    {seller.name} · <span className="text-gray-500">{ROLE_LABELS[seller.role]}</span>
+                    {seller.name} · <span className="text-gray-400">{ROLE_LABELS[seller.role]}</span>
                   </span>
                 </div>
                 <button

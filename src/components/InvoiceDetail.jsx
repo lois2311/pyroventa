@@ -11,7 +11,7 @@ export default function InvoiceDetail({ invoice, productImages = {} }) {
       {/* Cabecera */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider">Factura</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wider">Factura</p>
           <span className="font-mono font-bold text-4xl text-brand-400 tracking-widest">
             #{invoice.code}
           </span>
@@ -20,7 +20,7 @@ export default function InvoiceDetail({ invoice, productImages = {} }) {
       </div>
 
       {/* Meta */}
-      <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+      <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
         <div>
           <span className="block text-gray-400">Vendedor</span>
           <span className="text-gray-300">{invoice.seller_name || '—'}</span>
@@ -62,7 +62,7 @@ export default function InvoiceDetail({ invoice, productImages = {} }) {
       {/* Total */}
       <div className="flex items-center justify-between border-t border-white/5 pt-3">
         <span className="text-gray-400">Total</span>
-        <span className="font-syne font-bold text-2xl text-white">{formatCOP(invoice.total)}</span>
+        <span className="font-mono font-bold text-2xl text-white">{formatCOP(invoice.total)}</span>
       </div>
     </div>
   )

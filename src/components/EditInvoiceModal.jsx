@@ -1,14 +1,17 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useId } from 'react'
 import { X } from 'lucide-react'
 import { api, getProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useAuthStore } from '../store/authStore.js'
 import { useToast } from './Toast.jsx'
 import ProductImage from './ProductImage.jsx'
+import { useModalA11y } from '../hooks/useModalA11y.js'
 
 export default function EditInvoiceModal({ invoice, productImages = {}, onClose, onSaved }) {
   const { location } = useAuthStore()
   const { error: toastError, success: toastSuccess } = useToast()
+  const titleId = useId()
+  const panelRef = useModalA11y(onClose)
 
   const [items,      setItems]      = useState([])
   const [products,   setProducts]   = useState([])
@@ -116,16 +119,17 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
       <div
+        ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="card bg-surface-200 w-full max-w-lg my-4 space-y-4 animate-scale-in"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-syne font-bold text-lg text-white">
+            <h2 id={titleId} className="font-syne font-bold text-lg text-white">
               Editar factura <span className="text-brand-400">#{invoice?.code}</span>
             </h2>
-            <p className="text-xs text-gray-500">Vendedor: {invoice?.seller_name}</p>
+            <p className="text-xs text-gray-400">Vendedor: {invoice?.seller_name}</p>
           </div>
           <button
             onClick={onClose}
@@ -145,7 +149,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
               <ProductImage src={productImages[item.productId]} name={item.product_name} className="w-8 h-8" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-white truncate">{item.product_name}</p>
-                <p className="text-[10px] text-gray-500">{item.label} · {formatCOP(item.price)} c/u</p>
+                <p className="text-[10px] text-gray-400">{item.label} · {formatCOP(item.price)} c/u</p>
               </div>
 
               {/* Controles cantidad */}
@@ -171,7 +175,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
 
               <button
                 onClick={() => removeItem(idx)}
-                className="text-gray-500 hover:text-red-400 transition-colors p-1.5 -m-1 ml-0.5"
+                className="text-gray-400 hover:text-red-400 transition-colors p-1.5 -m-1 ml-0.5"
                 aria-label={`Quitar ${item.product_name}`}
               >
                 <X className="w-3.5 h-3.5" />
@@ -201,7 +205,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
               />
               <button
                 onClick={() => { setShowCatalog(false); setQuery('') }}
-                className="text-gray-500 hover:text-white p-2 -m-1 shrink-0"
+                className="text-gray-400 hover:text-white p-2 -m-1 shrink-0"
                 aria-label="Cerrar búsqueda"
               >
                 <X className="w-4 h-4" />
@@ -212,7 +216,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
                 <div key={product.id} className="space-y-0.5">
                   <div className="flex items-center gap-1.5 px-1">
                     {product.image_url && <ProductImage src={product.image_url} name={product.name} className="w-6 h-6" />}
-                    <p className="text-[10px] text-gray-500 font-medium">{product.name}</p>
+                    <p className="text-[10px] text-gray-400 font-medium">{product.name}</p>
                   </div>
                   {(product.presentations || []).filter(p => p.active !== false).map(pres => (
                     <button
@@ -236,7 +240,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
         {/* Total */}
         <div className="flex items-center justify-between border-t border-white/5 pt-3">
           <span className="text-gray-400 text-sm font-medium">Nuevo total</span>
-          <span className="font-syne font-bold text-xl text-white">{formatCOP(total)}</span>
+          <span className="font-mono font-bold text-xl text-white">{formatCOP(total)}</span>
         </div>
 
         {/* Acciones */}

@@ -9,7 +9,7 @@ export default function CodeDisplay({ invoice, onNewSale }) {
     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
 
       {/* Etiqueta */}
-      <p className="text-gray-500 text-sm font-medium uppercase tracking-widest mb-3">
+      <p className="text-gray-400 text-sm font-medium uppercase tracking-widest mb-3">
         Código de factura
       </p>
 
@@ -51,8 +51,8 @@ export default function CodeDisplay({ invoice, onNewSale }) {
 
       {/* Total */}
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-gray-500 text-sm">Total a cobrar:</span>
-        <span className="font-syne font-bold text-2xl text-white">{formatCOP(invoice.total)}</span>
+        <span className="text-gray-400 text-sm">Total a cobrar:</span>
+        <span className="font-mono font-bold text-2xl text-white">{formatCOP(invoice.total)}</span>
       </div>
 
       {/* Meta */}

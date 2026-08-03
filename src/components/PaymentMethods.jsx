@@ -48,6 +48,7 @@ export default function PaymentMethods({
           <button
             key={m.id}
             onClick={() => onSelect(m.id)}
+            aria-pressed={selected === m.id}
             className={`
               flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-xl border-2 transition-all duration-150 cursor-pointer min-h-[72px]
               ${selected === m.id

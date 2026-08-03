@@ -40,6 +40,19 @@
     outline-offset: 2px;
     border-radius: 6px;
   }
+
+  /* Ninguna animación del proyecto tenía alternativa para movimiento
+     reducido: reveals, el glow del código y el checkmark de éxito corrían
+     igual sin importar la preferencia del sistema. El contenido sigue
+     apareciendo, solo que de inmediato en vez de animado. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
@@ -48,8 +61,11 @@
     @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-150 cursor-pointer select-none;
     @apply disabled:opacity-40 disabled:cursor-not-allowed;
   }
+  /* Texto oscuro sobre naranja: blanco sobre brand-500 da 2.80:1 (falla AA).
+     Oscurecer el texto en vez del fondo conserva el naranja de marca a pleno
+     brillo — 7.06:1 en reposo, 5.56:1 en hover, ambos AA. */
   .btn-primary {
-    @apply btn bg-brand-500 text-white hover:bg-brand-600 active:scale-[0.98];
+    @apply btn bg-brand-500 text-surface-700 hover:bg-brand-600 active:scale-[0.98];
   }
   .btn-ghost {
     @apply btn bg-transparent text-gray-300 hover:bg-surface-50 hover:text-white;
@@ -57,8 +73,10 @@
   .btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700 active:scale-[0.98];
   }
+  /* green-600 con blanco da 3.30:1 (falla AA en texto normal); un tono más
+     oscuro en reposo y hover mantiene el texto blanco y pasa AA (5.02 / 7.13). */
   .btn-success {
-    @apply btn bg-green-600 text-white hover:bg-green-700 active:scale-[0.98];
+    @apply btn bg-green-700 text-white hover:bg-green-800 active:scale-[0.98];
   }
   .btn-sm {
     @apply px-3 py-1.5 text-xs rounded-md;
@@ -80,9 +98,10 @@
   }
 
   /* Inputs */
+  /* placeholder-gray-500 daba 3.60:1 sobre surface-300 (falla AA); gray-400 pasa (6.86:1) */
   .input {
     @apply w-full bg-surface-300 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm
-           placeholder-gray-500 outline-none transition-colors duration-150
+           placeholder-gray-400 outline-none transition-colors duration-150
            focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30;
   }
 

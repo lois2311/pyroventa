@@ -39,7 +39,7 @@ export default function TopProducts({ data, loading }) {
                 <p className="font-medium text-white text-sm truncate">{product.product_name}</p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {product.presentations?.map((pres, i) => (
-                    <span key={i} className="text-[10px] bg-surface-50 text-gray-500 px-1.5 py-0.5 rounded">
+                    <span key={i} className="text-[10px] bg-surface-50 text-gray-400 px-1.5 py-0.5 rounded">
                       {pres.label} x{pres.qty}
                     </span>
                   ))}
