@@ -3,7 +3,7 @@ import { useAuthStore }     from '../store/authStore.js'
 import { useCartStore }     from '../store/cartStore.js'
 import { useInvoiceStore }  from '../store/invoiceStore.js'
 import { api, getProductsCache, setProductsCache } from '../lib/api.js'
-import { enqueue, generateOfflineCode, saveOfflineInvoice } from '../lib/offlineQueue.js'
+import { enqueue, generateOfflineCode, saveOfflineInvoice, newOpId } from '../lib/offlineQueue.js'
 import { formatCOP }   from '../lib/format.js'
 import Topbar          from '../components/Topbar.jsx'
 import ProductCard     from '../components/ProductCard.jsx'
@@ -86,6 +86,13 @@ export default function VendedorPage() {
       location_name: location.name,
       seller_id:     seller.id,
       seller_name:   seller.name,
+      // Identifica esta venta a lo largo de todos los reintentos (los de
+      // api.js y los de la cola offline). El servidor la usa para no crear
+      // una segunda factura si la respuesta se pierde por red.
+      client_op_id:  newOpId(),
+      // Solo qué y cuánto: precio, nombre y etiqueta los pone el servidor.
+      // Se siguen mandando los demás campos para que el POS funcione contra
+      // una API anterior durante el despliegue.
       items:         items.map(i => ({
         presentationId: i.presentationId,
         productId:      i.productId,

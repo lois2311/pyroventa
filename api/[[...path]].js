@@ -8,6 +8,7 @@ import { defaultPrinterConfig } from './_lib/printerConfig.js'
 import { parseRange, bogotaDayBounds } from './_lib/range.js'
 import { tenantOwns } from './_lib/tenantOwns.js'
 import { compareProducts } from './_lib/productSort.js'
+import { buildInvoiceItems } from './_lib/invoiceItems.js'
 import { parseImageDataUrl, isAllowedImageUrl, imagePathFromUrl, ensureProductImagesBucket, PRODUCT_IMAGES_BUCKET } from './_lib/productImages.js'
 import { clientIp, rejectIfLocked, recordFailedAttempt, clearAttempts } from './_lib/loginLock.js'
 import { bogotaDate } from './_lib/tenantStatus.js'
@@ -772,25 +773,100 @@ async function closuresList(req, res) {
 // =====================================================
 // INVOICES
 // =====================================================
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const UNIQUE_VIOLATION = '23505'
+
+// Idempotencia: se degrada una vez por instancia si falta la migración
+let invoicesHaveClientOpId = true
+const isMissingClientOpIdColumn = (e) =>
+  (e?.code === '42703' || e?.code === 'PGRST204') && /client_op_id/.test(e?.message || '')
+
+/**
+ * Catálogo autoritativo para cotizar: precio, etiqueta y nombre salen de la BD,
+ * nunca del body. Solo presentaciones activas del propio tenant.
+ */
+async function fetchPresentationCatalog(tenantId, clientItems) {
+  const ids = [...new Set(
+    (clientItems || []).map(i => i?.presentationId).filter(id => typeof id === 'string' && UUID_RE.test(id))
+  )]
+  if (!ids.length) return { status: 400, error: 'Item inválido: falta la presentación' }
+  const { data, error } = await supabaseAdmin.from('presentations')
+    .select('id, label, price, product_id, products(name)')
+    .eq('tenant_id', tenantId).eq('active', true).in('id', ids)
+  if (error) return { status: 500, error: error.message }
+  const map = new Map()
+  for (const r of data || []) {
+    map.set(r.id, { label: r.label, price: r.price, product_id: r.product_id, product_name: r.products?.name || null })
+  }
+  return { map }
+}
+
+const findByClientOpId = async (tenantId, clientOpId) => {
+  const { data, error } = await supabaseAdmin.from('invoices')
+    .select('*').eq('tenant_id', tenantId).eq('client_op_id', clientOpId).limit(1).maybeSingle()
+  // Falta la migración: apagar la búsqueda aquí evita repetir esta consulta
+  // fallida en cada venta hasta que el INSERT descubra lo mismo.
+  if (error && isMissingClientOpIdColumn(error)) invoicesHaveClientOpId = false
+  return data || null
+}
+
 async function invoicesCreate(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, seller_id, seller_name, location_name, items } = req.body || {}
+  const { location_id, seller_id, seller_name, location_name, items, client_op_id } = req.body || {}
   if (!location_id || !seller_id || !Array.isArray(items) || !items.length) return res.status(400).json({ error: 'location_id, seller_id e items requeridos' })
-  for (const item of items) { if (!item.presentationId || !item.price || !item.qty) return res.status(400).json({ error: 'Item inválido' }) }
+  if (client_op_id != null && !UUID_RE.test(String(client_op_id))) {
+    return res.status(400).json({ error: 'client_op_id inválido' })
+  }
 
   const { data: loc } = await supabaseAdmin.from('locations')
     .select('id').eq('id', location_id).eq('tenant_id', auth.tenantId).single()
   if (!loc) return res.status(403).json({ error: 'Punto de venta no pertenece a esta empresa' })
   if (!(await tenantOwns('sellers', seller_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
 
-  const total = items.reduce((s, i) => s + (i.price * i.qty), 0)
-  const { data: code, error: ce } = await supabaseAdmin.rpc('get_next_invoice_code', { p_location_id: location_id })
-  if (ce || !code) return res.status(500).json({ error: 'No se pudo generar código' })
-  const { data: invoice, error: ie } = await supabaseAdmin.from('invoices')
-    .insert({ tenant_id: auth.tenantId, code, location_id, location_name, seller_id, seller_name, total, status: 'pending', items })
-    .select().single()
-  if (ie) return res.status(500).json({ error: ie.message })
-  return res.status(201).json(invoice)
+  // Reintento de una petición cuya respuesta se perdió: devolver la factura
+  // que ya se creó en vez de duplicar la venta.
+  if (client_op_id && invoicesHaveClientOpId) {
+    const previo = await findByClientOpId(auth.tenantId, client_op_id)
+    if (previo) return res.status(200).json(previo)
+  }
+
+  // Precio, nombre y etiqueta salen de la BD; del body solo qué y cuánto.
+  const catalog = await fetchPresentationCatalog(auth.tenantId, items)
+  if (catalog.error) return res.status(catalog.status).json({ error: catalog.error })
+  const built = buildInvoiceItems(items, catalog.map)
+  if (built.error) return res.status(400).json({ error: built.error })
+
+  // get_next_invoice_code busca un código libre, pero el INSERT ocurre después:
+  // dos cobros simultáneos en el mismo punto pueden pedir el mismo. El índice
+  // único protege los datos; este bucle evita que el vendedor vea un 500.
+  for (let intento = 0; intento < 5; intento++) {
+    const { data: code, error: ce } = await supabaseAdmin.rpc('get_next_invoice_code', { p_location_id: location_id })
+    if (ce || !code) return res.status(500).json({ error: 'No se pudo generar código' })
+
+    const { data: invoice, error: ie } = await supabaseAdmin.from('invoices').insert({
+      tenant_id: auth.tenantId, code, location_id, location_name, seller_id, seller_name,
+      total: built.total, status: 'pending', items: built.items,
+      ...(client_op_id && invoicesHaveClientOpId ? { client_op_id } : {}),
+    }).select().single()
+
+    if (!ie) return res.status(201).json(invoice)
+
+    // Falta la migración de idempotencia: seguir sin ella antes que no facturar
+    if (invoicesHaveClientOpId && isMissingClientOpIdColumn(ie)) {
+      invoicesHaveClientOpId = false
+      continue
+    }
+    if (ie.code === UNIQUE_VIOLATION) {
+      // Carrera entre dos reintentos del mismo cobro: ganó el otro, devolver el suyo
+      if (client_op_id && /client_op_id/.test(ie.message || '')) {
+        const previo = await findByClientOpId(auth.tenantId, client_op_id)
+        if (previo) return res.status(200).json(previo)
+      }
+      continue // colisión de código: pedir otro
+    }
+    return res.status(500).json({ error: ie.message })
+  }
+  return res.status(503).json({ error: 'El punto de venta está saturado, intenta de nuevo' })
 }
 
 async function invoicesPending(req, res) {
@@ -920,8 +996,13 @@ async function invoicesEdit(req, res, code) {
   const u = { edited_by: auth.seller.id, edited_at: new Date().toISOString() }
   if (items !== undefined) {
     if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items vacío' })
-    const pi = items.map(i => ({ ...i, subtotal: i.price * i.qty }))
-    u.items = pi; u.total = pi.reduce((s, i) => s + i.subtotal, 0)
+    // Igual que al crear: recotizar contra la BD. Si no, editar una factura
+    // sería la puerta de atrás para el precio que quisiera el cliente.
+    const catalog = await fetchPresentationCatalog(auth.tenantId, items)
+    if (catalog.error) return res.status(catalog.status).json({ error: catalog.error })
+    const built = buildInvoiceItems(items, catalog.map)
+    if (built.error) return res.status(400).json({ error: built.error })
+    u.items = built.items; u.total = built.total
   }
   if (observations !== undefined) u.observations = observations || null
   const { data, error } = await supabaseAdmin.from('invoices')

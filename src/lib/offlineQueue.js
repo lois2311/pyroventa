@@ -20,11 +20,29 @@ function saveQueue(queue) {
 
 // ---- API pública ---------------------------------------
 
+/**
+ * Id de operación (UUID v4). Se genera una vez por venta y viaja en el body
+ * como `client_op_id`: el servidor lo usa para no crear una segunda factura
+ * si un reintento repite una petición que en realidad sí entró.
+ * El fallback importa: crypto.randomUUID solo existe en contexto seguro.
+ */
+export function newOpId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  // RFC 4122 v4 armado a mano cuando randomUUID no está disponible
+  const b = new Uint8Array(16)
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(b)
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256)
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+
 /** Encolar una operación para sincronizar después */
 export function enqueue(operation) {
   const queue = getQueue()
   queue.push({
-    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+    id: newOpId(),
     ...operation,
     created_at: new Date().toISOString(),
     retries: 0,
