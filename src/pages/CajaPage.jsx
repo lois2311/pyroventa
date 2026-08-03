@@ -186,6 +186,14 @@ export default function CajaPage() {
   const [refunding,    setRefunding]    = useState(false) // devolución
   const [discountStr,  setDiscountStr]  = useState('')    // descuento al cobrar
   const [cashReceived, setCashReceived] = useState('')    // con cuánto paga (efectivo)
+  const [transferProv, setTransferProv] = useState(null)  // nequi | daviplata | bancolombia
+
+  // Cambiar de método limpia el detalle de transferencia: si no, quedaría
+  // colgado un proveedor de una selección anterior y el API lo rechazaría.
+  const selectPayMethod = (m) => {
+    setPayMethod(m)
+    if (m !== 'transfer') setTransferProv(null)
+  }
 
   const canEdit = seller?.role === 'cashier' || seller?.role === 'admin'
   const needsRegister = !register && !changingReg
@@ -245,7 +253,7 @@ export default function CajaPage() {
           if (newRow.status !== 'pending') {
             removePending(newRow.id)
             if (invoice?.id === newRow.id) {
-              setInvoice(null); setCode(''); setPayMethod(null); setObservations('')
+              setInvoice(null); setCode(''); setPayMethod(null); setTransferProv(null); setObservations('')
             }
           } else {
             updatePending(newRow.id, newRow)
@@ -261,7 +269,7 @@ export default function CajaPage() {
   // ---- Buscar factura por código -------------------------
   const handleSearch = async () => {
     if (code.length !== 4 || !location?.id) return
-    setSearching(true); setNotFound(false); setInvoice(null); setPayMethod(null); setObservations('')
+    setSearching(true); setNotFound(false); setInvoice(null); setPayMethod(null); setTransferProv(null); setObservations('')
     setDiscountStr(''); setCashReceived('')
     try {
       const data = await api.get(`/invoices/${code}?location_id=${location.id}`)
@@ -275,7 +283,7 @@ export default function CajaPage() {
   }
 
   const handleSelectPending = (inv) => {
-    setCode(inv.code); setInvoice(inv); setPayMethod(null)
+    setCode(inv.code); setInvoice(inv); setPayMethod(null); setTransferProv(null)
     setNotFound(false); setObservations(inv.observations || ''); setMobileTab('pagar')
     setDiscountStr(''); setCashReceived('')
   }
@@ -298,6 +306,7 @@ export default function CajaPage() {
       const paid = await api.post(`/invoices/${invoice.code}/pay`, {
         location_id:   location.id,
         pay_method:    payMethod,
+        ...(payMethod === 'transfer' ? { transfer_provider: transferProv } : {}),
         observations:  observations.trim() || undefined,
         register_id:   register?.id || undefined,
         register_name: register?.name || undefined,
@@ -305,7 +314,7 @@ export default function CajaPage() {
       })
       removePending(paid.id)
       setPaidInv(paid)
-      setInvoice(null); setCode(''); setPayMethod(null); setObservations(''); setMobileTab('cobrar')
+      setInvoice(null); setCode(''); setPayMethod(null); setTransferProv(null); setObservations(''); setMobileTab('cobrar')
       setDiscountStr(''); setCashReceived('')
       toastSuccess(`Factura #${paid.code} cobrada · ${register?.name || 'Sin caja'}`)
     } catch (err) {
@@ -320,7 +329,7 @@ export default function CajaPage() {
     try {
       await api.post(`/invoices/${invoice.code}/cancel`, { location_id: location.id })
       removePending(invoice.id)
-      setInvoice(null); setCode(''); setPayMethod(null); setObservations(''); setMobileTab('cobrar')
+      setInvoice(null); setCode(''); setPayMethod(null); setTransferProv(null); setObservations(''); setMobileTab('cobrar')
       toastSuccess('Factura cancelada')
     } catch (err) { toastError(err.message || 'Error al cancelar') }
   }
@@ -452,8 +461,9 @@ export default function CajaPage() {
             </div>
             <div className="flex-1" />
             <PaymentMethods total={totalToPay} selected={payMethod}
-              onSelect={setPayMethod} onConfirm={handlePay} loading={paying}
-              cashReceived={cashReceived} onCashReceived={setCashReceived} />
+              onSelect={selectPayMethod} onConfirm={handlePay} loading={paying}
+              cashReceived={cashReceived} onCashReceived={setCashReceived}
+              transferProvider={transferProv} onTransferProvider={setTransferProv} />
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-center">
@@ -573,8 +583,9 @@ export default function CajaPage() {
                     rows={2} className="input text-xs resize-none" />
                 </div>
                 <PaymentMethods total={totalToPay} selected={payMethod}
-                  onSelect={setPayMethod} onConfirm={handlePay} loading={paying}
-                  cashReceived={cashReceived} onCashReceived={setCashReceived} />
+                  onSelect={selectPayMethod} onConfirm={handlePay} loading={paying}
+                  cashReceived={cashReceived} onCashReceived={setCashReceived}
+                  transferProvider={transferProv} onTransferProvider={setTransferProv} />
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-40 text-gray-500 text-center">

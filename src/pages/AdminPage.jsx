@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuthStore }    from '../store/authStore.js'
 import { api, clearProductsCache } from '../lib/api.js'
-import { formatCOP, formatDate, formatDateShort } from '../lib/format.js'
+import { formatCOP, formatDate, formatDateShort, payMethodLabel } from '../lib/format.js'
 import Topbar              from '../components/Topbar.jsx'
 import DailyMetrics        from '../components/DailyMetrics.jsx'
 import LocationComparison  from '../components/LocationComparison.jsx'
@@ -622,7 +622,7 @@ function ProductosTab() {
             <div key={p.id} className={`card bg-surface-300 ${!p.active ? 'opacity-50' : ''}`}>
               <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                 {p.image_url ? (
-                  <img src={p.image_url} alt={p.name} loading="lazy" crossOrigin="anonymous" className="hidden sm:block w-10 h-10 rounded-lg object-cover border border-white/10 shrink-0" />
+                  <img src={p.image_url} alt={p.name} loading="lazy" className="hidden sm:block w-10 h-10 rounded-lg object-cover border border-white/10 shrink-0" />
                 ) : (
                   <span className="hidden sm:block">{p.categories?.icon || '🎆'}</span>
                 )}
@@ -1053,7 +1053,6 @@ function HistorialTab({ locations }) {
     refunded:  'badge-cancelled',
   }
   const STATUS_LABEL  = { pending: 'Pendiente', paid: 'Pagada', cancelled: 'Cancelada', refunded: 'Devuelta' }
-  const METHOD_LABEL  = { cash: 'Efectivo', transfer: 'Transferencia', card: 'Datáfono' }
 
   const handleRefund = async (inv) => {
     const reason = window.prompt(`Motivo de la devolución de la factura #${inv.code} (${formatCOP(inv.total)}):`)
@@ -1139,7 +1138,7 @@ function HistorialTab({ locations }) {
                     {STATUS_LABEL[inv.status]}
                   </span>
                   {inv.pay_method && (
-                    <span className="text-xs text-gray-500">{METHOD_LABEL[inv.pay_method]}</span>
+                    <span className="text-xs text-gray-500">{payMethodLabel(inv.pay_method, inv.transfer_provider)}</span>
                   )}
                   <span className="font-mono font-semibold text-white text-sm">{formatCOP(inv.total)}</span>
                   <span className="text-xs text-gray-400 w-28 text-right shrink-0">

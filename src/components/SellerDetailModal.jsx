@@ -10,7 +10,6 @@ const STATUS_STYLES = {
   cancelled: 'badge-cancelled',
 }
 const STATUS_LABEL = { pending: 'Pendiente', paid: 'Pagada', cancelled: 'Cancelada' }
-const METHOD_LABEL = { cash: 'Efectivo', transfer: 'Transferencia', card: 'Datáfono' }
 
 export default function SellerDetailModal({ sellerId, sellerName, from, to, locationId, onClose }) {
   const [data,     setData]     = useState(null)
@@ -39,7 +38,7 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
           Tarjeta: data.summary.by_pay_method.card }] },
       { name: 'Productos', rows: (data.top_products || []).map(p => ({ Producto: p.name, Cantidad: p.qty, Total: p.revenue })) },
       { name: 'Facturas', rows: (data.invoices || []).map(i => ({ Código: i.code, Estado: i.status,
-          Vendedor: sellerName, Método: i.pay_method || '', Total: i.total, Fecha: i.created_at })) },
+          Vendedor: sellerName, Método: payMethodLabel(i.pay_method, i.transfer_provider), Total: i.total, Fecha: i.created_at })) },
     ], `vendedor_${sellerName}_${from}_${to}.xlsx`)
   }
 
@@ -172,7 +171,7 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
                         <span className="font-mono font-bold text-brand-400 text-base">#{inv.code}</span>
                         <span className={STATUS_STYLES[inv.status]}>{STATUS_LABEL[inv.status]}</span>
                         {inv.pay_method && (
-                          <span className="text-[10px] text-gray-500">{METHOD_LABEL[inv.pay_method]}</span>
+                          <span className="text-[10px] text-gray-500">{payMethodLabel(inv.pay_method, inv.transfer_provider)}</span>
                         )}
                         <span className="flex-1" />
                         <span className="font-mono font-semibold text-white text-sm">{formatCOP(inv.total)}</span>

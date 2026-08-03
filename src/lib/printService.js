@@ -105,7 +105,7 @@ export async function generatePDF(invoice, config) {
   addDivider(false)
   addLine(`${'TOTAL'.padEnd(charsPerLine - formatCOP(invoice.total).length)}${formatCOP(invoice.total)}`, { bold: true, size: 10 })
   addDivider()
-  addLine(`MÉTODO DE PAGO: ${payMethodLabel(invoice.pay_method)}`)
+  addLine(`MÉTODO DE PAGO: ${payMethodLabel(invoice.pay_method, invoice.transfer_provider)}`)
 
   if (invoice.observations) {
     addDivider()
@@ -211,7 +211,7 @@ export function formatReceiptText(invoice, config) {
   const totalStr = formatCOP(invoice.total)
   lines.push(padRight('TOTAL', lineWidth - totalStr.length) + totalStr)
   lines.push(sep)
-  lines.push(`MÉTODO DE PAGO: ${payMethodLabel(invoice.pay_method)}`)
+  lines.push(`MÉTODO DE PAGO: ${payMethodLabel(invoice.pay_method, invoice.transfer_provider)}`)
 
   if (invoice.observations) {
     lines.push(sep)
@@ -307,7 +307,7 @@ function buildHTMLReceipt(invoice, config) {
     <span>${formatCOP(invoice.total)}</span>
   </div>
   <div class="divider"></div>
-  <div>MÉTODO DE PAGO: ${payMethodLabel(invoice.pay_method)}</div>
+  <div>MÉTODO DE PAGO: ${payMethodLabel(invoice.pay_method, invoice.transfer_provider)}</div>
   ${invoice.observations ? `
   <div class="divider"></div>
   <div class="bold">OBSERVACIONES:</div>

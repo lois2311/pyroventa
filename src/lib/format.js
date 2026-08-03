@@ -86,9 +86,25 @@ export function invoiceUrgency(createdAt) {
 /**
  * Mapea método de pago a etiqueta en español.
  */
-export function payMethodLabel(method) {
+export function payMethodLabel(method, transferProvider) {
   const labels = { cash: 'Efectivo', transfer: 'Transferencia', card: 'Datáfono' }
-  return labels[method] || method || '—'
+  const base = labels[method] || method || '—'
+  // Las transferencias llevan por dónde entró la plata: "Transferencia (Nequi)"
+  if (method === 'transfer' && transferProvider) {
+    return `${base} (${transferProviderLabel(transferProvider)})`
+  }
+  return base
+}
+
+/** Billeteras/bancos aceptados para transferencias. */
+export const TRANSFER_PROVIDERS = [
+  { id: 'nequi',       label: 'Nequi' },
+  { id: 'daviplata',   label: 'Daviplata' },
+  { id: 'bancolombia', label: 'Bancolombia' },
+]
+
+export function transferProviderLabel(provider) {
+  return TRANSFER_PROVIDERS.find(p => p.id === provider)?.label || provider || '—'
 }
 
 /**

@@ -133,6 +133,8 @@ CREATE TABLE invoices (
   status        TEXT NOT NULL DEFAULT 'pending'
                 CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded')),
   pay_method    TEXT CHECK (pay_method IN ('cash', 'transfer', 'card')),
+  -- Solo para pay_method = 'transfer': por dónde entró la plata
+  transfer_provider TEXT CHECK (transfer_provider IS NULL OR transfer_provider IN ('nequi', 'daviplata', 'bancolombia')),
   items         JSONB NOT NULL DEFAULT '[]',
   register_id   UUID REFERENCES registers(id),
   register_name TEXT,

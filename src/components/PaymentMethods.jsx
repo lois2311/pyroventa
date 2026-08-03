@@ -1,4 +1,4 @@
-import { formatCOP } from '../lib/format.js'
+import { formatCOP, TRANSFER_PROVIDERS } from '../lib/format.js'
 import { ArrowRightLeft, Banknote, CheckCircle2, CreditCard, Loader2 } from 'lucide-react'
 
 const METHODS = [
@@ -25,11 +25,16 @@ const METHODS = [
   },
 ]
 
-export default function PaymentMethods({ total, selected, onSelect, onConfirm, loading, cashReceived, onCashReceived }) {
+export default function PaymentMethods({
+  total, selected, onSelect, onConfirm, loading, cashReceived, onCashReceived,
+  transferProvider, onTransferProvider,
+}) {
   const received = cashReceived === '' || cashReceived === undefined ? null : Number(cashReceived)
   const change = received !== null && !isNaN(received) ? received - total : null
   // Si escribió cuánto recibió y no alcanza, no dejar cobrar
   const insufficientCash = selected === 'cash' && change !== null && change < 0
+  // La transferencia exige saber por dónde entró la plata para cuadrar caja
+  const missingProvider = selected === 'transfer' && !transferProvider
 
   return (
     <div className="space-y-3 animate-fade-in">
@@ -57,6 +62,31 @@ export default function PaymentMethods({ total, selected, onSelect, onConfirm, l
           )
         })}
       </div>
+
+      {/* Transferencia: por dónde entró la plata */}
+      {selected === 'transfer' && (
+        <div className="animate-fade-in">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">¿Por dónde llegó la transferencia?</p>
+          <div className="grid grid-cols-3 gap-2">
+            {TRANSFER_PROVIDERS.map(p => (
+              <button
+                key={p.id}
+                onClick={() => onTransferProvider(p.id)}
+                aria-pressed={transferProvider === p.id}
+                className={`
+                  px-2 py-2.5 rounded-lg border-2 text-xs font-medium transition-all duration-150 cursor-pointer
+                  ${transferProvider === p.id
+                    ? 'bg-blue-600 border-blue-500 ring-2 ring-blue-500/30 text-white'
+                    : 'bg-surface-300 border-white/5 text-gray-400 hover:border-white/15 hover:text-white'
+                  }
+                `}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Efectivo: calcular el cambio */}
       {selected === 'cash' && onCashReceived && (
@@ -90,10 +120,12 @@ export default function PaymentMethods({ total, selected, onSelect, onConfirm, l
       {selected && (
         <button
           onClick={onConfirm}
-          disabled={loading || insufficientCash}
-          className="btn btn-success btn-lg w-full animate-slide-up text-base"
+          disabled={loading || insufficientCash || missingProvider}
+          className="btn btn-success btn-lg w-full animate-slide-up text-base disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? (
+          {missingProvider ? (
+            'Elige Nequi, Daviplata o Bancolombia'
+          ) : loading ? (
             <span className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               Procesando...

@@ -7,6 +7,7 @@ import { superLogin, superTenantsList, superTenantsCreate, superTenantsPatch, su
 import { defaultPrinterConfig } from './_lib/printerConfig.js'
 import { parseRange, bogotaDayBounds } from './_lib/range.js'
 import { tenantOwns } from './_lib/tenantOwns.js'
+import { compareProducts } from './_lib/productSort.js'
 import { parseImageDataUrl, isAllowedImageUrl, imagePathFromUrl, ensureProductImagesBucket, PRODUCT_IMAGES_BUCKET } from './_lib/productImages.js'
 import { clientIp, rejectIfLocked, recordFailedAttempt, clearAttempts } from './_lib/loginLock.js'
 import { bogotaDate } from './_lib/tenantStatus.js'
@@ -303,7 +304,7 @@ async function productsGet(req, res) {
     const sm = {}; (stockRows || []).forEach(s => { sm[s.product_id] = s.quantity })
     result = result.map(p => ({ ...p, stock_quantity: sm[p.id] ?? 0 }))
   }
-  result.sort((a, b) => (a.categories?.sort_order ?? 99) - (b.categories?.sort_order ?? 99) || a.name.localeCompare(b.name, 'es'))
+  result.sort(compareProducts)
   // Respuesta por-tenant en URL compartida: private evita CDNs compartidos y
   // Vary: Authorization separa las entradas por token (HTTP y Cache API del SW).
   // Cualquier endpoint /api futuro con max-age > 0 debe replicar este par.
@@ -818,9 +819,23 @@ async function invoicesGetByCode(req, res, code) {
 
 async function invoicesPay(req, res, code) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, pay_method, observations, register_id, register_name, discount } = req.body || {}
+  const { location_id, pay_method, observations, register_id, register_name, discount, transfer_provider } = req.body || {}
   if (!location_id || !pay_method) return res.status(400).json({ error: 'location_id y pay_method requeridos' })
   if (!['cash', 'transfer', 'card'].includes(pay_method)) return res.status(400).json({ error: 'pay_method inválido' })
+
+  // Detalle de la transferencia. Quien lo exige es la UI, no la API: un equipo
+  // que todavía corra el bundle anterior no manda el campo, y dejarlo sin cobrar
+  // sería peor que perder el detalle. Lo que sí se rechaza es un valor inválido
+  // o un proveedor en un método que no es transferencia (el CHECK de la BD
+  // rechazaría el insert y tumbaría el cobro con un error opaco).
+  if (transfer_provider !== undefined && transfer_provider !== null) {
+    if (!TRANSFER_PROVIDERS.includes(transfer_provider)) {
+      return res.status(400).json({ error: 'Transferencia inválida: usa Nequi, Daviplata o Bancolombia' })
+    }
+    if (pay_method !== 'transfer') {
+      return res.status(400).json({ error: 'El detalle de transferencia solo aplica a pagos por transferencia' })
+    }
+  }
 
   // Descuento opcional al cobrar (monto en pesos sobre el total)
   const d = Number(discount || 0)
@@ -836,17 +851,33 @@ async function invoicesPay(req, res, code) {
     discountUpdate.total = Number(cur.total) - d
   }
 
-  const { data, error } = await supabaseAdmin.from('invoices').update({
+  const payInvoice = (withProvider) => supabaseAdmin.from('invoices').update({
     status: 'paid', pay_method, paid_at: new Date().toISOString(),
     cashier_id: auth.seller.id, cashier_name: auth.seller.name,
     ...(register_id ? { register_id } : {}), ...(register_name ? { register_name } : {}),
     ...(observations ? { observations } : {}),
+    ...(withProvider && transfer_provider ? { transfer_provider } : {}),
     ...discountUpdate,
   }).eq('tenant_id', auth.tenantId).eq('code', code).eq('location_id', location_id).eq('status', 'pending').select().single()
+
+  let { data, error } = await payInvoice(invoicesHaveTransferProvider)
+  // Fallback pre-migración: cobrar nunca puede fallar por una columna que
+  // todavía no existe. Se pierde el detalle, no la venta.
+  if (error && invoicesHaveTransferProvider && isMissingTransferProviderColumn(error)) {
+    invoicesHaveTransferProvider = false
+    ;({ data, error } = await payInvoice(false))
+  }
   if (error) return res.status(500).json({ error: /discount/.test(error.message) ? CLOSURES_MIGRATION_HINT : error.message })
   if (!data) return res.status(409).json({ error: 'Factura no existe, ya cobrada o cancelada' })
   return res.status(200).json(data)
 }
+
+const TRANSFER_PROVIDERS = ['nequi', 'daviplata', 'bancolombia']
+
+// Se degrada una vez por instancia si falta la migración; vuelve a true al reciclar
+let invoicesHaveTransferProvider = true
+const isMissingTransferProviderColumn = (e) =>
+  (e?.code === '42703' || e?.code === 'PGRST204') && /transfer_provider/.test(e?.message || '')
 
 // Devolución de una factura pagada (anulación total con motivo).
 // Por id: el código de 4 dígitos se recicla entre facturas ya pagadas.

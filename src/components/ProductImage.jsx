@@ -38,11 +38,15 @@ export default function ProductImage({ src, name, className = 'w-9 h-9', fit = '
         aria-label={`Ampliar foto de ${name}`}
         className={`${className} shrink-0 cursor-zoom-in rounded-lg overflow-hidden border border-white/5`}
       >
+        {/* Sin crossOrigin a propósito: nadie lee estos píxeles (el único canvas
+            del proyecto comprime archivos locales) y el service worker cachea
+            las fotos con `statuses: [0, 200]`, es decir asumiendo respuestas
+            opacas. Pedirlas en modo CORS hace que una respuesta opaca ya
+            cacheada sea rechazada y la foto falle durante los 30 días del TTL. */}
         <img
           src={src}
           alt={name}
           loading="lazy"
-          crossOrigin="anonymous"
           onError={() => setFailed(true)}
           className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
         />
@@ -66,7 +70,6 @@ export default function ProductImage({ src, name, className = 'w-9 h-9', fit = '
           <img
             src={src}
             alt={name}
-            crossOrigin="anonymous"
             className="max-w-full max-h-[80dvh] object-contain rounded-xl"
           />
           <p className="text-white text-sm font-medium mt-3 text-center">{name}</p>

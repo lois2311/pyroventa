@@ -95,7 +95,9 @@ const PRODUCT_CACHE_TTL    = 60 * 60 * 1000  // 1 hora fresh
 const PRODUCT_CACHE_STALE  = 24 * 60 * 60 * 1000 // 24 horas stale máximo
 // Subir la versión invalida el catálogo cacheado en TODOS los dispositivos
 // tras un deploy (ej: v2 = catálogo con fotos de productos)
-const PRODUCT_CACHE_KEY = (locationId) => `pv_products_v2_${locationId}`
+// v3: la purga de productos dejó a los equipos con URLs de fotos ya borradas
+// de Storage, que responden 404 y caen al placeholder 🎆.
+const PRODUCT_CACHE_KEY = (locationId) => `pv_products_v3_${locationId}`
 
 export function getProductsCache(locationId) {
   try {
@@ -118,7 +120,9 @@ export function getProductsCache(locationId) {
 
 export function setProductsCache(locationId, data) {
   try {
-    localStorage.removeItem(`pv_products_${locationId}`) // limpiar clave legacy (pre-v2)
+    // Limpiar claves de versiones anteriores (ocupan cuota y ya no se leen)
+    localStorage.removeItem(`pv_products_${locationId}`)
+    localStorage.removeItem(`pv_products_v2_${locationId}`)
     localStorage.setItem(PRODUCT_CACHE_KEY(locationId), JSON.stringify({ data, ts: Date.now() }))
   } catch { /* ignore quota errors */ }
 }
@@ -135,7 +139,12 @@ export function clearProductsCache(locationId) {
   // catálogo viejo y volvería a poblar localStorage con datos pre-cambio)
   if (typeof caches !== 'undefined') {
     caches.delete('api-products').catch(() => {})     // nombre legacy
-    caches.delete('api-products-v2').catch(() => {})
+    caches.delete('api-products-v2').catch(() => {})  // nombre legacy
+    caches.delete('api-products-v3').catch(() => {})
+    // Las fotos se cachean 30 días con CacheFirst: al borrar o cambiar un
+    // producto, su foto puede haber desaparecido de Storage y quedaría
+    // sirviéndose (o fallando) desde aquí durante un mes.
+    caches.delete('product-images').catch(() => {})
   }
 }
 

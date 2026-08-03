@@ -227,7 +227,7 @@ export default function BulkDelete({ onChanged }) {
                 className="accent-red-500 shrink-0"
               />
               {p.image_url ? (
-                <img src={p.image_url} alt="" loading="lazy" crossOrigin="anonymous"
+                <img src={p.image_url} alt="" loading="lazy"
                      className="w-8 h-8 rounded object-cover border border-white/10 shrink-0" />
               ) : (
                 <span className="w-8 h-8 rounded bg-surface-50 flex items-center justify-center text-xs shrink-0">
