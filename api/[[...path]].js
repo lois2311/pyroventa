@@ -960,10 +960,13 @@ async function reportDaily(req, res) {
   const { from, to } = range
   const { location_id } = req.query
 
-  const { data: summaryRows, error } = await supabaseAdmin.rpc('report_range_summary', {
-    p_tenant_id: auth.tenantId, p_from: from, p_to: to,
-    p_location_id: location_id || null,
-  })
+  const [{ data: summaryRows, error }, providers] = await Promise.all([
+    supabaseAdmin.rpc('report_range_summary', {
+      p_tenant_id: auth.tenantId, p_from: from, p_to: to,
+      p_location_id: location_id || null,
+    }),
+    transferBreakdown(auth.tenantId, { from, to, location_id }),
+  ])
   if (error) return res.status(500).json({ error: error.message })
   const s = summaryRows?.[0] || {}
   const tr = Number(s.total_revenue || 0), ic = Number(s.invoice_count || 0)
@@ -978,6 +981,7 @@ async function reportDaily(req, res) {
     pending_count: Number(s.pending_count || 0),
     cancelled_count: Number(s.cancelled_count || 0),
     by_pay_method: { cash: Number(s.cash || 0), transfer: Number(s.transfer || 0), card: Number(s.card || 0) },
+    by_transfer_provider: providers, // null si falta la migración
     by_day: [],
     by_location: [],
   }
@@ -1114,6 +1118,38 @@ async function reportTopProducts(req, res) {
   )
 }
 
+/**
+ * Desglose de las transferencias por billetera/banco dentro de un rango.
+ * Devuelve pesos por proveedor, más `sin_detalle` para las que se cobraron
+ * antes de que existiera el campo. La suma cuadra con by_pay_method.transfer
+ * porque replica los mismos filtros del RPC (pagadas, por created_at Bogotá).
+ *
+ * Devuelve null si falta la migración: la UI simplemente omite el desglose.
+ */
+async function transferBreakdown(tenantId, { from, to, location_id, seller_id, register_id }) {
+  if (!invoicesHaveTransferProvider) return null
+  const bounds = bogotaDayBounds(from, to)
+  let q = supabaseAdmin.from('invoices')
+    .select('transfer_provider, total')
+    .eq('tenant_id', tenantId).eq('status', 'paid').eq('pay_method', 'transfer')
+    .gte('created_at', bounds.start).lt('created_at', bounds.end)
+  if (location_id) q = q.eq('location_id', location_id)
+  if (seller_id)   q = q.eq('seller_id', seller_id)
+  if (register_id) q = q.eq('register_id', register_id)
+
+  const { data, error } = await q
+  if (error) {
+    if (isMissingTransferProviderColumn(error)) invoicesHaveTransferProvider = false
+    return null
+  }
+  const out = { nequi: 0, daviplata: 0, bancolombia: 0, sin_detalle: 0 }
+  for (const row of data || []) {
+    const key = TRANSFER_PROVIDERS.includes(row.transfer_provider) ? row.transfer_provider : 'sin_detalle'
+    out[key] += Number(row.total || 0)
+  }
+  return out
+}
+
 // Detalle común para vendedor y caja: summary + por hora + productos + facturas
 async function rangeDetail(auth, { from, to, location_id, seller_id, register_id }) {
   const rpcParams = {
@@ -1123,21 +1159,30 @@ async function rangeDetail(auth, { from, to, location_id, seller_id, register_id
     p_register_id: register_id || null,
   }
   const bounds = bogotaDayBounds(from, to)
-  let invQ = supabaseAdmin.from('invoices')
-    .select('id, code, location_id, location_name, seller_name, cashier_name, register_name, total, status, pay_method, items, created_at, paid_at')
-    .eq('tenant_id', auth.tenantId)
-    .gte('created_at', bounds.start).lt('created_at', bounds.end)
-    .order('created_at', { ascending: false }).limit(100)
-  if (location_id) invQ = invQ.eq('location_id', location_id)
-  if (seller_id)   invQ = invQ.eq('seller_id', seller_id)
-  if (register_id) invQ = invQ.eq('register_id', register_id)
+  const invoicesQuery = (withProvider) => {
+    let q = supabaseAdmin.from('invoices')
+      .select(`id, code, location_id, location_name, seller_name, cashier_name, register_name, total, status, pay_method,${withProvider ? ' transfer_provider,' : ''} items, created_at, paid_at`)
+      .eq('tenant_id', auth.tenantId)
+      .gte('created_at', bounds.start).lt('created_at', bounds.end)
+      .order('created_at', { ascending: false }).limit(100)
+    if (location_id) q = q.eq('location_id', location_id)
+    if (seller_id)   q = q.eq('seller_id', seller_id)
+    if (register_id) q = q.eq('register_id', register_id)
+    return q
+  }
 
-  const [sum, hours, prods, invs] = await Promise.all([
+  let [sum, hours, prods, invs, providers] = await Promise.all([
     supabaseAdmin.rpc('report_range_summary', rpcParams),
     supabaseAdmin.rpc('report_range_by_hour', rpcParams),
     supabaseAdmin.rpc('report_range_products', rpcParams),
-    invQ,
+    invoicesQuery(invoicesHaveTransferProvider),
+    transferBreakdown(auth.tenantId, { from, to, location_id, seller_id, register_id }),
   ])
+  // Fallback pre-migración: pedir la columna la tumba, reintentar sin ella
+  if (invs.error && isMissingTransferProviderColumn(invs.error)) {
+    invoicesHaveTransferProvider = false
+    invs = await invoicesQuery(false)
+  }
   const failed = [sum, hours, prods, invs].find(r => r.error)
   if (failed) {
     const err = new Error(failed.error.message)
@@ -1153,6 +1198,7 @@ async function rangeDetail(auth, { from, to, location_id, seller_id, register_id
       pending_count: Number(s.pending_count || 0),
       cancelled_count: Number(s.cancelled_count || 0),
       by_pay_method: { cash: Number(s.cash || 0), transfer: Number(s.transfer || 0), card: Number(s.card || 0) },
+      by_transfer_provider: providers,
     },
     by_hour: (hours.data || []).map(h => ({ hour: h.hour, count: Number(h.invoice_count || 0), revenue: Number(h.total_revenue || 0) })),
     top_products: (prods.data || []).slice(0, 10).map(p => ({ name: `${p.product_name}${p.label && p.label !== 'Unidad' ? ` (${p.label})` : ''}`, qty: Number(p.total_qty || 0), revenue: Number(p.total_revenue || 0) })),

@@ -11,6 +11,7 @@ import BulkUpload          from '../components/BulkUpload.jsx'
 import RegisterComparison  from '../components/RegisterComparison.jsx'
 import DateRangeBar, { toISO } from '../components/DateRangeBar.jsx'
 import DailyTrend          from '../components/DailyTrend.jsx'
+import { transferColumns } from '../components/TransferBreakdown.jsx'
 import { exportToExcel }   from '../lib/exportExcel.js'
 import { useToast }        from '../components/Toast.jsx'
 
@@ -192,6 +193,7 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }
           'Ticket promedio': Math.round(daily.avg_ticket), Pendientes: daily.pending_count,
           Canceladas: daily.cancelled_count, Efectivo: daily.by_pay_method.cash,
           Transferencia: daily.by_pay_method.transfer, Tarjeta: daily.by_pay_method.card,
+          ...transferColumns(daily.by_transfer_provider),
         }] : [] },
       { name: 'Por día', rows: (daily?.by_day || []).map(d => ({
           Día: d.day, Facturas: d.invoice_count, Efectivo: d.cash,

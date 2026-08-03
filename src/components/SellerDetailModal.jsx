@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Download, X } from 'lucide-react'
 import { api } from '../lib/api.js'
 import { formatCOP, formatDate } from '../lib/format.js'
+import TransferBreakdown, { transferColumns } from './TransferBreakdown.jsx'
 import { exportToExcel } from '../lib/exportExcel.js'
 
 const STATUS_STYLES = {
@@ -35,7 +36,8 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
       { name: 'Resumen', rows: [{ Vendedor: sellerName, Desde: from, Hasta: to,
           Total: data.summary.total_revenue, Facturas: data.summary.invoice_count,
           Efectivo: data.summary.by_pay_method.cash, Transferencia: data.summary.by_pay_method.transfer,
-          Tarjeta: data.summary.by_pay_method.card }] },
+          Tarjeta: data.summary.by_pay_method.card,
+          ...transferColumns(data.summary.by_transfer_provider) }] },
       { name: 'Productos', rows: (data.top_products || []).map(p => ({ Producto: p.name, Cantidad: p.qty, Total: p.revenue })) },
       { name: 'Facturas', rows: (data.invoices || []).map(i => ({ Código: i.code, Estado: i.status,
           Vendedor: sellerName, Método: payMethodLabel(i.pay_method, i.transfer_provider), Total: i.total, Fecha: i.created_at })) },
@@ -111,6 +113,9 @@ export default function SellerDetailModal({ sellerId, sellerName, from, to, loca
                 </span>
               )}
             </div>
+
+            {/* Desglose de las transferencias por billetera/banco */}
+            <TransferBreakdown data={data.summary.by_transfer_provider} compact />
 
             {/* Timeline por hora */}
             {data.by_hour?.length > 0 && (

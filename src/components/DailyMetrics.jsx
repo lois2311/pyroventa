@@ -1,4 +1,5 @@
 import { formatCOP } from '../lib/format.js'
+import TransferBreakdown from './TransferBreakdown.jsx'
 
 function MetricCard({ label, value, sub, color = 'text-white', icon }) {
   return (
@@ -31,6 +32,7 @@ export default function DailyMetrics({ data, loading }) {
     pending_count = 0,
     cancelled_count = 0,
     by_pay_method = {},
+    by_transfer_provider = null,
   } = data
 
   const methods = [
@@ -95,6 +97,8 @@ export default function DailyMetrics({ data, loading }) {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
+                {/* Las transferencias se abren por billetera/banco */}
+                {m.key === 'transfer' && <TransferBreakdown data={by_transfer_provider} />}
               </div>
             )
           })}
