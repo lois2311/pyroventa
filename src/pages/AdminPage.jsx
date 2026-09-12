@@ -15,32 +15,39 @@ import DailyTrend          from '../components/DailyTrend.jsx'
 import { transferColumns } from '../components/TransferBreakdown.jsx'
 import { exportToExcel }   from '../lib/exportExcel.js'
 import { useToast }        from '../components/Toast.jsx'
+import { can, ROLE_LABELS, assignableRoles } from '../../api/_lib/roles.js'
 
 // ---- Tabs -----------------------------------------------
 const TABS = [
-  { id: 'resumen',   label: 'Resumen',     icon: '📊' },
-  { id: 'vendedores',label: 'Vendedores',  icon: '👥' },
-  { id: 'cajas',     label: 'Cajas',       icon: '🖥' },
-  { id: 'locaciones',label: 'Puntos',      icon: '📍' },
-  { id: 'productos', label: 'Productos',   icon: '🎆' },
-  { id: 'historial', label: 'Historial',   icon: '📋' },
+  { id: 'resumen',    label: 'Resumen',    icon: '📊', action: 'view_reports' },
+  { id: 'vendedores', label: 'Usuarios',   icon: '👥', action: 'manage_staff' },
+  { id: 'cajas',      label: 'Cajas',      icon: '🖥', action: 'manage_registers' },
+  { id: 'locaciones', label: 'Puntos',     icon: '📍', action: 'configure_printer' },
+  { id: 'productos',  label: 'Productos',  icon: '🎆', action: 'manage_catalog' },
+  { id: 'historial',  label: 'Historial',  icon: '📋', action: 'view_reports' },
 ]
 
 export default function AdminPage() {
-  const { location: authLocation } = useAuthStore()
+  const { location: authLocation, seller } = useAuthStore()
+  const role = seller?.role
+  const tabs = TABS.filter(t => can(role, t.action))
+  const isOwner = can(role, 'view_consolidated')
   const { error: toastError, success: toastSuccess } = useToast()
 
   const [tab,         setTab]         = useState('resumen')
   const hoy = toISO(new Date())
   const [from, setFrom] = useState(hoy)
   const [to,   setTo]   = useState(hoy)
-  const [locationId,  setLocationId]  = useState('')
+  // Admin: fijo en su punto. Owner: el punto elegido en la barra ('' = consolidado).
+  const [locationId,  setLocationId]  = useState(authLocation?.id || '')
   const [locations,   setLocations]   = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     api.get('/locations').then(d => setLocations(d || [])).catch(() => {})
   }, [])
+
+  useEffect(() => { if (isOwner) setLocationId(authLocation?.id || '') }, [authLocation?.id, isOwner])
 
   const handleTabChange = (id) => {
     setTab(id)
@@ -69,7 +76,7 @@ export default function AdminPage() {
           transition-transform duration-200
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
-          {TABS.map(t => (
+          {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => handleTabChange(t.id)}
@@ -93,7 +100,7 @@ export default function AdminPage() {
           className="fixed bottom-4 left-4 z-50 lg:hidden bg-brand-500 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg shadow-brand-500/30 active:scale-95 transition-transform"
           aria-label="Menu admin"
         >
-          <span className="text-lg">{TABS.find(t => t.id === tab)?.icon || '📊'}</span>
+          <span className="text-lg">{tabs.find(t => t.id === tab)?.icon || '📊'}</span>
         </button>
 
         {/* ---- Contenido ---- */}
@@ -107,11 +114,12 @@ export default function AdminPage() {
               locationId={locationId}
               setLocationId={setLocationId}
               locations={locations}
+              isOwner={isOwner}
             />
           )}
 
           {tab === 'vendedores' && (
-            <VendedoresTab locations={locations} />
+            <VendedoresTab locations={locations} isOwner={isOwner} />
           )}
 
           {tab === 'cajas' && (
@@ -119,7 +127,7 @@ export default function AdminPage() {
           )}
 
           {tab === 'locaciones' && (
-            <LocacionesTab locations={locations} setLocations={setLocations} />
+            <LocacionesTab locations={locations} setLocations={setLocations} isOwner={isOwner} />
           )}
 
           {tab === 'productos' && (
@@ -139,7 +147,7 @@ export default function AdminPage() {
 // ===========================================================
 // TAB: Resumen
 // ===========================================================
-function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }) {
+function ResumenTab({ from, to, setRange, locationId, setLocationId, locations, isOwner }) {
   const [daily,      setDaily]      = useState(null)
   const [sellers,    setSellers]    = useState([])
   const [locCompar,  setLocCompar]  = useState([])
@@ -167,11 +175,13 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }
       .catch(() => {})
       .finally(() => setLoadSell(false))
 
-    setLoadLoc(true)
-    api.get(`/reports/locations?from=${from}&to=${to}`)
-      .then(d => setLocCompar(d || []))
-      .catch(() => {})
-      .finally(() => setLoadLoc(false))
+    if (isOwner) {
+      setLoadLoc(true)
+      api.get(`/reports/locations?from=${from}&to=${to}`)
+        .then(d => setLocCompar(d || []))
+        .catch(() => {})
+        .finally(() => setLoadLoc(false))
+    }
 
     setLoadProds(true)
     api.get(`/reports/top-products${q}&limit=10`)
@@ -184,7 +194,7 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }
       .then(d => setRegCompar(d || []))
       .catch(() => {})
       .finally(() => setLoadRegs(false))
-  }, [from, to, locationId])
+  }, [from, to, locationId, isOwner])
 
   const handleExport = () => {
     if (!daily) return
@@ -220,19 +230,21 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }
       {/* Filtros */}
       <div className="flex items-end gap-3 flex-wrap">
         <DateRangeBar from={from} to={to} onChange={setRange} />
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
-          <select
-            value={locationId}
-            onChange={e => setLocationId(e.target.value)}
-            className="input w-48 text-sm"
-          >
-            <option value="">Todos (consolidado)</option>
-            {locations.map(l => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </select>
-        </div>
+        {isOwner && (
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
+            <select
+              value={locationId}
+              onChange={e => setLocationId(e.target.value)}
+              className="input w-48 text-sm"
+            >
+              <option value="">Todos (consolidado)</option>
+              {locations.map(l => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <button onClick={fetchAll} className="btn btn-ghost border border-white/10">
           ↻ Actualizar
         </button>
@@ -273,7 +285,7 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }
         <RegisterComparison data={regCompar} loading={loadRegs} from={from} to={to} locationId={locationId} />
       </section>
 
-      {!locationId && (
+      {isOwner && !locationId && (
         <section>
           <h2 className="font-syne font-semibold text-white mb-4">Comparativa de puntos de venta</h2>
           <LocationComparison data={locCompar} loading={loadLoc} />
@@ -286,8 +298,9 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations }
 // ===========================================================
 // TAB: Vendedores
 // ===========================================================
-function VendedoresTab({ locations }) {
+function VendedoresTab({ locations, isOwner }) {
   const { error: toastError, success: toastSuccess } = useToast()
+  const { seller: me } = useAuthStore()
   const [sellers,   setSellers]   = useState([])
   const [loading,   setLoading]   = useState(true)
   const [showForm,  setShowForm]  = useState(false)
@@ -310,12 +323,10 @@ function VendedoresTab({ locations }) {
     } catch (err) { toastError(err.message) }
   }
 
-  const ROLE_LABEL = { seller: 'Vendedor', cashier: 'Cajera', admin: 'Admin' }
-
   return (
     <div className="max-w-2xl space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <h2 className="font-syne font-semibold text-white">Vendedores</h2>
+        <h2 className="font-syne font-semibold text-white">Usuarios</h2>
         <button onClick={() => { setEditSeller(null); setShowForm(true) }} className="btn btn-primary">
           + Nuevo
         </button>
@@ -329,13 +340,19 @@ function VendedoresTab({ locations }) {
             <div key={s.id} className="card bg-surface-300 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1 min-w-0">
                 <p className={`font-medium ${s.active ? 'text-white' : 'text-gray-400 line-through'}`}>{s.name}</p>
-                <p className="text-xs text-gray-400">{ROLE_LABEL[s.role]} · PIN: {s.pin}</p>
+                <p className="text-xs text-gray-400">
+                  {ROLE_LABELS[s.role]}
+                  {s.username && <> · <span className="font-mono">{s.username}</span></>}
+                  {!isOwner || s.role === 'owner' ? null : <> · {(s.seller_locations || []).map(sl => locations.find(l => l.id === sl.location_id)?.name).filter(Boolean).join(', ') || 'Sin punto'}</>}
+                </p>
               </div>
               <div className="flex gap-2 shrink-0">
                 <button onClick={() => { setEditSeller(s); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe">Editar</button>
-                <button onClick={() => handleToggle(s)} className={`btn btn-sm btn-touch-safe ${s.active ? 'btn-ghost text-yellow-500' : 'btn-ghost text-green-500'}`}>
-                  {s.active ? 'Desactivar' : 'Activar'}
-                </button>
+                {s.id !== me?.id && (
+                  <button onClick={() => handleToggle(s)} className={`btn btn-sm btn-touch-safe ${s.active ? 'btn-ghost text-yellow-500' : 'btn-ghost text-green-500'}`}>
+                    {s.active ? 'Desactivar' : 'Activar'}
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -356,58 +373,102 @@ function VendedoresTab({ locations }) {
 
 function SellerForm({ seller, locations, onClose, onSave }) {
   const { error: toastError } = useToast()
+  const { seller: me } = useAuthStore()
   const titleId = useId()
   const panelRef = useModalA11y(onClose)
+  const roleOptions = assignableRoles(me?.role)
+  const isSelf = seller?.id === me?.id
+
   const [name,     setName]     = useState(seller?.name || '')
-  const [pin,      setPin]      = useState(seller?.pin || '')
   const [role,     setRole]     = useState(seller?.role || 'seller')
-  const [locIds,   setLocIds]   = useState(
-    (seller?.seller_locations || []).map(sl => sl.location_id)
-  )
+  const [pin,      setPin]      = useState('')
+  const [username, setUsername] = useState(seller?.username || '')
+  const [password, setPassword] = useState('')
+  const [locIds,   setLocIds]   = useState((seller?.seller_locations || []).map(sl => sl.location_id))
   const [saving,   setSaving]   = useState(false)
 
-  const toggleLoc = (lid) =>
-    setLocIds(prev => prev.includes(lid) ? prev.filter(x => x !== lid) : [...prev, lid])
+  const usesPassword = role === 'admin' || role === 'owner'
+  const needsLocations = role !== 'owner'
+  const singleLocation = role === 'admin'
+  // El admin solo tiene su punto: se asigna solo, sin mostrar selección
+  const showLocations = needsLocations && locations.length > 1
+
+  const toggleLoc = (lid) => setLocIds(prev =>
+    singleLocation ? [lid] : prev.includes(lid) ? prev.filter(x => x !== lid) : [...prev, lid])
 
   const handleSave = async () => {
-    if (!name || pin.length !== 4) return toastError('Nombre y PIN de 4 dígitos son requeridos')
+    if (!name.trim()) return toastError('El nombre es requerido')
+    const body = { name: name.trim() }
+    if (!isSelf) body.role = role
+    if (usesPassword) {
+      if (username !== (seller?.username || '')) body.username = username
+      if (password) body.password = password
+    } else if (pin) {
+      body.pin = pin
+    }
+    if (!isSelf && needsLocations) {
+      body.location_ids = locations.length === 1 ? [locations[0].id] : locIds
+    }
     setSaving(true)
     try {
-      if (seller?.id) {
-        await api.put(`/sellers/${seller.id}`, { name, pin, role, location_ids: locIds })
-      } else {
-        await api.post('/sellers', { name, pin, role, location_ids: locIds })
-      }
+      if (seller?.id) await api.put(`/sellers/${seller.id}`, body)
+      else            await api.post('/sellers', body)
       onSave()
     } catch (err) { toastError(err.message) }
     finally { setSaving(false) }
   }
 
+  const needsNewPin = !usesPassword && !seller?.has_pin
+  const needsNewPass = usesPassword && !seller?.has_password
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-        <h3 id={titleId} className="font-syne font-semibold text-white">{seller ? 'Editar vendedor' : 'Nuevo vendedor'}</h3>
+        className="card bg-surface-200 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <h3 id={titleId} className="font-syne font-semibold text-white">{seller ? 'Editar usuario' : 'Nuevo usuario'}</h3>
+
         <input placeholder="Nombre" value={name} onChange={e => setName(e.target.value)} className="input" />
-        <input placeholder="PIN (4 dígitos)" maxLength={4} value={pin}
-          onChange={e => setPin(e.target.value.replace(/\D/g,'').slice(0,4))} className="input font-mono" />
-        <select value={role} onChange={e => setRole(e.target.value)} className="input">
-          <option value="seller">Vendedor</option>
-          <option value="cashier">Cajera</option>
-          <option value="admin">Admin</option>
-        </select>
+
         <div>
-          <p className="text-xs text-gray-400 mb-2">Puntos de venta asignados</p>
-          <div className="space-y-1">
-            {locations.map(l => (
-              <label key={l.id} className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={locIds.includes(l.id)}
-                  onChange={() => toggleLoc(l.id)} className="accent-brand-500" />
-                <span className="text-sm text-gray-300">{l.name}</span>
-              </label>
-            ))}
-          </div>
+          <label className="block text-xs text-gray-400 mb-1">Rol</label>
+          <select value={role} onChange={e => setRole(e.target.value)} className="input" disabled={isSelf}>
+            {roleOptions.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+          </select>
+          {isSelf && <p className="text-xs text-gray-400 mt-1">No puedes cambiar tu propio rol.</p>}
         </div>
+
+        {usesPassword ? (
+          <>
+            <input placeholder="Usuario (ej: admin.norte)" value={username} autoComplete="off" autoCapitalize="none"
+              onChange={e => setUsername(e.target.value.toLowerCase())} className="input font-mono" />
+            <input type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)}
+              placeholder={needsNewPass ? 'Contraseña (mínimo 10 caracteres)' : 'Nueva contraseña (dejar vacío para no cambiar)'}
+              className="input" />
+          </>
+        ) : (
+          <input placeholder={needsNewPin ? 'PIN (4 dígitos)' : 'Nuevo PIN (dejar vacío para no cambiar)'} maxLength={4} value={pin}
+            inputMode="numeric" onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} className="input font-mono" />
+        )}
+
+        {showLocations && !isSelf && (
+          <fieldset>
+            <legend className="text-xs text-gray-400 mb-2">{singleLocation ? 'Punto de venta que administra' : 'Puntos de venta asignados'}</legend>
+            <div className="space-y-1">
+              {locations.map(l => (
+                <label key={l.id} className="flex items-center gap-2 cursor-pointer">
+                  <input type={singleLocation ? 'radio' : 'checkbox'} name="seller-locs"
+                    checked={locIds.includes(l.id)} onChange={() => toggleLoc(l.id)} className="accent-brand-500" />
+                  <span className="text-sm text-gray-300">{l.name}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        {role === 'owner' && (
+          <p className="text-xs text-amber-300">El superadministrador ve y administra todos los puntos de la empresa.</p>
+        )}
+
         <div className="flex gap-2 justify-end">
           <button onClick={onClose} className="btn btn-ghost">Cancelar</button>
           <button onClick={handleSave} disabled={saving} className="btn btn-primary">
@@ -422,7 +483,7 @@ function SellerForm({ seller, locations, onClose, onSave }) {
 // ===========================================================
 // TAB: Puntos de venta
 // ===========================================================
-function LocacionesTab({ locations, setLocations }) {
+function LocacionesTab({ locations, setLocations, isOwner }) {
   const { error: toastError, success: toastSuccess } = useToast()
   const [showForm, setShowForm] = useState(false)
   const [editLoc,  setEditLoc]  = useState(null)
@@ -441,7 +502,9 @@ function LocacionesTab({ locations, setLocations }) {
     <div className="max-w-2xl space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <h2 className="font-syne font-semibold text-white">Puntos de venta</h2>
-        <button onClick={() => { setEditLoc(null); setShowForm(true) }} className="btn btn-primary">+ Nuevo</button>
+        {isOwner && (
+          <button onClick={() => { setEditLoc(null); setShowForm(true) }} className="btn btn-primary">+ Nuevo</button>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -457,9 +520,11 @@ function LocacionesTab({ locations, setLocations }) {
             </div>
             <div className="flex gap-2 shrink-0">
               <button onClick={() => { setEditLoc(loc); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe">Editar</button>
-              <button onClick={() => handleToggle(loc)} className="btn btn-ghost btn-sm btn-touch-safe text-yellow-500">
-                {loc.active ? 'Desactivar' : 'Activar'}
-              </button>
+              {isOwner && (
+                <button onClick={() => handleToggle(loc)} className="btn btn-ghost btn-sm btn-touch-safe text-yellow-500">
+                  {loc.active ? 'Desactivar' : 'Activar'}
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -470,13 +535,14 @@ function LocacionesTab({ locations, setLocations }) {
           location={editLoc}
           onClose={() => setShowForm(false)}
           onSave={() => { reload(); setShowForm(false) }}
+          isOwner={isOwner}
         />
       )}
     </div>
   )
 }
 
-function LocationForm({ location, onClose, onSave }) {
+function LocationForm({ location, onClose, onSave, isOwner }) {
   const { error: toastError } = useToast()
   const titleId = useId()
   const panelRef = useModalA11y(onClose)
@@ -498,7 +564,7 @@ function LocationForm({ location, onClose, onSave }) {
     }
     try {
       if (location?.id) {
-        await api.put(`/locations/${location.id}`, { name, address: addr, printer_config })
+        await api.put(`/locations/${location.id}`, isOwner ? { name, address: addr, printer_config } : { printer_config })
       } else {
         await api.post('/locations', { name, address: addr, printer_config })
       }
@@ -512,8 +578,8 @@ function LocationForm({ location, onClose, onSave }) {
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
         <h3 id={titleId} className="font-syne font-semibold text-white">{location ? 'Editar punto de venta' : 'Nuevo punto de venta'}</h3>
-        <input placeholder="Nombre del punto de venta" value={name} onChange={e => setName(e.target.value)} className="input" />
-        <input placeholder="Dirección (opcional)" value={addr} onChange={e => setAddr(e.target.value)} className="input" />
+        <input placeholder="Nombre del punto de venta" value={name} onChange={e => setName(e.target.value)} className="input" disabled={!isOwner} />
+        <input placeholder="Dirección (opcional)" value={addr} onChange={e => setAddr(e.target.value)} className="input" disabled={!isOwner} />
         <div>
           <label className="text-xs text-gray-400 block mb-1">Ancho del papel</label>
           <select value={width} onChange={e => setWidth(e.target.value)} className="input">
@@ -940,13 +1006,15 @@ function ClosuresSection({ locations }) {
       <h3 className="font-syne font-semibold text-white">🧾 Cierres de caja</h3>
       <div className="flex items-end gap-2 flex-wrap">
         <DateRangeBar from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
-          <select value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input w-44 text-sm">
-            <option value="">Todos</option>
-            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
-        </div>
+        {locations.length > 1 && (
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
+            <select value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input w-44 text-sm">
+              <option value="">Todos</option>
+              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {!closures ? (
@@ -1026,7 +1094,7 @@ function RegisterForm({ register, locations, onClose, onSave }) {
           className="input"
           autoFocus
         />
-        {!register && (
+        {!register && locations.length > 1 && (
           <div>
             <label className="text-xs text-gray-400 block mb-1">Punto de venta</label>
             <select value={locationId} onChange={e => setLocationId(e.target.value)} className="input">
@@ -1104,13 +1172,15 @@ function HistorialTab({ locations }) {
 
       <div className="flex items-end gap-3 flex-wrap">
         <DateRangeBar from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
-          <select value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input w-48 text-sm">
-            <option value="">Todos</option>
-            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
-        </div>
+        {locations.length > 1 && (
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
+            <select value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input w-48 text-sm">
+              <option value="">Todos</option>
+              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-xs text-gray-400 mb-1">Estado</label>
           <select value={statusFilt} onChange={e => setStatusFilt(e.target.value)} className="input w-36 text-sm">
