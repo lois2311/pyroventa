@@ -48,16 +48,23 @@ CREATE TABLE locations (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ---- VENDEDORES -------------------------------------
+-- ---- USUARIOS (vendedor, cajero, admin de punto, superadmin) ----
 CREATE TABLE sellers (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id  UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  name       TEXT NOT NULL,
-  pin        CHAR(4) NOT NULL,
-  role       TEXT NOT NULL DEFAULT 'seller'
-             CHECK (role IN ('seller', 'cashier', 'admin')),
-  active     BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  pin           CHAR(4),                 -- vendedor / cajero
+  username      TEXT CHECK (username IS NULL OR username = lower(username)), -- admin / owner
+  password_hash TEXT,                    -- bcrypt, admin / owner
+  role          TEXT NOT NULL DEFAULT 'seller'
+                CHECK (role IN ('seller', 'cashier', 'admin', 'owner')),
+  active        BOOLEAN NOT NULL DEFAULT true,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT sellers_credentials_by_role CHECK (
+    NOT active
+    OR (role IN ('admin', 'owner') AND username IS NOT NULL AND password_hash IS NOT NULL)
+    OR (role IN ('seller', 'cashier') AND pin IS NOT NULL)
+  )
 );
 
 -- ---- RELACIÓN VENDEDOR ↔ PUNTO DE VENTA (N:M) ------
@@ -185,6 +192,7 @@ CREATE TABLE login_attempts (
 -- ---- ÍNDICES ----------------------------------------
 CREATE INDEX idx_locations_tenant     ON locations(tenant_id);
 CREATE INDEX idx_sellers_tenant       ON sellers(tenant_id);
+CREATE UNIQUE INDEX sellers_tenant_username ON sellers(tenant_id, username) WHERE username IS NOT NULL;
 CREATE INDEX idx_seller_locs_tenant   ON seller_locations(tenant_id);
 CREATE INDEX idx_categories_tenant    ON categories(tenant_id);
 CREATE INDEX idx_products_tenant      ON products(tenant_id);
