@@ -189,6 +189,56 @@ function AddLocationModal({ tenant, onClose, onCreated }) {
   )
 }
 
+// ---- Nuevo superadministrador para una empresa existente ------
+function AddOwnerModal({ tenant, onClose, onCreated }) {
+  const [name,     setName]     = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState(null)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true); setError(null)
+    try {
+      await superApi.post(`/super/tenants/${tenant.id}/admin`, { name: name.trim(), username: username.trim(), password })
+      onCreated()
+      onClose()
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[1100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="card bg-surface-300 border-white/10 p-6 w-full max-w-md">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <h2 className="font-syne text-lg font-bold text-white">Nuevo superadministrador</h2>
+          <p className="text-gray-400 text-sm">Para <span className="text-white">{tenant.name}</span></p>
+          <p className="text-gray-400 text-xs mb-3">Ve todos los puntos y crea a los administradores. Entra con usuario y contraseña.</p>
+          <input value={name} onChange={e => setName(e.target.value)} required autoFocus
+            placeholder="Nombre"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+          <input value={username} onChange={e => setUsername(e.target.value.toLowerCase())}
+            placeholder="Usuario" autoComplete="off"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+            placeholder="Contraseña (mín. 10)" autoComplete="new-password"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="btn btn-ghost flex-1">Cancelar</button>
+            <button type="submit" disabled={loading || !name.trim() || username.trim().length < 3 || password.length < 10} className="btn btn-primary flex-1">
+              {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Crear'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ---- Edición de vigencia ---------------------------------
 function LicenseEditor({ tenant, onSaved }) {
   const [start, setStart] = useState(tenant.license_start)
@@ -286,6 +336,7 @@ export default function SuperDashboard() {
   const [tenants, setTenants] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [locTenant, setLocTenant] = useState(null) // tenant al que se le agrega punto de venta
+  const [ownerTenant, setOwnerTenant] = useState(null) // tenant al que se le agrega superadministrador
   const [error,   setError]   = useState(null)
 
   const load = useCallback(async () => {
@@ -371,6 +422,13 @@ export default function SuperDashboard() {
                     <Plus className="w-4 h-4" /> Punto
                   </button>
                   <button
+                    onClick={() => setOwnerTenant(t)}
+                    className="btn btn-ghost btn-sm btn-touch-safe"
+                    title="Agregar superadministrador"
+                  >
+                    <Plus className="w-4 h-4" /> Superadmin
+                  </button>
+                  <button
                     onClick={() => toggleActive(t)}
                     className={`btn btn-sm btn-touch-safe ${t.active ? 'btn-ghost text-red-400' : 'btn-primary'}`}
                     title={t.active ? 'Suspender' : 'Reactivar'}
@@ -392,6 +450,7 @@ export default function SuperDashboard() {
 
       {showNew && <NewTenantModal onClose={() => setShowNew(false)} onCreated={load} />}
       {locTenant && <AddLocationModal tenant={locTenant} onClose={() => setLocTenant(null)} onCreated={load} />}
+      {ownerTenant && <AddOwnerModal tenant={ownerTenant} onClose={() => setOwnerTenant(null)} onCreated={load} />}
     </div>
   )
 }
