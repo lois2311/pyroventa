@@ -54,12 +54,13 @@ CREATE TABLE sellers (
   tenant_id     UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name          TEXT NOT NULL,
   pin           CHAR(4),                 -- vendedor / cajero
-  username      TEXT CHECK (username IS NULL OR username = lower(username)), -- admin / owner
+  username      TEXT,                    -- admin / owner
   password_hash TEXT,                    -- bcrypt, admin / owner
   role          TEXT NOT NULL DEFAULT 'seller'
                 CHECK (role IN ('seller', 'cashier', 'admin', 'owner')),
   active        BOOLEAN NOT NULL DEFAULT true,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT sellers_username_lower CHECK (username IS NULL OR username = lower(username)),
   CONSTRAINT sellers_credentials_by_role CHECK (
     NOT active
     OR (role IN ('admin', 'owner') AND username IS NOT NULL AND password_hash IS NOT NULL)
