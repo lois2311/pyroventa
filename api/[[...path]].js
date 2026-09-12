@@ -665,6 +665,9 @@ async function sellersCreate(req, res) {
 }
 
 async function updateUser(auth, id, body, res) {
+  if (body.active !== undefined && typeof body.active !== 'boolean') {
+    return res.status(400).json({ error: 'active debe ser verdadero o falso' })
+  }
   const { data: row } = await supabaseAdmin.from('sellers')
     .select('id, role, active, username, pin, password_hash, seller_locations(location_id)')
     .eq('id', id).eq('tenant_id', auth.tenantId).single()
@@ -694,7 +697,7 @@ async function updateUser(auth, id, body, res) {
     u.name = String(body.name).trim()
   }
   if (body.role !== undefined)   u.role = verdict.role
-  if (body.active !== undefined) u.active = !!body.active
+  if (body.active !== undefined) u.active = body.active
 
   if (Object.keys(u).length) {
     const { error } = await supabaseAdmin.from('sellers').update(u).eq('id', id).eq('tenant_id', auth.tenantId)
