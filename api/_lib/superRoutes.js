@@ -7,14 +7,11 @@ import { slugify } from './slug.js'
 import { parseRange, bogotaDayBounds } from './range.js'
 import { defaultPrinterConfig } from './printerConfig.js'
 import { clientIp, rejectIfLocked, recordFailedAttempt, clearAttempts } from './loginLock.js'
+import { DUMMY_HASH } from './passwords.js'
 
 // =====================================================
 // PyroVenta — Rutas del super admin (plataforma)
-// =====================================================
-
-// Hash bcrypt (costo 10) precomputado de 'pyroventa-dummy' — iguala el tiempo de
-// respuesta cuando el email no existe sin pagar el hash en cada cold start.
-const DUMMY_HASH = '$2b$10$cDwgjYniiWBg7KfhzC3lm.JZnXd7ujBEZeF4ow/0qkIhx.cn3bhPC'
+// ===================================================
 
 export async function superLogin(req, res) {
   const { email, password } = req.body || {}
