@@ -28,8 +28,9 @@ function NewTenantModal({ onClose, onCreated }) {
   const [slugTouched, setSlugTouched] = useState(false)
   const [start,  setStart]  = useState('')
   const [end,    setEnd]    = useState('')
-  const [adminName, setAdminName] = useState('')
-  const [adminPin,  setAdminPin]  = useState('')
+  const [ownerName,  setOwnerName]  = useState('')
+  const [ownerUser,  setOwnerUser]  = useState('')
+  const [ownerPass,  setOwnerPass]  = useState('')
   const [locName,    setLocName]    = useState('Principal')
   const [locAddress, setLocAddress] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,7 +43,7 @@ function NewTenantModal({ onClose, onCreated }) {
     setLoading(true); setError(null)
     try {
       const body = { name, slug, license_start: start, license_end: end }
-      if (adminName.trim()) body.admin = { name: adminName.trim(), pin: adminPin }
+      if (ownerName.trim()) body.owner = { name: ownerName.trim(), username: ownerUser.trim(), password: ownerPass }
       if (locName.trim())   body.location = { name: locName.trim(), address: locAddress.trim() || undefined }
       const data = await superApi.post('/super/tenants', body)
       setCreated(data)
@@ -101,19 +102,21 @@ function NewTenantModal({ onClose, onCreated }) {
               </div>
             </div>
             <div className="border-t border-white/10 pt-4">
-              <p className="text-gray-400 text-sm mb-3">Primer administrador (opcional)</p>
-              <div className="grid grid-cols-2 gap-3">
-                <input value={adminName} onChange={e => setAdminName(e.target.value)} placeholder="Nombre"
+              <p className="text-gray-400 text-sm mb-1">Superadministrador de la empresa</p>
+              <p className="text-gray-400 text-xs mb-3">Ve todos los puntos y crea a los administradores. Entra con usuario y contraseña.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Nombre"
                   className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-                <input value={adminPin} onChange={e => setAdminPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="PIN (4 dígitos)" inputMode="numeric"
-                  className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+                <input value={ownerUser} onChange={e => setOwnerUser(e.target.value.toLowerCase())} placeholder="Usuario"
+                  autoComplete="off" className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+                <input type="password" value={ownerPass} onChange={e => setOwnerPass(e.target.value)} placeholder="Contraseña (mín. 10)"
+                  autoComplete="new-password" className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
               </div>
             </div>
             {error && <p className="text-red-400 text-sm">{error}</p>}
             <div className="flex gap-2">
               <button type="button" onClick={onClose} className="btn btn-ghost flex-1">Cancelar</button>
-              <button type="submit" disabled={loading || (adminName.trim() !== '' && adminPin.length !== 4)}
+              <button type="submit" disabled={loading || (ownerName.trim() !== '' && (ownerUser.trim().length < 3 || ownerPass.length < 10))}
                 className="btn btn-primary flex-1">
                 {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Crear'}
               </button>

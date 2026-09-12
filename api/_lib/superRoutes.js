@@ -7,11 +7,19 @@ import { slugify } from './slug.js'
 import { parseRange, bogotaDayBounds } from './range.js'
 import { defaultPrinterConfig } from './printerConfig.js'
 import { clientIp, rejectIfLocked, recordFailedAttempt, clearAttempts } from './loginLock.js'
-import { DUMMY_HASH } from './passwords.js'
+import { DUMMY_HASH, validateUsername, validatePassword, hashPassword } from './passwords.js'
 
 // =====================================================
 // PyroVenta — Rutas del super admin (plataforma)
 // ===================================================
+
+/** Valida {name, username, password} del superadministrador; devuelve fila o {error}. */
+function ownerRow(tenantId, o) {
+  if (!o?.name?.trim()) return { error: 'El superadministrador requiere nombre' }
+  const u = validateUsername(o.username); if (!u.ok) return { error: u.error }
+  const p = validatePassword(o.password); if (!p.ok) return { error: p.error }
+  return { row: { tenant_id: tenantId, name: o.name.trim(), username: u.username, password_hash: hashPassword(o.password), role: 'owner' } }
+}
 
 export async function superLogin(req, res) {
   const { email, password } = req.body || {}
@@ -79,12 +87,13 @@ export async function superTenantsList(req, res) {
 
 export async function superTenantsCreate(req, res) {
   const auth = await requireSuperAdmin(req, res); if (!auth) return
-  const { name, slug: rawSlug, license_start, license_end, admin, location } = req.body || {}
+  const { name, slug: rawSlug, license_start, license_end, owner, location } = req.body || {}
   if (!name?.trim()) return res.status(400).json({ error: 'El nombre es requerido' })
   if (!license_start || !license_end) return res.status(400).json({ error: 'license_start y license_end son requeridos' })
   if (license_end < license_start) return res.status(400).json({ error: 'license_end debe ser posterior a license_start' })
-  if (admin && (!admin.name?.trim() || !/^\d{4}$/.test(admin.pin || ''))) {
-    return res.status(400).json({ error: 'El admin inicial requiere nombre y PIN de 4 dígitos' })
+  if (owner) {
+    const check = ownerRow('00000000-0000-0000-0000-000000000000', owner)
+    if (check.error) return res.status(400).json({ error: check.error })
   }
   if (location && !location.name?.trim()) {
     return res.status(400).json({ error: 'El punto de venta inicial requiere nombre' })
@@ -111,10 +120,10 @@ export async function superTenantsCreate(req, res) {
     if (le) return res.status(500).json({ error: `Cliente creado pero falló el punto de venta: ${le.message}` })
   }
 
-  if (admin) {
-    const { error: se } = await supabaseAdmin.from('sellers')
-      .insert({ tenant_id: tenant.id, name: admin.name.trim(), pin: admin.pin, role: 'admin' })
-    if (se) return res.status(500).json({ error: `Tenant creado pero falló el admin: ${se.message}` })
+  if (owner) {
+    const { row } = ownerRow(tenant.id, owner)
+    const { error: se } = await supabaseAdmin.from('sellers').insert(row)
+    if (se) return res.status(500).json({ error: `Cliente creado pero falló el superadministrador: ${se.message}` })
   }
 
   return res.status(201).json({ tenant, link: `/c/${slug}` })
@@ -159,16 +168,15 @@ export async function superTenantsPatch(req, res, id) {
 
 export async function superTenantAdminCreate(req, res, tenantId) {
   const auth = await requireSuperAdmin(req, res); if (!auth) return
-  const { name, pin } = req.body || {}
-  if (!name?.trim() || !/^\d{4}$/.test(pin || '')) {
-    return res.status(400).json({ error: 'Nombre y PIN de 4 dígitos requeridos' })
-  }
   const { data: tenant } = await supabaseAdmin.from('tenants').select('id').eq('id', tenantId).single()
   if (!tenant) return res.status(404).json({ error: 'Empresa no encontrada' })
-  const { data, error } = await supabaseAdmin.from('sellers')
-    .insert({ tenant_id: tenantId, name: name.trim(), pin, role: 'admin' })
-    .select('id, name, role').single()
-  if (error) return res.status(500).json({ error: error.message })
+  const { row, error: invalid } = ownerRow(tenantId, req.body)
+  if (invalid) return res.status(400).json({ error: invalid })
+  const { data, error } = await supabaseAdmin.from('sellers').insert(row).select('id, name, role, username').single()
+  if (error) {
+    if (error.code === '23505') return res.status(409).json({ error: 'Ese nombre de usuario ya existe en la empresa' })
+    return res.status(500).json({ error: error.message })
+  }
   return res.status(201).json(data)
 }
 
