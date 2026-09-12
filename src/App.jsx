@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore.js'
+import { can } from '../api/_lib/roles.js'
 import LoginPage    from './pages/LoginPage.jsx'
 import TenantEntry  from './pages/TenantEntry.jsx'
 import VendedorPage from './pages/VendedorPage.jsx'
@@ -11,11 +12,14 @@ import { ToastProvider } from './components/Toast.jsx'
 import NetworkBanner from './components/NetworkBanner.jsx'
 import LicenseBlock from './components/LicenseBlock.jsx'
 
-// ---- Guard de rol ----------------------------------------
-function RequireRole({ roles, children }) {
-  const seller = useAuthStore(s => s.seller)
+// ---- Guard por acción (roles.js) ---------------------------
+function RequireCan({ action, needsLocation = false, children }) {
+  const seller   = useAuthStore(s => s.seller)
+  const location = useAuthStore(s => s.location)
   if (!seller) return <Navigate to="/login" replace />
-  if (roles && !roles.includes(seller.role)) return <Navigate to="/login" replace />
+  if (!can(seller.role, action)) return <Navigate to="/login" replace />
+  // El superadmin en modo "todos los puntos" debe elegir uno para operar
+  if (needsLocation && !location) return <Navigate to="/admin" replace />
   return children
 }
 
@@ -45,21 +49,21 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
 
         <Route path="/vender" element={
-          <RequireRole roles={['seller', 'admin']}>
+          <RequireCan action="sell" needsLocation>
             <VendedorPage />
-          </RequireRole>
+          </RequireCan>
         } />
 
         <Route path="/caja" element={
-          <RequireRole roles={['cashier', 'admin']}>
+          <RequireCan action="charge" needsLocation>
             <CajaPage />
-          </RequireRole>
+          </RequireCan>
         } />
 
         <Route path="/admin" element={
-          <RequireRole roles={['admin']}>
+          <RequireCan action="view_reports">
             <AdminPage />
-          </RequireRole>
+          </RequireCan>
         } />
 
         <Route path="/super/login" element={<SuperLoginPage />} />

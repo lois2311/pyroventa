@@ -7,6 +7,7 @@ export const useAuthStore = create(
       seller:   null,   // { id, name, role }
       location: null,   // { id, name, address, printer_config }
       tenant:   null,   // { id, name, slug }
+      locations: [],   // puntos a los que tiene acceso (admin/owner)
       register: null,   // { id, name } — caja seleccionada (solo cajeros)
       token:    null,
 
@@ -17,10 +18,10 @@ export const useAuthStore = create(
         return s && roles.includes(s.role)
       },
 
-      login: (seller, location, tenant, token) => {
+      login: (seller, location, tenant, token, locations = location ? [location] : []) => {
         localStorage.setItem('pv_token', token)
         if (tenant?.slug) localStorage.setItem('pv_tenant_slug', tenant.slug)
-        set({ seller, location, tenant, token, register: null })
+        set({ seller, location, tenant, token, locations, register: null })
         // Limpiar cachés de API del SW ANTES de que el caller navegue,
         // para que la primera pantalla no sirva datos de otro tenant.
         if (typeof caches !== 'undefined') {
@@ -33,10 +34,13 @@ export const useAuthStore = create(
 
       setRegister: (register) => set({ register }),
 
+      // Solo owner cambia de punto; null = modo administración de toda la empresa
+      setLocation: (location) => set({ location, register: null }),
+
       logout: () => {
         localStorage.removeItem('pv_token')
         // pv_tenant_slug se conserva: el dispositivo sigue amarrado a la empresa
-        set({ seller: null, location: null, register: null, token: null })
+        set({ seller: null, location: null, locations: [], register: null, token: null })
       },
 
       updatePrinterConfig: (printerConfig) =>
@@ -52,6 +56,7 @@ export const useAuthStore = create(
         seller:   state.seller,
         location: state.location,
         tenant:   state.tenant,
+        locations: state.locations,
         register: state.register,
         token:    state.token,
       }),

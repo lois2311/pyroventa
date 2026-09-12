@@ -3,13 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Flame, LogOut, MapPin, Menu, ShoppingCart, Shield, X } from 'lucide-react'
 import { useAuthStore } from '../store/authStore.js'
 import { useCartStore }  from '../store/cartStore.js'
-
-const ROLE_LABELS = { seller: 'Vendedor', cashier: 'Cajera', admin: 'Admin' }
+import { can, ROLE_LABELS } from '../../api/_lib/roles.js'
 
 export default function Topbar({ title }) {
   const navigate = useNavigate()
   const route = useLocation()
-  const { seller, location, register, logout } = useAuthStore()
+  const { seller, location, locations, register, logout, setLocation } = useAuthStore()
   const cartCount = useCartStore(s => s.count())
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -19,21 +18,14 @@ export default function Topbar({ title }) {
   }
 
   const navLinks = useMemo(() => {
-    if (seller?.role === 'admin') {
-      return [
-        { label: 'Admin', path: '/admin' },
-        { label: 'Vender', path: '/vender' },
-        { label: 'Caja', path: '/caja' },
-      ]
-    }
-    if (seller?.role === 'cashier') {
-      return [{ label: 'Caja', path: '/caja' }]
-    }
-    if (seller?.role === 'seller') {
-      return [{ label: 'Vender', path: '/vender' }]
-    }
-    return []
-  }, [seller?.role])
+    const role = seller?.role
+    const links = []
+    if (can(role, 'view_reports')) links.push({ label: 'Admin', path: '/admin' })
+    // Vender y Caja necesitan un punto elegido
+    if (location && can(role, 'sell'))   links.push({ label: 'Vender', path: '/vender' })
+    if (location && can(role, 'charge')) links.push({ label: 'Caja', path: '/caja' })
+    return links
+  }, [seller?.role, location])
 
   useEffect(() => {
     setDrawerOpen(false)
@@ -90,7 +82,24 @@ export default function Topbar({ title }) {
           })}
         </div>
 
-        {location && (
+        {seller?.role === 'owner' && locations.length > 0 ? (
+          <label className="hidden sm:flex items-center gap-1.5 bg-brand-500/15 border border-brand-500/30 rounded-lg px-2 py-1 max-w-[240px]">
+            <MapPin className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+            <span className="sr-only">Punto de venta</span>
+            <select
+              value={location?.id || ''}
+              onChange={e => {
+                const next = locations.find(l => l.id === e.target.value) || null
+                setLocation(next)
+                if (!next && route.pathname !== '/admin') navigate('/admin')
+              }}
+              className="bg-transparent text-brand-300 text-xs font-medium focus:outline-none max-w-[190px]"
+            >
+              <option value="">Todos los puntos</option>
+              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </label>
+        ) : location && (
           <div className="hidden sm:flex items-center gap-1.5 bg-brand-500/15 border border-brand-500/30 rounded-lg px-2.5 py-1.5 max-w-[220px]">
             <MapPin className="w-3.5 h-3.5 text-brand-400 shrink-0" />
             <span className="text-brand-400 text-xs font-medium truncate">
@@ -104,7 +113,7 @@ export default function Topbar({ title }) {
           <div className="hidden md:flex items-center gap-2 text-xs text-gray-400">
             <span className="hidden lg:block">
               <span className="inline-flex items-center gap-1.5">
-                {seller.role === 'admin' && <Shield className="w-3.5 h-3.5 text-brand-500" />}
+                {can(seller.role, 'view_reports') && <Shield className="w-3.5 h-3.5 text-brand-500" />}
                 {seller.name} · <span className="text-gray-400">{ROLE_LABELS[seller.role]}</span>
               </span>
             </span>
@@ -142,7 +151,24 @@ export default function Topbar({ title }) {
               </button>
             </div>
 
-            {location && (
+            {seller?.role === 'owner' && locations.length > 0 ? (
+              <label className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/25 rounded-lg px-3 py-2">
+                <MapPin className="w-4 h-4 text-brand-400 shrink-0" />
+                <span className="sr-only">Punto de venta</span>
+                <select
+                  value={location?.id || ''}
+                  onChange={e => {
+                    const next = locations.find(l => l.id === e.target.value) || null
+                    setLocation(next)
+                    if (!next && route.pathname !== '/admin') navigate('/admin')
+                  }}
+                  className="text-sm text-brand-300 bg-transparent w-full focus:outline-none"
+                >
+                  <option value="">Todos los puntos</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </label>
+            ) : location && (
               <div className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/25 rounded-lg px-3 py-2">
                 <MapPin className="w-4 h-4 text-brand-400" />
                 <span className="text-sm text-brand-300 truncate">{location.name}</span>
@@ -168,7 +194,7 @@ export default function Topbar({ title }) {
               <div className="mt-auto space-y-3">
                 <div className="text-xs text-gray-400">
                   <span className="inline-flex items-center gap-1.5">
-                    {seller.role === 'admin' && <Shield className="w-3.5 h-3.5 text-brand-500" />}
+                    {can(seller.role, 'view_reports') && <Shield className="w-3.5 h-3.5 text-brand-500" />}
                     {seller.name} · <span className="text-gray-400">{ROLE_LABELS[seller.role]}</span>
                   </span>
                 </div>

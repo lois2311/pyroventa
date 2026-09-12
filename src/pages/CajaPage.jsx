@@ -4,6 +4,7 @@ import { useModalA11y }    from '../hooks/useModalA11y.js'
 import { useInvoiceStore } from '../store/invoiceStore.js'
 import { supabase }        from '../lib/supabase.js'
 import { api, getProductsCache, setProductsCache } from '../lib/api.js'
+import { can } from '../../api/_lib/roles.js'
 import Topbar          from '../components/Topbar.jsx'
 import PendingList     from '../components/PendingList.jsx'
 import InvoiceDetail   from '../components/InvoiceDetail.jsx'
@@ -199,7 +200,7 @@ export default function CajaPage() {
     if (m !== 'transfer') setTransferProv(null)
   }
 
-  const canEdit = seller?.role === 'cashier' || seller?.role === 'admin'
+  const canEdit = can(seller?.role, 'charge')
   const needsRegister = !register && !changingReg
 
   const pollRef = useRef(null)

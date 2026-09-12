@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Delete, Flame, Loader2, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Delete, Flame, KeyRound, Loader2, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '../store/authStore.js'
 import { api } from '../lib/api.js'
 import { classifyBootstrapError } from '../lib/bootstrapError.js'
@@ -125,7 +125,7 @@ export default function LoginPage() {
   const { login, setRegister } = useAuthStore()
   const { error: toastError } = useToast()
 
-  const [step,         setStep]         = useState('company') // 'company' | 'location' | 'pin' | 'register'
+  const [step,         setStep]         = useState('company') // 'company' | 'location' | 'pin' | 'register' | 'admin' | 'admin-location'
   const [slugInput,    setSlugInput]    = useState('')
   const [tenant,       setTenant]      = useState(null)      // { id, name, slug }
   const [locations,    setLocations]   = useState([])
@@ -135,6 +135,9 @@ export default function LoginPage() {
   const [loading,      setLoading]      = useState(false)
   const [loginData,    setLoginData]    = useState(null)
   const [selectedReg,  setSelectedReg]  = useState(null)
+  const [adminUser,    setAdminUser]    = useState('')
+  const [adminPass,    setAdminPass]    = useState('')
+  const [adminData,    setAdminData]    = useState(null) // respuesta de /auth/admin-login
 
   const loadTenant = async (slug) => {
     setBootLoading(true)
@@ -199,9 +202,8 @@ export default function LoginPage() {
         return
       }
 
-      // Admin y vendedores van directo
-      if      (data.seller.role === 'admin') navigate('/admin')
-      else                                    navigate('/vender')
+      // Vendedores van directo (cajeros ya volvieron arriba)
+      navigate('/vender')
     } catch (err) {
       toastError(err.message || 'PIN incorrecto')
       setPin('')
@@ -213,16 +215,43 @@ export default function LoginPage() {
   const handleRegisterNext = () => {
     if (!selectedReg) return
     setRegister(selectedReg)
-
-    // Navegar según rol
-    if (loginData?.seller?.role === 'admin') navigate('/admin')
-    else                                      navigate('/caja')
+    navigate('/caja')
   }
 
   const handleSkipRegister = () => {
     setRegister(null)
-    if (loginData?.seller?.role === 'admin') navigate('/admin')
-    else                                      navigate('/caja')
+    navigate('/caja')
+  }
+
+  const handleAdminLogin = async (e) => {
+    e.preventDefault()
+    if (!adminUser.trim() || !adminPass) return
+    setLoading(true)
+    try {
+      const data = await api.post('/auth/admin-login', {
+        tenant_slug: tenant.slug, username: adminUser.trim(), password: adminPass,
+      }, { retries: 0 })
+      setAdminPass('')
+      if (data.seller.role === 'admin') {
+        await login(data.seller, data.locations[0], data.tenant, data.token, data.locations)
+        navigate('/admin')
+        return
+      }
+      setAdminData(data)
+      setStep('admin-location')
+    } catch (err) {
+      toastError(err.message || 'Usuario o contraseña incorrectos')
+      setAdminPass('')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Owner: elegir un punto para vender/cobrar, o entrar a administrar toda la empresa
+  const handleOwnerEnter = async (loc) => {
+    const d = adminData
+    await login(d.seller, loc, d.tenant, d.token, d.locations)
+    navigate('/admin')
   }
 
   return (
@@ -296,6 +325,14 @@ export default function LoginPage() {
               </button>
 
               <button
+                type="button"
+                onClick={() => { setAdminUser(''); setAdminPass(''); setStep('admin') }}
+                className="text-xs text-gray-400 hover:text-white transition-colors mt-2 w-full text-center inline-flex items-center justify-center gap-1.5"
+              >
+                <KeyRound className="w-3.5 h-3.5" /> Ingreso administrativo
+              </button>
+
+              <button
                 onClick={handleLocationNext}
                 disabled={!location}
                 className="btn btn-primary btn-lg w-full mt-5"
@@ -345,6 +382,51 @@ export default function LoginPage() {
                   </span>
                 )}
               </button>
+            </div>
+          )}
+
+          {/* ---- Ingreso administrativo ---- */}
+          {!bootLoading && step === 'admin' && (
+            <form onSubmit={handleAdminLogin} className="animate-fade-in space-y-4">
+              <button type="button" onClick={() => setStep('location')}
+                className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm transition-colors">
+                <ArrowLeft className="w-4 h-4" /> <span>Volver</span>
+              </button>
+              <div>
+                <h2 className="font-syne text-lg font-semibold text-white mb-1">Ingreso administrativo</h2>
+                <p className="text-gray-400 text-sm">Para administradores y superadministradores.</p>
+              </div>
+              <div>
+                <label htmlFor="admin-user" className="block text-xs text-gray-400 mb-1">Usuario</label>
+                <input id="admin-user" value={adminUser} onChange={e => setAdminUser(e.target.value)}
+                  autoComplete="username" autoCapitalize="none" autoFocus
+                  className="w-full px-4 py-3 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+              </div>
+              <div>
+                <label htmlFor="admin-pass" className="block text-xs text-gray-400 mb-1">Contraseña</label>
+                <input id="admin-pass" type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)}
+                  autoComplete="current-password"
+                  className="w-full px-4 py-3 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+              </div>
+              <button type="submit" disabled={loading || !adminUser.trim() || !adminPass} className="btn btn-primary btn-lg w-full">
+                {loading
+                  ? <span className="flex items-center gap-2"><Loader2 className="animate-spin h-4 w-4" /> Verificando...</span>
+                  : <span className="inline-flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Ingresar</span>}
+              </button>
+            </form>
+          )}
+
+          {/* ---- Superadministrador: dónde trabajar ---- */}
+          {!bootLoading && step === 'admin-location' && adminData && (
+            <div className="animate-fade-in space-y-4">
+              <div>
+                <h2 className="font-syne text-lg font-semibold text-white mb-1">Hola, {adminData.seller.name}</h2>
+                <p className="text-gray-400 text-sm">Administra toda la empresa o elige un punto para vender y cobrar.</p>
+              </div>
+              <button onClick={() => handleOwnerEnter(null)} className="btn btn-primary btn-lg w-full">
+                Administrar todos los puntos <ArrowRight className="w-4 h-4" />
+              </button>
+              <LocationSelector locations={adminData.locations} value={null} onChange={handleOwnerEnter} />
             </div>
           )}
 
