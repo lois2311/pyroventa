@@ -1,6 +1,8 @@
 import { supabaseAdmin } from './supabaseAdmin.js'
 import { verifyJwt } from './jwt.js'
 import { getTenantStatus } from './tenantStatus.js'
+import { buildScope } from './scope.js'
+import { can } from './roles.js'
 
 function extractToken(req) {
   const authHeader = req.headers['authorization'] || req.headers['Authorization'] || ''
@@ -9,8 +11,8 @@ function extractToken(req) {
 
 /**
  * Requiere JWT válido de un usuario de tenant.
- * Valida: firma, seller activo en su tenant, tenant activo y con licencia vigente.
- * Responde 401/403 y retorna null si algo falla.
+ * Rol y puntos de venta se leen de la BD en cada petición: un cambio de rol
+ * o de asignación aplica de inmediato aunque el token siga vigente.
  */
 export async function requireAuth(req, res) {
   const token = extractToken(req)
@@ -35,7 +37,7 @@ export async function requireAuth(req, res) {
 
   const [sellerRes, tenantRes] = await Promise.all([
     supabaseAdmin.from('sellers')
-      .select('id, name, role, active')
+      .select('id, name, role, active, seller_locations(location_id)')
       .eq('id', sellerId).eq('tenant_id', tenantId).eq('active', true)
       .single(),
     supabaseAdmin.from('tenants')
@@ -45,7 +47,7 @@ export async function requireAuth(req, res) {
   ])
 
   if (sellerRes.error || !sellerRes.data) {
-    res.status(401).json({ error: 'Vendedor inactivo o no existe' })
+    res.status(401).json({ error: 'Usuario inactivo o no existe' })
     return null
   }
 
@@ -55,15 +57,23 @@ export async function requireAuth(req, res) {
     return null
   }
 
-  return { seller: sellerRes.data, tenant: tenantRes.data, tenantId, locationId }
+  const { seller_locations, ...seller } = sellerRes.data
+  let tenantLocationIds = []
+  if (seller.role === 'owner') {
+    const { data: locs } = await supabaseAdmin.from('locations').select('id').eq('tenant_id', tenantId)
+    tenantLocationIds = (locs || []).map(l => l.id)
+  }
+  const scope = buildScope(seller.role, (seller_locations || []).map(sl => sl.location_id), tenantLocationIds)
+
+  return { seller, tenant: tenantRes.data, tenantId, locationId, scope }
 }
 
-/** Requiere rol admin del tenant. */
-export async function requireAdmin(req, res) {
+/** Requiere que el rol del usuario permita `action` (ver roles.js). */
+export async function requireCan(req, res, action) {
   const auth = await requireAuth(req, res)
   if (!auth) return null
-  if (auth.seller.role !== 'admin') {
-    res.status(403).json({ error: 'Se requiere rol de administrador' })
+  if (!can(auth.seller.role, action)) {
+    res.status(403).json({ error: 'No tienes permiso para esta acción' })
     return null
   }
   return auth

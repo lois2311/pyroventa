@@ -1,6 +1,7 @@
 import { supabaseAdmin } from './_lib/supabaseAdmin.js'
 import { handleCors }    from './_lib/cors.js'
-import { requireAuth, requireAdmin } from './_lib/auth.js'
+import { requireAuth, requireCan } from './_lib/auth.js'
+import { adminLogin } from './_lib/adminLogin.js'
 import { signToken }       from './_lib/jwt.js'
 import { getTenantStatus } from './_lib/tenantStatus.js'
 import { superLogin, superTenantsList, superTenantsCreate, superTenantsPatch, superTenantAdminCreate, superTenantLocationCreate, superMetrics } from './_lib/superRoutes.js'
@@ -13,6 +14,10 @@ import { parseImageDataUrl, isAllowedImageUrl, imagePathFromUrl, ensureProductIm
 import { clientIp, rejectIfLocked, recordFailedAttempt, clearAttempts } from './_lib/loginLock.js'
 import { bogotaDate } from './_lib/tenantStatus.js'
 import { randomUUID } from 'node:crypto'
+import { can } from './_lib/roles.js'
+import { resolveLocation, locationInScope } from './_lib/scope.js'
+import { checkUserChange } from './_lib/userRules.js'
+import { hashPassword, normalizeUsername } from './_lib/passwords.js'
 
 // =====================================================
 // PyroVenta — API Router (catch-all)
@@ -43,6 +48,7 @@ async function route(req, res) {
 
   // ---- AUTH -----------------------------------------
   if (route === '/auth/login' && method === 'POST') return authLogin(req, res)
+  if (route === '/auth/admin-login' && method === 'POST') return adminLogin(req, res)
 
   // ---- PÚBLICO (bootstrap de login por empresa) -----
   if (segments[0] === 'public' && segments[1] === 'tenant' && segments[2] && segments.length === 3 && method === 'GET') {
@@ -122,6 +128,36 @@ async function route(req, res) {
 }
 
 // =====================================================
+// ALCANCE POR PUNTO DE VENTA
+// =====================================================
+
+/**
+ * Punto efectivo de la petición. Si no aplica, responde el error y devuelve
+ * undefined (el caller debe salir). null solo para owner con allowAll.
+ */
+function scopedLocation(auth, requested, res, opts) {
+  const r = resolveLocation(auth.scope, requested || null, opts)
+  if (!r.ok) { res.status(r.status).json({ error: r.error }); return undefined }
+  return r.locationId
+}
+
+/** true (y responde 403) si el punto no está en el alcance del usuario. */
+function denyOutOfScope(auth, locationId, res) {
+  if (locationInScope(auth.scope, locationId)) return false
+  res.status(403).json({ error: 'No tienes acceso a ese punto de venta' })
+  return true
+}
+
+/** Caja del tenant dentro del alcance; responde 404/403 y devuelve null si no. */
+async function loadScopedRegister(auth, id, res) {
+  const { data } = await supabaseAdmin.from('registers')
+    .select('id, name, location_id').eq('id', id).eq('tenant_id', auth.tenantId).single()
+  if (!data) { res.status(404).json({ error: 'Caja no encontrada' }); return null }
+  if (denyOutOfScope(auth, data.location_id, res)) return null
+  return data
+}
+
+// =====================================================
 // AUTH
 // =====================================================
 async function authLogin(req, res) {
@@ -150,23 +186,16 @@ async function authLogin(req, res) {
   const lockKey = `pin:${tenant.id}:${clientIp(req)}`
   if (await rejectIfLocked(supabaseAdmin, lockKey, res)) return
 
+  // Solo vendedores y cajeros entran con PIN; admin y owner usan /auth/admin-login
   const { data: sellers, error } = await supabaseAdmin
     .from('sellers')
-    .select('id, name, pin, role, active, seller_locations!inner(location_id)')
+    .select('id, name, role, active, seller_locations!inner(location_id)')
     .eq('tenant_id', tenant.id)
-    .eq('pin', pin).eq('active', true).eq('seller_locations.location_id', location_id)
+    .eq('pin', pin).eq('active', true).in('role', ['seller', 'cashier'])
+    .eq('seller_locations.location_id', location_id)
 
   if (error) return res.status(500).json({ error: 'Error interno del servidor' })
-  let seller = sellers?.[0]
-
-  // Los admin del tenant entran a cualquier punto de venta sin asignación explícita
-  if (!seller) {
-    const { data: admins } = await supabaseAdmin
-      .from('sellers').select('id, name, pin, role, active')
-      .eq('tenant_id', tenant.id)
-      .eq('pin', pin).eq('role', 'admin').eq('active', true).limit(1)
-    seller = admins?.[0]
-  }
+  const seller = sellers?.[0]
 
   if (!seller) {
     await recordFailedAttempt(supabaseAdmin, lockKey)
@@ -233,13 +262,13 @@ async function locationsGet(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
   const { data, error } = await supabaseAdmin.from('locations')
     .select('id, name, address, printer_config, active')
-    .eq('tenant_id', auth.tenantId).order('name')
+    .eq('tenant_id', auth.tenantId).in('id', auth.scope.locationIds).order('name')
   if (error) return res.status(500).json({ error: error.message })
   return res.status(200).json(data)
 }
 
 async function locationsCreate(req, res) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_locations'); if (!auth) return
   const { name, address, printer_config } = req.body || {}
   if (!name) return res.status(400).json({ error: 'El nombre es requerido' })
   const { data, error } = await supabaseAdmin.from('locations')
@@ -250,8 +279,13 @@ async function locationsCreate(req, res) {
 }
 
 async function locationsUpdate(req, res, id) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'configure_printer'); if (!auth) return
+  if (denyOutOfScope(auth, id, res)) return
   const { name, address, printer_config, active } = req.body || {}
+  // El admin del punto solo ajusta la impresora; nombre, dirección y estado son del superadmin
+  if ((name !== undefined || address !== undefined || active !== undefined) && !can(auth.seller.role, 'manage_locations')) {
+    return res.status(403).json({ error: 'Solo el superadministrador puede editar los datos del punto de venta' })
+  }
   const u = {}
   if (name !== undefined)           u.name = name
   if (address !== undefined)        u.address = address
@@ -264,7 +298,8 @@ async function locationsUpdate(req, res, id) {
 }
 
 async function locationsDelete(req, res, id) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_locations'); if (!auth) return
+  if (denyOutOfScope(auth, id, res)) return
   await supabaseAdmin.from('locations').update({ active: false }).eq('id', id).eq('tenant_id', auth.tenantId)
   return res.status(204).end()
 }
@@ -278,10 +313,11 @@ const PRODUCT_SUBROUTES = ['bulk', 'bulk-delete', 'upload-image']
 async function productsGet(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
   const { location_id } = req.query
+  if (location_id && denyOutOfScope(auth, location_id, res)) return
   // include_inactive: solo admin — lo usa el panel de borrado masivo, que debe
   // ver también los productos desactivados para poder eliminarlos de verdad.
   const includeInactive = ['1', 'true'].includes(String(req.query.include_inactive || ''))
-  if (includeInactive && auth.seller.role !== 'admin') {
+  if (includeInactive && !can(auth.seller.role, 'manage_catalog')) {
     return res.status(403).json({ error: 'Solo el administrador puede ver productos inactivos' })
   }
   const selectProducts = (withImage) => {
@@ -331,7 +367,7 @@ function validateImageUrl(image_url, tenantId) {
 }
 
 async function productsCreate(req, res) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_catalog'); if (!auth) return
   const { name, category_id, description, image_url, presentations = [] } = req.body || {}
   if (!name) return res.status(400).json({ error: 'El nombre es requerido' })
   if (!(await tenantOwns('categories', category_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
@@ -349,7 +385,7 @@ async function productsCreate(req, res) {
 }
 
 async function productsUpdate(req, res, id) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_catalog'); if (!auth) return
   const { name, category_id, description, image_url, active, presentations } = req.body || {}
   if (category_id !== undefined && !(await tenantOwns('categories', category_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
   if (!validateImageUrl(image_url, auth.tenantId)) return res.status(400).json({ error: 'URL de imagen inválida' })
@@ -388,7 +424,7 @@ async function productsUpdate(req, res, id) {
 }
 
 async function productsDelete(req, res, id) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_catalog'); if (!auth) return
   await supabaseAdmin.from('products').update({ active: false }).eq('id', id).eq('tenant_id', auth.tenantId)
   return res.status(204).end()
 }
@@ -408,7 +444,7 @@ async function productsDelete(req, res, id) {
  * nombres y precios ya copiados, no un FK a products.
  */
 async function productsBulkDelete(req, res) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_catalog'); if (!auth) return
   const { ids, all = false, hard = false } = req.body || {}
 
   if (!all) {
@@ -472,7 +508,7 @@ async function productsBulkDelete(req, res) {
 const MAX_BULK_DELETE = 500
 
 async function productsBulk(req, res) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_catalog'); if (!auth) return
   const { products } = req.body || {}
   if (!Array.isArray(products) || !products.length) return res.status(400).json({ error: 'Se requiere un arreglo de productos' })
   for (let i = 0; i < products.length; i++) {
@@ -540,7 +576,7 @@ async function productsBulk(req, res) {
 // Sube una foto de producto (data URL base64, ya comprimida por el cliente)
 // al bucket público product-images bajo la carpeta del tenant.
 async function productsUploadImage(req, res) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_catalog'); if (!auth) return
   const { data } = req.body || {}
   const parsed = parseImageDataUrl(data)
   if (!parsed) return res.status(400).json({ error: 'Imagen inválida: se espera webp/jpeg/png en base64, máximo 2MB' })
@@ -559,74 +595,134 @@ async function productsUploadImage(req, res) {
 }
 
 // =====================================================
-// SELLERS
+// USUARIOS (tabla sellers)
 // =====================================================
-async function sellersGet(req, res) {
-  const auth = await requireAdmin(req, res); if (!auth) return
-  const { location_id } = req.query
-  let q = supabaseAdmin.from('sellers')
-    .select('id, name, pin, role, active, created_at, seller_locations(location_id)')
-    .eq('tenant_id', auth.tenantId).order('name')
-  if (location_id) {
-    q = supabaseAdmin.from('sellers')
-      .select('id, name, pin, role, active, created_at, seller_locations!inner(location_id)')
-      .eq('tenant_id', auth.tenantId).eq('seller_locations.location_id', location_id).order('name')
+const USER_COLS = 'id, name, role, active, created_at, username, pin, password_hash, seller_locations(location_id)'
+
+/** Nunca devolver PIN ni hash al navegador. */
+const publicUser = ({ pin, password_hash, ...u }) => ({ ...u, has_pin: !!pin, has_password: !!password_hash })
+
+async function loadPublicUser(tenantId, id) {
+  const { data } = await supabaseAdmin.from('sellers').select(USER_COLS).eq('id', id).eq('tenant_id', tenantId).single()
+  return data ? publicUser(data) : null
+}
+
+/** Columnas de credenciales que aplican al rol final. */
+function credentialColumns(role, patch) {
+  const c = {}
+  if (role === 'admin' || role === 'owner') {
+    if (patch.username !== undefined) c.username = normalizeUsername(patch.username)
+    if (patch.password) c.password_hash = hashPassword(patch.password)
+  } else if (patch.pin !== undefined) {
+    c.pin = patch.pin
   }
-  const { data, error } = await q
+  return c
+}
+
+const actorOf = (auth) => ({ id: auth.seller.id, role: auth.seller.role, locationIds: auth.scope.locationIds })
+const duplicateUsername = (e) => e?.code === '23505'
+
+async function sellersGet(req, res) {
+  const auth = await requireCan(req, res, 'manage_staff'); if (!auth) return
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
+  const { data, error } = await supabaseAdmin.from('sellers').select(USER_COLS)
+    .eq('tenant_id', auth.tenantId).order('name')
   if (error) return res.status(500).json({ error: error.message })
-  return res.status(200).json(data || [])
+  const isOwner = auth.seller.role === 'owner'
+  const rows = (data || []).filter(u => {
+    if (!isOwner && !['seller', 'cashier'].includes(u.role)) return false
+    const locs = (u.seller_locations || []).map(sl => sl.location_id)
+    if (location_id) return locs.includes(location_id)
+    return isOwner || locs.some(l => locationInScope(auth.scope, l))
+  })
+  return res.status(200).json(rows.map(publicUser))
 }
 
 async function sellersCreate(req, res) {
-  const auth = await requireAdmin(req, res); if (!auth) return
-  const { name, pin, role = 'seller', location_ids = [] } = req.body || {}
-  if (!name || !pin) return res.status(400).json({ error: 'name y pin requeridos' })
-  if (!/^\d{4}$/.test(pin)) return res.status(400).json({ error: 'PIN debe ser 4 dígitos' })
-  // Validar pertenencia ANTES de insertar el vendedor — evita vendedores huérfanos si una ref es ajena
-  for (const lid of location_ids) {
-    if (!(await tenantOwns('locations', lid, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+  const auth = await requireCan(req, res, 'manage_staff'); if (!auth) return
+  const body = req.body || {}
+  if (!String(body.name || '').trim()) return res.status(400).json({ error: 'El nombre es requerido' })
+  const verdict = checkUserChange({ actor: actorOf(auth), target: null, patch: body })
+  if (!verdict.ok) return res.status(verdict.status).json({ error: verdict.error })
+  if (verdict.locationIds.some(l => !locationInScope(auth.scope, l))) {
+    return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
   }
-  const { data: seller, error: se } = await supabaseAdmin.from('sellers')
-    .insert({ tenant_id: auth.tenantId, name, pin, role }).select().single()
-  if (se) return res.status(500).json({ error: se.message })
-  if (location_ids.length) {
+
+  const { data: created, error } = await supabaseAdmin.from('sellers')
+    .insert({ tenant_id: auth.tenantId, name: String(body.name).trim(), role: verdict.role, ...credentialColumns(verdict.role, body) })
+    .select('id').single()
+  if (error) {
+    return duplicateUsername(error)
+      ? res.status(409).json({ error: 'Ese nombre de usuario ya existe' })
+      : res.status(500).json({ error: error.message })
+  }
+  if (verdict.locationIds.length) {
     await supabaseAdmin.from('seller_locations')
-      .insert(location_ids.map(lid => ({ tenant_id: auth.tenantId, seller_id: seller.id, location_id: lid })))
+      .insert(verdict.locationIds.map(lid => ({ tenant_id: auth.tenantId, seller_id: created.id, location_id: lid })))
   }
-  return res.status(201).json(seller)
+  return res.status(201).json(await loadPublicUser(auth.tenantId, created.id))
+}
+
+async function updateUser(auth, id, body, res) {
+  const { data: row } = await supabaseAdmin.from('sellers')
+    .select('id, role, active, username, pin, password_hash, seller_locations(location_id)')
+    .eq('id', id).eq('tenant_id', auth.tenantId).single()
+  if (!row) return res.status(404).json({ error: 'Usuario no encontrado' })
+
+  const target = {
+    id: row.id, role: row.role, active: row.active, username: row.username,
+    hasPassword: !!row.password_hash, hasPin: !!row.pin,
+    locationIds: (row.seller_locations || []).map(sl => sl.location_id),
+  }
+  let activeOwnerCount = 0
+  if (row.role === 'owner') {
+    const { count } = await supabaseAdmin.from('sellers').select('id', { count: 'exact', head: true })
+      .eq('tenant_id', auth.tenantId).eq('role', 'owner').eq('active', true)
+    activeOwnerCount = count || 0
+  }
+
+  const verdict = checkUserChange({ actor: actorOf(auth), target, patch: body, activeOwnerCount })
+  if (!verdict.ok) return res.status(verdict.status).json({ error: verdict.error })
+  if (verdict.locationIds?.some(l => !locationInScope(auth.scope, l))) {
+    return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+  }
+
+  const u = credentialColumns(verdict.role, body)
+  if (body.name !== undefined) {
+    if (!String(body.name).trim()) return res.status(400).json({ error: 'El nombre es requerido' })
+    u.name = String(body.name).trim()
+  }
+  if (body.role !== undefined)   u.role = verdict.role
+  if (body.active !== undefined) u.active = !!body.active
+
+  if (Object.keys(u).length) {
+    const { error } = await supabaseAdmin.from('sellers').update(u).eq('id', id).eq('tenant_id', auth.tenantId)
+    if (error) {
+      return duplicateUsername(error)
+        ? res.status(409).json({ error: 'Ese nombre de usuario ya existe' })
+        : res.status(500).json({ error: error.message })
+    }
+  }
+  if (verdict.locationIds) {
+    await supabaseAdmin.from('seller_locations').delete().eq('seller_id', id).eq('tenant_id', auth.tenantId)
+    if (verdict.locationIds.length) {
+      await supabaseAdmin.from('seller_locations')
+        .insert(verdict.locationIds.map(lid => ({ tenant_id: auth.tenantId, seller_id: id, location_id: lid })))
+    }
+  }
+  return res.status(200).json(await loadPublicUser(auth.tenantId, id))
 }
 
 async function sellersUpdate(req, res, id) {
-  const auth = await requireAdmin(req, res); if (!auth) return
-  const { name, pin, role, active, location_ids } = req.body || {}
-  const u = {}
-  if (name !== undefined) u.name = name
-  if (pin !== undefined) { if (!/^\d{4}$/.test(pin)) return res.status(400).json({ error: 'PIN debe ser 4 dígitos' }); u.pin = pin }
-  if (role !== undefined) u.role = role
-  if (active !== undefined) u.active = active
-  // Validar pertenencia ANTES de escribir el vendedor — evita updates parciales si una ref es ajena
-  if (Array.isArray(location_ids)) {
-    for (const lid of location_ids) {
-      if (!(await tenantOwns('locations', lid, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
-    }
-  }
-  if (Object.keys(u).length) await supabaseAdmin.from('sellers').update(u).eq('id', id).eq('tenant_id', auth.tenantId)
-  if (Array.isArray(location_ids)) {
-    await supabaseAdmin.from('seller_locations').delete().eq('seller_id', id).eq('tenant_id', auth.tenantId)
-    if (location_ids.length) {
-      await supabaseAdmin.from('seller_locations')
-        .insert(location_ids.map(lid => ({ tenant_id: auth.tenantId, seller_id: id, location_id: lid })))
-    }
-  }
-  const { data } = await supabaseAdmin.from('sellers')
-    .select('*, seller_locations(location_id)').eq('id', id).eq('tenant_id', auth.tenantId).single()
-  return res.status(200).json(data)
+  const auth = await requireCan(req, res, 'manage_staff'); if (!auth) return
+  return updateUser(auth, id, req.body || {}, res)
 }
 
+// Desactivar pasa por las mismas reglas que editar (último owner, uno mismo, alcance)
 async function sellersDelete(req, res, id) {
-  const auth = await requireAdmin(req, res); if (!auth) return
-  await supabaseAdmin.from('sellers').update({ active: false }).eq('id', id).eq('tenant_id', auth.tenantId)
-  return res.status(204).end()
+  const auth = await requireCan(req, res, 'manage_staff'); if (!auth) return
+  return updateUser(auth, id, { active: false }, res)
 }
 
 // =====================================================
@@ -634,21 +730,22 @@ async function sellersDelete(req, res, id) {
 // =====================================================
 async function registersGet(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id } = req.query
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
   let q = supabaseAdmin.from('registers')
     .select('id, name, location_id, active, created_at')
     .eq('tenant_id', auth.tenantId).eq('active', true).order('name')
-  if (location_id) q = q.eq('location_id', location_id)
+  q = location_id ? q.eq('location_id', location_id) : q.in('location_id', auth.scope.locationIds)
   const { data, error } = await q
   if (error) return res.status(500).json({ error: error.message })
   return res.status(200).json(data || [])
 }
 
 async function registersCreate(req, res) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_registers'); if (!auth) return
   const { name, location_id } = req.body || {}
   if (!name?.trim() || !location_id) return res.status(400).json({ error: 'name y location_id requeridos' })
-  if (!(await tenantOwns('locations', location_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+  if (denyOutOfScope(auth, location_id, res)) return
   const { data, error } = await supabaseAdmin.from('registers')
     .insert({ tenant_id: auth.tenantId, name: name.trim(), location_id, active: true }).select().single()
   if (error) return res.status(500).json({ error: error.message })
@@ -656,7 +753,8 @@ async function registersCreate(req, res) {
 }
 
 async function registersUpdate(req, res, id) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_registers'); if (!auth) return
+  if (!(await loadScopedRegister(auth, id, res))) return
   const { name, active } = req.body || {}
   const u = {}
   if (name !== undefined) u.name = name.trim()
@@ -668,7 +766,8 @@ async function registersUpdate(req, res, id) {
 }
 
 async function registersDelete(req, res, id) {
-  const auth = await requireAdmin(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'manage_registers'); if (!auth) return
+  if (!(await loadScopedRegister(auth, id, res))) return
   await supabaseAdmin.from('registers').update({ active: false }).eq('id', id).eq('tenant_id', auth.tenantId)
   return res.status(200).json({ ok: true })
 }
@@ -699,14 +798,17 @@ async function closureExpected(auth, { register_id, location_id }) {
 }
 
 async function closuresSummary(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  if (!['cashier', 'admin'].includes(auth.seller.role)) return res.status(403).json({ error: 'Solo cajero o admin pueden cerrar caja' })
-  const { register_id, location_id } = req.query
-  if (!location_id) return res.status(400).json({ error: 'location_id requerido' })
+  const auth = await requireCan(req, res, 'cash_session'); if (!auth) return
+  const location_id = scopedLocation(auth, req.query.location_id, res)
+  if (location_id === undefined) return
+  const { register_id } = req.query
+  if (register_id) {
+    const reg = await loadScopedRegister(auth, register_id, res); if (!reg) return
+    if (reg.location_id !== location_id) return res.status(403).json({ error: 'La caja no pertenece a este punto de venta' })
+  }
   let expected
   try { expected = await closureExpected(auth, { register_id, location_id }) }
   catch (e) { return res.status(500).json({ error: e.message }) }
-  // ¿Ya se cerró esta caja hoy?
   let existing = null
   if (register_id) {
     const { data } = await supabaseAdmin.from('register_closures')
@@ -718,14 +820,16 @@ async function closuresSummary(req, res) {
 }
 
 async function closuresCreate(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  if (!['cashier', 'admin'].includes(auth.seller.role)) return res.status(403).json({ error: 'Solo cajero o admin pueden cerrar caja' })
-  const { register_id, register_name, location_id, declared_cash, notes } = req.body || {}
-  if (!location_id) return res.status(400).json({ error: 'location_id requerido' })
+  const auth = await requireCan(req, res, 'cash_session'); if (!auth) return
+  const { register_id, register_name, declared_cash, notes } = req.body || {}
+  const location_id = scopedLocation(auth, req.body?.location_id, res)
+  if (location_id === undefined) return
   const declared = Number(declared_cash)
   if (isNaN(declared) || declared < 0) return res.status(400).json({ error: 'El efectivo contado debe ser un número válido' })
-  if (!(await tenantOwns('locations', location_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
-  if (register_id && !(await tenantOwns('registers', register_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
+  if (register_id) {
+    const reg = await loadScopedRegister(auth, register_id, res); if (!reg) return
+    if (reg.location_id !== location_id) return res.status(403).json({ error: 'La caja no pertenece a este punto de venta' })
+  }
 
   let expected
   try { expected = await closureExpected(auth, { register_id, location_id }) }
@@ -755,16 +859,16 @@ async function closuresCreate(req, res) {
 }
 
 async function closuresList(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  if (!['cashier', 'admin'].includes(auth.seller.role)) return res.status(403).json({ error: 'Solo cajero o admin' })
+  const auth = await requireCan(req, res, 'cash_session'); if (!auth) return
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
-  const { location_id } = req.query
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
   let q = supabaseAdmin.from('register_closures').select('*')
     .eq('tenant_id', auth.tenantId)
     .gte('business_date', range.from).lte('business_date', range.to)
     .order('closed_at', { ascending: false }).limit(100)
-  if (location_id) q = q.eq('location_id', location_id)
+  q = location_id ? q.eq('location_id', location_id) : q.in('location_id', auth.scope.locationIds)
   const { data, error } = await q
   if (error) return res.status(500).json({ error: closuresErrMsg(error) })
   return res.status(200).json(data || [])
@@ -811,16 +915,14 @@ const findByClientOpId = async (tenantId, clientOpId) => {
 }
 
 async function invoicesCreate(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, seller_id, seller_name, location_name, items, client_op_id } = req.body || {}
-  if (!location_id || !seller_id || !Array.isArray(items) || !items.length) return res.status(400).json({ error: 'location_id, seller_id e items requeridos' })
+  const auth = await requireCan(req, res, 'sell'); if (!auth) return
+  const { seller_id, seller_name, location_name, items, client_op_id } = req.body || {}
+  if (!seller_id || !Array.isArray(items) || !items.length) return res.status(400).json({ error: 'location_id, seller_id e items requeridos' })
   if (client_op_id != null && !UUID_RE.test(String(client_op_id))) {
     return res.status(400).json({ error: 'client_op_id inválido' })
   }
-
-  const { data: loc } = await supabaseAdmin.from('locations')
-    .select('id').eq('id', location_id).eq('tenant_id', auth.tenantId).single()
-  if (!loc) return res.status(403).json({ error: 'Punto de venta no pertenece a esta empresa' })
+  const location_id = scopedLocation(auth, req.body?.location_id, res)
+  if (location_id === undefined) return
   if (!(await tenantOwns('sellers', seller_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
 
   // Reintento de una petición cuya respuesta se perdió: devolver la factura
@@ -871,8 +973,8 @@ async function invoicesCreate(req, res) {
 
 async function invoicesPending(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id } = req.query
-  if (!location_id) return res.status(400).json({ error: 'location_id requerido' })
+  const location_id = scopedLocation(auth, req.query.location_id, res)
+  if (location_id === undefined) return
   const { data, error } = await supabaseAdmin.from('invoices')
     .select('id, code, total, items, seller_id, seller_name, location_name, created_at, status, observations, edited_at')
     .eq('tenant_id', auth.tenantId).eq('location_id', location_id).eq('status', 'pending')
@@ -883,8 +985,8 @@ async function invoicesPending(req, res) {
 
 async function invoicesGetByCode(req, res, code) {
   const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id } = req.query
-  if (!location_id) return res.status(400).json({ error: 'location_id requerido' })
+  const location_id = scopedLocation(auth, req.query.location_id, res)
+  if (location_id === undefined) return
   const { data, error } = await supabaseAdmin.from('invoices')
     .select('*').eq('tenant_id', auth.tenantId).eq('code', code).eq('location_id', location_id).eq('status', 'pending')
     .order('created_at', { ascending: false }).limit(1).single()
@@ -894,10 +996,16 @@ async function invoicesGetByCode(req, res, code) {
 }
 
 async function invoicesPay(req, res, code) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, pay_method, observations, register_id, register_name, discount, transfer_provider } = req.body || {}
-  if (!location_id || !pay_method) return res.status(400).json({ error: 'location_id y pay_method requeridos' })
+  const auth = await requireCan(req, res, 'charge'); if (!auth) return
+  const { pay_method, observations, register_id, register_name, discount, transfer_provider } = req.body || {}
+  const location_id = scopedLocation(auth, req.body?.location_id, res)
+  if (location_id === undefined) return
+  if (!pay_method) return res.status(400).json({ error: 'location_id y pay_method requeridos' })
   if (!['cash', 'transfer', 'card'].includes(pay_method)) return res.status(400).json({ error: 'pay_method inválido' })
+  if (register_id) {
+    const reg = await loadScopedRegister(auth, register_id, res); if (!reg) return
+    if (reg.location_id !== location_id) return res.status(403).json({ error: 'La caja no pertenece a este punto de venta' })
+  }
 
   // Detalle de la transferencia. Quien lo exige es la UI, no la API: un equipo
   // que todavía corra el bundle anterior no manda el campo, y dejarlo sin cobrar
@@ -958,8 +1066,11 @@ const isMissingTransferProviderColumn = (e) =>
 // Devolución de una factura pagada (anulación total con motivo).
 // Por id: el código de 4 dígitos se recicla entre facturas ya pagadas.
 async function invoicesRefund(req, res, id) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  if (!['cashier', 'admin'].includes(auth.seller.role)) return res.status(403).json({ error: 'Solo cajero o admin pueden registrar devoluciones' })
+  const auth = await requireCan(req, res, 'refund'); if (!auth) return
+  const { data: inv } = await supabaseAdmin.from('invoices')
+    .select('id, location_id').eq('id', id).eq('tenant_id', auth.tenantId).single()
+  if (!inv) return res.status(404).json({ error: 'Factura no encontrada' })
+  if (denyOutOfScope(auth, inv.location_id, res)) return
   const { reason } = req.body || {}
   if (!reason?.trim()) return res.status(400).json({ error: 'El motivo de la devolución es requerido' })
   const { data, error } = await supabaseAdmin.from('invoices').update({
@@ -974,9 +1085,9 @@ async function invoicesRefund(req, res, id) {
 }
 
 async function invoicesCancel(req, res, code) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id } = req.body || {}
-  if (!location_id) return res.status(400).json({ error: 'location_id requerido' })
+  const auth = await requireCan(req, res, 'charge'); if (!auth) return
+  const location_id = scopedLocation(auth, req.body?.location_id, res)
+  if (location_id === undefined) return
   const { data, error } = await supabaseAdmin.from('invoices')
     .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
     .eq('tenant_id', auth.tenantId).eq('code', code).eq('location_id', location_id).eq('status', 'pending').select().single()
@@ -986,10 +1097,10 @@ async function invoicesCancel(req, res, code) {
 }
 
 async function invoicesEdit(req, res, code) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  if (!['cashier', 'admin'].includes(auth.seller.role)) return res.status(403).json({ error: 'Solo cajero o admin pueden editar' })
-  const { location_id, items, observations } = req.body || {}
-  if (!location_id) return res.status(400).json({ error: 'location_id requerido' })
+  const auth = await requireCan(req, res, 'charge'); if (!auth) return
+  const { items, observations } = req.body || {}
+  const location_id = scopedLocation(auth, req.body?.location_id, res)
+  if (location_id === undefined) return
   const { data: existing } = await supabaseAdmin.from('invoices')
     .select('id').eq('tenant_id', auth.tenantId).eq('code', code).eq('location_id', location_id).eq('status', 'pending').single()
   if (!existing) return res.status(404).json({ error: 'Factura pendiente no encontrada' })
@@ -1012,18 +1123,19 @@ async function invoicesEdit(req, res, code) {
 }
 
 async function invoicesHistory(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  const { location_id, status, seller_id, limit = '50', offset = '0' } = req.query
+  const auth = await requireCan(req, res, 'charge'); if (!auth) return
+  const { status, seller_id, limit = '50', offset = '0' } = req.query
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
   const bounds = bogotaDayBounds(range.from, range.to)
-  // '*': incluye discount/refund_* cuando existan sin romper pre-migración
   let q = supabaseAdmin.from('invoices')
     .select('*', { count: 'exact' })
     .eq('tenant_id', auth.tenantId)
     .gte('created_at', bounds.start).lt('created_at', bounds.end).order('created_at', { ascending: false })
     .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1)
-  if (location_id) q = q.eq('location_id', location_id)
+  q = location_id ? q.eq('location_id', location_id) : q.in('location_id', auth.scope.locationIds)
   if (status) q = q.eq('status', status)
   if (seller_id) q = q.eq('seller_id', seller_id)
   const { data, error, count } = await q
@@ -1035,11 +1147,12 @@ async function invoicesHistory(req, res) {
 // REPORTS
 // =====================================================
 async function reportDaily(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'view_reports'); if (!auth) return
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
   const { from, to } = range
-  const { location_id } = req.query
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
 
   const [{ data: summaryRows, error }, providers] = await Promise.all([
     supabaseAdmin.rpc('report_range_summary', {
@@ -1096,10 +1209,11 @@ async function reportDaily(req, res) {
 }
 
 async function reportSellers(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'view_reports'); if (!auth) return
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
-  const { location_id } = req.query
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
   const { data, error } = await supabaseAdmin.rpc('report_range_by_seller', {
     p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
     p_location_id: location_id || null,
@@ -1116,10 +1230,11 @@ async function reportSellers(req, res) {
 }
 
 async function reportRegisters(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'view_reports'); if (!auth) return
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
-  const { location_id } = req.query
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
   const { data, error } = await supabaseAdmin.rpc('report_range_by_register', {
     p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
     p_location_id: location_id || null,
@@ -1136,7 +1251,7 @@ async function reportRegisters(req, res) {
 }
 
 async function reportLocations(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'view_consolidated'); if (!auth) return
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
   const [{ data, error }, { data: locRows, error: locErr }] = await Promise.all([
@@ -1174,10 +1289,12 @@ async function reportLocations(req, res) {
 }
 
 async function reportTopProducts(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
+  const auth = await requireCan(req, res, 'view_reports'); if (!auth) return
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
-  const { location_id, seller_id, register_id, limit = '10' } = req.query
+  const { seller_id, register_id, limit = '10' } = req.query
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
   const { data, error } = await supabaseAdmin.rpc('report_range_products', {
     p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
     p_location_id: location_id || null,
@@ -1288,11 +1405,13 @@ async function rangeDetail(auth, { from, to, location_id, seller_id, register_id
 }
 
 async function reportSellerDetail(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  const { seller_id, location_id } = req.query
+  const auth = await requireCan(req, res, 'view_reports'); if (!auth) return
+  const { seller_id } = req.query
   if (!seller_id) return res.status(400).json({ error: 'seller_id requerido' })
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
   const { data: seller } = await supabaseAdmin.from('sellers')
     .select('id, name, role').eq('id', seller_id).eq('tenant_id', auth.tenantId).single()
   let detail
@@ -1306,14 +1425,13 @@ async function reportSellerDetail(req, res) {
 }
 
 async function reportRegisterDetail(req, res) {
-  const auth = await requireAuth(req, res); if (!auth) return
-  const { register_id, location_id } = req.query
+  const auth = await requireCan(req, res, 'view_reports'); if (!auth) return
+  const { register_id } = req.query
   if (!register_id) return res.status(400).json({ error: 'register_id requerido' })
   let range
   try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
-  const { data: register } = await supabaseAdmin.from('registers')
-    .select('id, name, location_id').eq('id', register_id).eq('tenant_id', auth.tenantId).single()
-  if (!register) return res.status(404).json({ error: 'Caja no encontrada' })
+  const register = await loadScopedRegister(auth, register_id, res); if (!register) return
+  const location_id = register.location_id
   let detail
   try { detail = await rangeDetail(auth, { from: range.from, to: range.to, location_id, register_id }) }
   catch (e) { return res.status(e.status || 500).json({ error: e.message }) }
