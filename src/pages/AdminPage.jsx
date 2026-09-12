@@ -376,7 +376,7 @@ function SellerForm({ seller, locations, onClose, onSave }) {
   const { seller: me } = useAuthStore()
   const titleId = useId()
   const panelRef = useModalA11y(onClose)
-  const roleOptions = assignableRoles(me?.role)
+  const roleOptions = [...new Set([...assignableRoles(me?.role), ...(seller?.role ? [seller.role] : [])])]
   const isSelf = seller?.id === me?.id
 
   const [name,     setName]     = useState(seller?.name || '')
@@ -396,8 +396,35 @@ function SellerForm({ seller, locations, onClose, onSave }) {
   const toggleLoc = (lid) => setLocIds(prev =>
     singleLocation ? [lid] : prev.includes(lid) ? prev.filter(x => x !== lid) : [...prev, lid])
 
+  const handleRoleChange = (newRole) => {
+    setRole(newRole)
+    if (newRole === 'admin') {
+      setLocIds(prev => prev.length > 1 ? [prev[0]] : prev)
+    } else if (newRole === 'owner') {
+      setLocIds([])
+    }
+  }
+
+  const needsNewPin = !usesPassword && !seller?.has_pin
+  const needsNewPass = usesPassword && !seller?.has_password
+
   const handleSave = async () => {
     if (!name.trim()) return toastError('El nombre es requerido')
+    if (usesPassword && needsNewPass && password.length < 10) {
+      return toastError('La contraseña debe tener al menos 10 caracteres')
+    }
+    if (usesPassword && (!seller || username !== (seller?.username || '')) && username.trim().length < 3) {
+      return toastError('El usuario debe tener al menos 3 caracteres')
+    }
+    if (!usesPassword && needsNewPin && pin.length !== 4) {
+      return toastError('PIN de 4 dígitos requerido')
+    }
+    if (!usesPassword && pin && pin.length !== 4) {
+      return toastError('PIN de 4 dígitos requerido')
+    }
+    if (needsLocations && !isSelf && locations.length > 1 && locIds.length === 0) {
+      return toastError('Asigna al menos un punto de venta')
+    }
     const body = { name: name.trim() }
     if (!isSelf) body.role = role
     if (usesPassword) {
@@ -418,9 +445,6 @@ function SellerForm({ seller, locations, onClose, onSave }) {
     finally { setSaving(false) }
   }
 
-  const needsNewPin = !usesPassword && !seller?.has_pin
-  const needsNewPass = usesPassword && !seller?.has_password
-
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
@@ -431,7 +455,7 @@ function SellerForm({ seller, locations, onClose, onSave }) {
 
         <div>
           <label className="block text-xs text-gray-400 mb-1">Rol</label>
-          <select value={role} onChange={e => setRole(e.target.value)} className="input" disabled={isSelf}>
+          <select value={role} onChange={e => handleRoleChange(e.target.value)} className="input" disabled={isSelf}>
             {roleOptions.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
           </select>
           {isSelf && <p className="text-xs text-gray-400 mt-1">No puedes cambiar tu propio rol.</p>}
