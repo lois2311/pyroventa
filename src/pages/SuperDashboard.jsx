@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Building2, Copy, Loader2, LogOut, Pause, Play, Plus, RefreshCw } from 'lucide-react'
+import {
+  Building2, Copy, Loader2, LogOut, MapPin, Pause, Play, Plus,
+  RefreshCw, ShieldCheck, Users,
+} from 'lucide-react'
 import { superApi } from '../lib/superApi.js'
 import { formatCOP } from '../lib/format.js'
 import { toISO } from '../components/DateRangeBar.jsx'
@@ -17,6 +20,49 @@ const STATUS_UNKNOWN = { text: 'Desconocido', cls: 'bg-amber-500/15 text-amber-4
 function StatusChip({ status }) {
   const s = STATUS_LABEL[status] || STATUS_UNKNOWN
   return <span className={`text-xs px-2 py-0.5 rounded-full border ${s.cls}`}>{s.text}</span>
+}
+
+/** Días restantes de licencia (positivo = por vencer, negativo = ya vencida). */
+function daysUntil(dateStr) {
+  if (!dateStr) return null
+  const ms = new Date(`${dateStr}T00:00:00`) - new Date(new Date().toDateString())
+  return Math.round(ms / 86400000)
+}
+
+/** Aviso de vencimiento próximo — solo se muestra si el estado ya no lo dice todo. */
+function LicenseCountdown({ status, licenseEnd }) {
+  if (status !== 'active') return null
+  const days = daysUntil(licenseEnd)
+  if (days == null || days > 15) return null
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
+      Vence en {days} día{days === 1 ? '' : 's'}
+    </span>
+  )
+}
+
+const ROLE_COUNT_META = [
+  { key: 'admin',   label: 'admin' },
+  { key: 'cashier', label: 'cajero' },
+  { key: 'seller',  label: 'vendedor' },
+]
+
+/** Resumen de staff activo por rol (admins de punto, cajeros, vendedores). */
+function StaffSummary({ staffCount }) {
+  const parts = ROLE_COUNT_META
+    .map(r => ({ ...r, n: staffCount?.[r.key] || 0 }))
+    .filter(r => r.n > 0)
+  if (parts.length === 0) return <span className="text-gray-500">Sin personal por punto</span>
+  return (
+    <span className="text-gray-400">
+      {parts.map((r, i) => (
+        <span key={r.key}>
+          {i > 0 && ' · '}
+          <span className="text-white font-medium">{r.n}</span> {r.label}{r.n === 1 ? '' : 's'}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 // ---- Wizard de nuevo cliente -----------------------------
@@ -330,6 +376,37 @@ function MetricsSection() {
   )
 }
 
+// ---- Resumen de plataforma ---------------------------------
+function PlatformSummary({ tenants }) {
+  const active = tenants.filter(t => t.status === 'active')
+  const totalLocations = tenants.reduce((n, t) => n + t.locations_count, 0)
+  const totalOwners = tenants.reduce((n, t) => n + t.owners.length, 0)
+  const expiringSoon = active.filter(t => {
+    const d = daysUntil(t.license_end)
+    return d != null && d <= 15
+  }).length
+  const salesToday = tenants.reduce((n, t) => n + t.today_sales, 0)
+
+  const tiles = [
+    { label: 'Empresas activas', value: `${active.length}/${tenants.length}` },
+    { label: 'Puntos de venta', value: totalLocations },
+    { label: 'Superadmins', value: totalOwners },
+    { label: 'Licencias por vencer', value: expiringSoon, warn: expiringSoon > 0 },
+    { label: 'Ventas hoy (todas)', value: formatCOP(salesToday) },
+  ]
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+      {tiles.map(tile => (
+        <div key={tile.label} className="card bg-surface-300 border-white/8 p-3">
+          <p className={`text-xl font-bold ${tile.warn ? 'text-amber-400' : 'text-white'}`}>{tile.value}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{tile.label}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ---- Dashboard -------------------------------------------
 export default function SuperDashboard() {
   const navigate = useNavigate()
@@ -382,6 +459,8 @@ export default function SuperDashboard() {
 
         {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
+        {tenants?.length > 0 && <PlatformSummary tenants={tenants} />}
+
         {!tenants ? (
           <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}</div>
         ) : tenants.length === 0 ? (
@@ -393,52 +472,103 @@ export default function SuperDashboard() {
           <div className="space-y-3">
             {tenants.map(t => (
               <div key={t.id} className="card bg-surface-300 border-white/8 p-4">
-                <div className="flex flex-wrap items-center gap-3">
+                {/* Encabezado: identidad, estado y ventas de hoy */}
+                <div className="flex flex-wrap items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-white truncate">{t.name}</p>
                       <StatusChip status={t.status} />
+                      <LicenseCountdown status={t.status} licenseEnd={t.license_end} />
                       {t.locations_count === 0 && (
                         <span className="text-xs px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
                           Sin puntos de venta — no pueden ingresar
                         </span>
                       )}
+                      {t.owners.length === 0 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
+                          Sin superadministrador
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       /c/{t.slug}
-                      {` · ${t.locations_count} punto${t.locations_count === 1 ? '' : 's'} de venta`}
                       {t.last_activity && ` · última venta: ${new Date(t.last_activity).toLocaleString('es-CO')}`}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <p className="text-white font-semibold">{formatCOP(t.today_sales)}</p>
-                    <p className="text-xs text-gray-400">{t.today_invoices} facturas hoy</p>
+                    <p className="text-xs text-gray-400">{t.today_invoices} factura{t.today_invoices === 1 ? '' : 's'} hoy</p>
                   </div>
-                  <button
-                    onClick={() => setLocTenant(t)}
-                    className="btn btn-ghost btn-sm btn-touch-safe"
-                    title="Agregar punto de venta"
-                  >
-                    <Plus className="w-4 h-4" /> Punto
-                  </button>
-                  <button
-                    onClick={() => setOwnerTenant(t)}
-                    className="btn btn-ghost btn-sm btn-touch-safe"
-                    title="Agregar superadministrador"
-                  >
-                    <Plus className="w-4 h-4" /> Superadmin
-                  </button>
-                  <button
-                    onClick={() => toggleActive(t)}
-                    className={`btn btn-sm btn-touch-safe ${t.active ? 'btn-ghost text-red-400' : 'btn-primary'}`}
-                    title={t.active ? 'Suspender' : 'Reactivar'}
-                  >
-                    {t.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    {t.active ? 'Suspender' : 'Activar'}
-                  </button>
                 </div>
-                <div className="mt-3 pt-3 border-t border-white/5">
+
+                {/* Cuerpo: puntos de venta, superadmins y personal */}
+                <div className="mt-3 pt-3 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                      <MapPin className="w-3.5 h-3.5" /> Puntos de venta ({t.locations.length})
+                    </p>
+                    {t.locations.length === 0 ? (
+                      <p className="text-gray-500 text-xs">Ninguno todavía</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {t.locations.map(l => (
+                          <li key={l.id} className={`flex items-baseline gap-1.5 ${l.active ? 'text-white' : 'text-gray-500 line-through'}`}>
+                            <span className="font-medium">{l.name}</span>
+                            {l.address && <span className="text-gray-400 text-xs font-normal truncate">— {l.address}</span>}
+                            {!l.active && <span className="text-xs">(inactivo)</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5" /> Superadministradores ({t.owners.length})
+                    </p>
+                    {t.owners.length === 0 ? (
+                      <p className="text-gray-500 text-xs">Ninguno — crea uno para que la empresa pueda administrarse</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {t.owners.map(o => (
+                          <li key={o.id} className="text-white">
+                            {o.name} <span className="text-gray-400 text-xs font-mono">· {o.username}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="text-xs mt-1.5 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-gray-500" /> <StaffSummary staffCount={t.staff_count} />
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pie: vigencia y acciones */}
+                <div className="mt-3 pt-3 border-t border-white/5 flex flex-wrap items-center gap-2 justify-between">
                   <LicenseEditor key={`${t.id}-${t.license_start}-${t.license_end}`} tenant={t} onSaved={load} />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setLocTenant(t)}
+                      className="btn btn-ghost btn-sm btn-touch-safe"
+                      title="Agregar punto de venta"
+                    >
+                      <Plus className="w-4 h-4" /> Punto
+                    </button>
+                    <button
+                      onClick={() => setOwnerTenant(t)}
+                      className="btn btn-ghost btn-sm btn-touch-safe"
+                      title="Agregar superadministrador"
+                    >
+                      <Plus className="w-4 h-4" /> Superadmin
+                    </button>
+                    <button
+                      onClick={() => toggleActive(t)}
+                      className={`btn btn-sm btn-touch-safe ${t.active ? 'btn-ghost text-red-400' : 'btn-primary'}`}
+                      title={t.active ? 'Suspender' : 'Reactivar'}
+                    >
+                      {t.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      {t.active ? 'Suspender' : 'Activar'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

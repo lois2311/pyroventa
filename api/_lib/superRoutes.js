@@ -53,14 +53,29 @@ export async function superTenantsList(req, res) {
 
   const hoy = bogotaDate()
   const { start: todayStart } = bogotaDayBounds(hoy, hoy)
-  const [{ data: todayInvoices }, { data: lastActivity }, { data: locRows }] = await Promise.all([
+  const [{ data: todayInvoices }, { data: lastActivity }, { data: locRows }, { data: sellerRows }] = await Promise.all([
     supabaseAdmin.from('invoices').select('tenant_id, total, status').gte('created_at', todayStart),
     supabaseAdmin.rpc('tenant_last_activity'),
-    supabaseAdmin.from('locations').select('tenant_id').eq('active', true),
+    supabaseAdmin.from('locations').select('id, tenant_id, name, address, active').order('name'),
+    supabaseAdmin.from('sellers').select('id, tenant_id, name, username, role, active').order('name'),
   ])
 
-  const locCount = {}
-  ;(locRows || []).forEach(l => { locCount[l.tenant_id] = (locCount[l.tenant_id] || 0) + 1 })
+  const locsByTenant = {}
+  ;(locRows || []).forEach(l => {
+    (locsByTenant[l.tenant_id] ||= []).push({ id: l.id, name: l.name, address: l.address, active: l.active })
+  })
+
+  const ownersByTenant = {}
+  const staffCountByTenant = {}
+  ;(sellerRows || []).forEach(s => {
+    if (s.role === 'owner' && s.active) {
+      (ownersByTenant[s.tenant_id] ||= []).push({ id: s.id, name: s.name, username: s.username })
+    }
+    if (s.active) {
+      const c = (staffCountByTenant[s.tenant_id] ||= { admin: 0, cashier: 0, seller: 0 })
+      if (c[s.role] !== undefined) c[s.role]++
+    }
+  })
 
   const sales = {}
   ;(todayInvoices || []).forEach(i => {
@@ -74,12 +89,16 @@ export async function superTenantsList(req, res) {
 
   return res.status(200).json((tenants || []).map(t => {
     const st = getTenantStatus(t)
+    const locations = locsByTenant[t.id] || []
     return {
       ...t,
       today_sales:     sales[t.id]?.total || 0,
       today_invoices:  sales[t.id]?.count || 0,
       last_activity:   last[t.id] || null,
-      locations_count: locCount[t.id] || 0,
+      locations_count: locations.filter(l => l.active).length,
+      locations,
+      owners:          ownersByTenant[t.id] || [],
+      staff_count:     staffCountByTenant[t.id] || { admin: 0, cashier: 0, seller: 0 },
       status:          st.ok ? 'active' : st.code,
     }
   }))
