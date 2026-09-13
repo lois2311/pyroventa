@@ -12,6 +12,8 @@ import BulkUpload          from '../components/BulkUpload.jsx'
 import RegisterComparison  from '../components/RegisterComparison.jsx'
 import DateRangeBar, { toISO } from '../components/DateRangeBar.jsx'
 import DailyTrend          from '../components/DailyTrend.jsx'
+import RevenueTrendChart   from '../components/RevenueTrendChart.jsx'
+import CategoryBreakdown   from '../components/CategoryBreakdown.jsx'
 import { transferColumns } from '../components/TransferBreakdown.jsx'
 import { exportToExcel }   from '../lib/exportExcel.js'
 import { useToast }        from '../components/Toast.jsx'
@@ -94,17 +96,21 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* ---- Botón hamburguesa para sidebar en móvil ---- */}
-        <button
-          onClick={() => setSidebarOpen(o => !o)}
-          className="fixed bottom-4 left-4 z-50 lg:hidden bg-brand-500 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg shadow-brand-500/30 active:scale-95 transition-transform"
-          aria-label="Menu admin"
-        >
-          <span className="text-lg">{tabs.find(t => t.id === tab)?.icon || '📊'}</span>
-        </button>
-
         {/* ---- Contenido ---- */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+
+          {/* Antes era un botón fixed bottom-left: quedaba flotando sobre
+              cualquier contenido que scrolleara a esa posición, tapando
+              texto (p. ej. el título de "Top Productos"). Al vivir en el
+              flujo normal (sticky, no fixed) reserva su espacio y nunca
+              se monta encima de nada. */}
+          <button
+            onClick={() => setSidebarOpen(o => !o)}
+            className="sticky top-0 z-20 lg:hidden mb-3 bg-brand-500 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg shadow-brand-500/30 active:scale-95 transition-transform"
+            aria-label="Menu admin"
+          >
+            <span className="text-lg">{tabs.find(t => t.id === tab)?.icon || '📊'}</span>
+          </button>
 
           {tab === 'resumen' && (
             <ResumenTab
@@ -153,11 +159,13 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations, 
   const [locCompar,  setLocCompar]  = useState([])
   const [topProds,   setTopProds]   = useState([])
   const [regCompar,  setRegCompar]  = useState([])
+  const [byCategory, setByCategory] = useState([])
   const [loadDaily,  setLoadDaily]  = useState(false)
   const [loadSell,   setLoadSell]   = useState(false)
   const [loadLoc,    setLoadLoc]    = useState(false)
   const [loadProds,  setLoadProds]  = useState(false)
   const [loadRegs,   setLoadRegs]   = useState(false)
+  const [loadCat,    setLoadCat]    = useState(false)
 
   const fetchAll = useCallback(() => {
     const locParam = locationId ? `&location_id=${locationId}` : ''
@@ -194,6 +202,12 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations, 
       .then(d => setRegCompar(d || []))
       .catch(() => {})
       .finally(() => setLoadRegs(false))
+
+    setLoadCat(true)
+    api.get(`/reports/by-category${q}`)
+      .then(d => setByCategory(d || []))
+      .catch(() => {})
+      .finally(() => setLoadCat(false))
   }, [from, to, locationId, isOwner])
 
   const handleExport = () => {
@@ -261,11 +275,17 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations, 
       </section>
 
       {daily?.by_day?.length > 1 && (
-        <section>
-          <h2 className="font-syne font-semibold text-white mb-4">📈 Ventas por día</h2>
+        <section className="space-y-3">
+          <h2 className="font-syne font-semibold text-white">Ventas por día</h2>
+          <RevenueTrendChart data={daily.by_day} loading={loadDaily} />
           <DailyTrend data={daily.by_day} loading={loadDaily} />
         </section>
       )}
+
+      <section>
+        <h2 className="font-syne font-semibold text-white mb-4">Ventas por categoría</h2>
+        <CategoryBreakdown data={byCategory} loading={loadCat} />
+      </section>
 
       {/* Rankings lado a lado en desktop, apilados en móvil */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

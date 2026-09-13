@@ -1,4 +1,5 @@
 import { formatCOP, TRANSFER_PROVIDERS } from '../lib/format.js'
+import ProgressBar from './ProgressBar.jsx'
 
 // Las cobradas antes de que existiera el campo no tienen proveedor
 const ROWS = [
@@ -59,14 +60,7 @@ export default function TransferBreakdown({ data, compact = false }) {
                 <span className="text-gray-400 ml-1.5">{pct.toFixed(0)}%</span>
               </span>
             </div>
-            <div className="h-1 bg-surface-50 rounded-full overflow-hidden mt-0.5">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  r.id === 'sin_detalle' ? 'bg-gray-600' : 'bg-blue-400/70'
-                }`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+            <ProgressBar pct={pct} color={r.id === 'sin_detalle' ? 'neutral' : 'blue'} height="xs" />
           </div>
         )
       })}

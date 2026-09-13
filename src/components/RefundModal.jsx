@@ -1,5 +1,5 @@
 import { useState, useId } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Undo2, X } from 'lucide-react'
 import { api } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { toISO } from './DateRangeBar.jsx'
@@ -66,7 +66,9 @@ export default function RefundModal({ location, onClose }) {
         className="card bg-surface-200 w-full max-w-md my-4 space-y-4 animate-scale-in" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 id={titleId} className="font-syne font-bold text-lg text-white">↩ Devolución</h2>
+            <h2 id={titleId} className="font-syne font-bold text-lg text-white inline-flex items-center gap-2">
+              <Undo2 className="w-4 h-4 text-gray-400" /> Devolución
+            </h2>
             <p className="text-xs text-gray-400">Facturas pagadas hoy en {location?.name}</p>
           </div>
           <button onClick={onClose} aria-label="Cerrar"
@@ -77,7 +79,7 @@ export default function RefundModal({ location, onClose }) {
 
         {done ? (
           <div className="text-center space-y-4 py-2">
-            <div className="text-4xl">↩️</div>
+            <Undo2 className="w-10 h-10 text-brand-400 mx-auto" />
             <p className="font-syne font-bold text-lg text-white">Devolución registrada</p>
             <p className="text-sm text-gray-300">
               Factura <span className="font-mono text-brand-400">#{done.code}</span> por {formatCOP(done.total)}
@@ -134,7 +136,9 @@ export default function RefundModal({ location, onClose }) {
             </div>
 
             <div className="flex gap-2">
-              <button onClick={() => { setInvoice(null); setReason('') }} className="btn btn-ghost flex-1">← Atrás</button>
+              <button onClick={() => { setInvoice(null); setReason('') }} className="btn btn-ghost flex-1">
+                <ArrowLeft className="w-4 h-4" /> Atrás
+              </button>
               <button onClick={handleRefund} disabled={saving || !reason.trim()} className="btn btn-primary flex-1 bg-red-600 hover:bg-red-500">
                 {saving ? <Loader2 className="animate-spin h-4 w-4" /> : 'Confirmar devolución'}
               </button>

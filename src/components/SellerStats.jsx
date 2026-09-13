@@ -1,15 +1,9 @@
 import { useState } from 'react'
-import { ArrowRightLeft, Banknote, CreditCard } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
+import PaymentMethodChips from './PaymentMethodChips.jsx'
+import ProgressBar from './ProgressBar.jsx'
+import RankBadge from './RankBadge.jsx'
 import SellerDetailModal from './SellerDetailModal.jsx'
-
-const METHOD_BADGE = {
-  cash:     'bg-green-500/20  text-green-400',
-  transfer: 'bg-blue-500/20   text-blue-400',
-  card:     'bg-violet-500/20 text-violet-400',
-}
-
-const MEDALS = ['🥇', '🥈', '🥉']
 
 export default function SellerStats({ data, loading, from, to, locationId }) {
   const [selectedSeller, setSelectedSeller] = useState(null)
@@ -41,14 +35,7 @@ export default function SellerStats({ data, loading, from, to, locationId }) {
               className="card bg-surface-300 w-full text-left hover:bg-surface-200 transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-3">
-                {/* Ranking */}
-                <div className="w-8 text-center shrink-0">
-                  {idx < 3 ? (
-                    <span className="text-xl">{MEDALS[idx]}</span>
-                  ) : (
-                    <span className="text-sm font-mono font-bold text-gray-400">#{idx + 1}</span>
-                  )}
-                </div>
+                <RankBadge rank={idx + 1} />
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
@@ -64,31 +51,12 @@ export default function SellerStats({ data, loading, from, to, locationId }) {
                 </div>
               </div>
 
-              {/* Revenue bar */}
-              <div className="h-1 bg-surface-50 rounded-full overflow-hidden mt-2">
-                <div
-                  className="h-full bg-gradient-to-r from-brand-600 to-brand-400 rounded-full transition-all duration-700"
-                  style={{ width: `${pct}%` }}
-                />
+              <div className="mt-2">
+                <ProgressBar pct={pct} height="xs" />
               </div>
 
-              {/* Payment methods breakdown */}
-              <div className="flex flex-wrap gap-1 mt-2">
-                {s.by_method.cash > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${METHOD_BADGE.cash} inline-flex items-center gap-0.5`}>
-                    <Banknote className="w-2.5 h-2.5" /> {formatCOP(s.by_method.cash)}
-                  </span>
-                )}
-                {s.by_method.transfer > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${METHOD_BADGE.transfer} inline-flex items-center gap-0.5`}>
-                    <ArrowRightLeft className="w-2.5 h-2.5" /> {formatCOP(s.by_method.transfer)}
-                  </span>
-                )}
-                {s.by_method.card > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${METHOD_BADGE.card} inline-flex items-center gap-0.5`}>
-                    <CreditCard className="w-2.5 h-2.5" /> {formatCOP(s.by_method.card)}
-                  </span>
-                )}
+              <div className="mt-2">
+                <PaymentMethodChips byMethod={s.by_method} />
               </div>
 
               <p className="text-[10px] text-gray-400 mt-1">Click para ver detalle →</p>

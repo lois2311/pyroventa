@@ -88,7 +88,11 @@ export default defineConfig({
     port: 5173,
     allowedHosts: true,
     proxy: {
-      '/api': {
+      // App.jsx importa api/_lib/roles.js directo (mismo código en front y
+      // serverless functions); esa URL colisiona con este proxy y rompe el
+      // arranque en dev puro (sin `vercel dev`) — se excluye para que Vite
+      // lo sirva como el módulo local que es.
+      '^/api/(?!_lib/)': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },

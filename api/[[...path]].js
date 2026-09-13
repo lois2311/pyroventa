@@ -6,7 +6,7 @@ import { signToken }       from './_lib/jwt.js'
 import { getTenantStatus } from './_lib/tenantStatus.js'
 import { superLogin, superTenantsList, superTenantsCreate, superTenantsPatch, superTenantAdminCreate, superTenantLocationCreate, superMetrics } from './_lib/superRoutes.js'
 import { defaultPrinterConfig } from './_lib/printerConfig.js'
-import { parseRange, bogotaDayBounds } from './_lib/range.js'
+import { parseRange, bogotaDayBounds, previousPeriod } from './_lib/range.js'
 import { tenantOwns } from './_lib/tenantOwns.js'
 import { compareProducts } from './_lib/productSort.js'
 import { buildInvoiceItems } from './_lib/invoiceItems.js'
@@ -123,6 +123,7 @@ async function route(req, res) {
   if (route === '/reports/seller-detail' && method === 'GET') return reportSellerDetail(req, res)
   if (route === '/reports/register-detail' && method === 'GET') return reportRegisterDetail(req, res)
   if (route === '/reports/top-products'  && method === 'GET') return reportTopProducts(req, res)
+  if (route === '/reports/by-category'   && method === 'GET') return reportByCategory(req, res)
 
   return res.status(404).json({ error: `Ruta no encontrada: ${method} /api${route}` })
 }
@@ -1170,16 +1171,28 @@ async function reportDaily(req, res) {
   const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
   if (location_id === undefined) return
 
-  const [{ data: summaryRows, error }, providers] = await Promise.all([
+  const prevRange = previousPeriod(from, to)
+
+  const [{ data: summaryRows, error }, providers, { data: prevRows, error: prevErr }] = await Promise.all([
     supabaseAdmin.rpc('report_range_summary', {
       p_tenant_id: auth.tenantId, p_from: from, p_to: to,
       p_location_id: location_id || null,
     }),
     transferBreakdown(auth.tenantId, { from, to, location_id }),
+    // Mismo rango, inmediatamente antes — para el "vs período anterior" de los KPIs.
+    supabaseAdmin.rpc('report_range_summary', {
+      p_tenant_id: auth.tenantId, p_from: prevRange.from, p_to: prevRange.to,
+      p_location_id: location_id || null,
+    }),
   ])
   if (error) return res.status(500).json({ error: error.message })
   const s = summaryRows?.[0] || {}
   const tr = Number(s.total_revenue || 0), ic = Number(s.invoice_count || 0)
+
+  // Si falla la comparación, el dashboard sigue funcionando sin las flechas
+  // de tendencia — no vale la pena tumbar todo el reporte por esto.
+  const p = !prevErr ? (prevRows?.[0] || {}) : {}
+  const prevTr = Number(p.total_revenue || 0), prevIc = Number(p.invoice_count || 0)
 
   const result = {
     from, to,
@@ -1194,6 +1207,12 @@ async function reportDaily(req, res) {
     by_transfer_provider: providers, // null si falta la migración
     by_day: [],
     by_location: [],
+    previous: prevErr ? null : {
+      from: prevRange.from, to: prevRange.to,
+      total_revenue: prevTr,
+      invoice_count: prevIc,
+      avg_ticket: prevIc > 0 ? prevTr / prevIc : 0,
+    },
   }
 
   if (from !== to) {
@@ -1330,6 +1349,35 @@ async function reportTopProducts(req, res) {
   return res.status(200).json(
     Object.values(pm).sort((a, b) => b.total_revenue - a.total_revenue).slice(0, parseInt(limit))
   )
+}
+
+/**
+ * Ventas por categoría de producto — para el gráfico de barras categórico
+ * del dashboard. Agrupa por categoría real del producto al momento de
+ * consultar (no un snapshot histórico): si un producto cambia de categoría,
+ * las ventas viejas se re-agrupan en la nueva.
+ */
+async function reportByCategory(req, res) {
+  const auth = await requireCan(req, res, 'view_reports'); if (!auth) return
+  let range
+  try { range = parseRange(req.query) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const { seller_id, register_id } = req.query
+  const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
+  if (location_id === undefined) return
+  const { data, error } = await supabaseAdmin.rpc('report_range_by_category', {
+    p_tenant_id: auth.tenantId, p_from: range.from, p_to: range.to,
+    p_location_id: location_id || null,
+    p_seller_id: seller_id || null,
+    p_register_id: register_id || null,
+  })
+  if (error) return res.status(500).json({ error: error.message })
+  return res.status(200).json((data || []).map(r => ({
+    category_id:   r.category_id,
+    category_name: r.category_name || 'Sin categoría',
+    category_icon: r.category_icon || null,
+    total_qty:     Number(r.total_qty || 0),
+    total_revenue: Number(r.total_revenue || 0),
+  })).sort((a, b) => b.total_revenue - a.total_revenue))
 }
 
 /**

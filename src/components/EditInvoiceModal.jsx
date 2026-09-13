@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useId } from 'react'
-import { X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { api, getProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useAuthStore } from '../store/authStore.js'
@@ -190,7 +190,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
             onClick={() => setShowCatalog(true)}
             className="btn btn-ghost w-full border border-dashed border-white/10 text-gray-400 hover:text-brand-400 hover:border-brand-500/30"
           >
-            + Agregar producto
+            <Plus className="w-4 h-4" /> Agregar producto
           </button>
         ) : (
           <div className="bg-surface-400 rounded-xl p-3 space-y-2 border border-white/5">

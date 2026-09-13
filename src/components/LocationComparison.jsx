@@ -1,4 +1,7 @@
+import { Clock, MapPin, XCircle } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
+import ProgressBar from './ProgressBar.jsx'
+import RankBadge from './RankBadge.jsx'
 
 export default function LocationComparison({ data, loading }) {
   if (loading) {
@@ -19,15 +22,18 @@ export default function LocationComparison({ data, loading }) {
     <div className="space-y-3">
       {data.map((loc, idx) => {
         const pct = (loc.total_revenue / maxRevenue) * 100
-        const medals = ['🥇', '🥈', '🥉']
 
         return (
           <div key={loc.location_id} className="card bg-surface-300">
             <div className="flex items-start gap-3 mb-3">
-              <span className="text-2xl">{medals[idx] || '📍'}</span>
+              <RankBadge rank={idx + 1} />
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-white">{loc.location_name}</h3>
-                {loc.address && <p className="text-xs text-gray-400 truncate">{loc.address}</p>}
+                {loc.address && (
+                  <p className="text-xs text-gray-400 truncate flex items-center gap-1">
+                    <MapPin className="w-3 h-3 shrink-0" /> {loc.address}
+                  </p>
+                )}
               </div>
               <div className="text-right">
                 <p className="font-mono font-bold text-xl text-brand-400">{formatCOP(loc.total_revenue)}</p>
@@ -35,20 +41,18 @@ export default function LocationComparison({ data, loading }) {
               </div>
             </div>
 
-            {/* Barra de progreso */}
-            <div className="h-2 bg-surface-50 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-brand-600 to-brand-400 rounded-full transition-all duration-700"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+            <ProgressBar pct={pct} height="md" />
 
             {/* Detalle */}
             <div className="flex justify-between text-xs text-gray-400 mt-2">
               <span>Ticket prom: {formatCOP(loc.avg_ticket)}</span>
               <span className="flex gap-3">
-                <span className="text-yellow-600">⏳ {loc.pending_count}</span>
-                <span className="text-red-600">✕ {loc.cancelled_count}</span>
+                <span className="flex items-center gap-1 text-yellow-500">
+                  <Clock className="w-3 h-3" /> {loc.pending_count}
+                </span>
+                <span className="flex items-center gap-1 text-red-500">
+                  <XCircle className="w-3 h-3" /> {loc.cancelled_count}
+                </span>
               </span>
             </div>
           </div>

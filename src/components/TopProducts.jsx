@@ -1,6 +1,6 @@
 import { formatCOP } from '../lib/format.js'
-
-const MEDALS = ['🥇', '🥈', '🥉']
+import ProgressBar from './ProgressBar.jsx'
+import RankBadge from './RankBadge.jsx'
 
 export default function TopProducts({ data, loading }) {
   if (loading) {
@@ -25,14 +25,7 @@ export default function TopProducts({ data, loading }) {
         return (
           <div key={product.product_id || idx} className="card bg-surface-300">
             <div className="flex items-center gap-3">
-              {/* Ranking */}
-              <div className="w-8 text-center shrink-0">
-                {idx < 3 ? (
-                  <span className="text-xl">{MEDALS[idx]}</span>
-                ) : (
-                  <span className="text-sm font-mono font-bold text-gray-400">#{idx + 1}</span>
-                )}
-              </div>
+              <RankBadge rank={idx + 1} />
 
               {/* Info */}
               <div className="flex-1 min-w-0">
@@ -53,12 +46,8 @@ export default function TopProducts({ data, loading }) {
               </div>
             </div>
 
-            {/* Revenue bar */}
-            <div className="h-1 bg-surface-50 rounded-full overflow-hidden mt-2">
-              <div
-                className="h-full bg-gradient-to-r from-brand-600 to-brand-400 rounded-full transition-all duration-700"
-                style={{ width: `${pct}%` }}
-              />
+            <div className="mt-2">
+              <ProgressBar pct={pct} height="xs" />
             </div>
           </div>
         )

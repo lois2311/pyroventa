@@ -1,5 +1,5 @@
 import { useState, useEffect, useId } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { AlertTriangle, Banknote, CheckCircle2, FileText, Loader2, Monitor, X } from 'lucide-react'
 import { api } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useToast } from './Toast.jsx'
@@ -83,8 +83,8 @@ export default function CloseRegisterModal({ register, location, onClose }) {
         <div className="flex items-center justify-between">
           <div>
             <h2 id={titleId} className="font-syne font-bold text-lg text-white">Cierre de caja</h2>
-            <p className="text-xs text-gray-400">
-              🖥 {register?.name || 'Sin caja'} · {location?.name} · {summary?.date || 'hoy'}
+            <p className="text-xs text-gray-400 inline-flex items-center gap-1.5">
+              <Monitor className="w-3.5 h-3.5" /> {register?.name || 'Sin caja'} · {location?.name} · {summary?.date || 'hoy'}
             </p>
           </div>
           <button onClick={onClose} aria-label="Cerrar"
@@ -99,7 +99,9 @@ export default function CloseRegisterModal({ register, location, onClose }) {
           /* ---- Resultado del cierre (o cierre ya existente) ---- */
           <div className="space-y-4">
             <div className={`card text-center py-5 ${Number(closure.difference) === 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-surface-400 border-amber-500/30'}`}>
-              <p className="text-4xl mb-2">{Number(closure.difference) === 0 ? '✅' : '⚠️'}</p>
+              {Number(closure.difference) === 0
+                ? <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-2" />
+                : <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-2" />}
               <p className="font-syne font-bold text-lg text-white mb-1">
                 {Number(closure.difference) === 0 ? '¡Caja cuadrada!' : Number(closure.difference) > 0 ? 'Sobra efectivo' : 'Falta efectivo'}
               </p>
@@ -111,7 +113,11 @@ export default function CloseRegisterModal({ register, location, onClose }) {
               <ExpectedRow label="Efectivo contado" value={formatCOP(closure.declared_cash)} strong />
               <ExpectedRow label="Transferencias" value={formatCOP(closure.expected_transfer)} />
               <ExpectedRow label="Datáfono" value={formatCOP(closure.expected_card)} />
-              {closure.notes && <p className="text-xs text-gray-400 italic pt-1 border-t border-white/5">📝 {closure.notes}</p>}
+              {closure.notes && (
+                <p className="text-xs text-gray-400 italic pt-1 border-t border-white/5 flex items-start gap-1.5">
+                  <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {closure.notes}
+                </p>
+              )}
               <p className="text-[10px] text-gray-400 pt-1">
                 Cerrada por {closure.cashier_name} · {new Date(closure.closed_at).toLocaleString('es-CO')}
               </p>
@@ -130,7 +136,9 @@ export default function CloseRegisterModal({ register, location, onClose }) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-400 mb-1">💵 Efectivo contado en caja</label>
+              <label className="block text-xs text-gray-400 mb-1 inline-flex items-center gap-1.5">
+                <Banknote className="w-3.5 h-3.5" /> Efectivo contado en caja
+              </label>
               <input
                 type="number"
                 inputMode="numeric"

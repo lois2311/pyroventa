@@ -41,3 +41,22 @@ export function bogotaDayBounds(from, to) {
   end.setUTCDate(end.getUTCDate() + 1)
   return { start: start.toISOString(), end: end.toISOString() }
 }
+
+/**
+ * Periodo inmediatamente anterior, de la misma duración — para comparar
+ * "esta semana vs la pasada" en los KPIs del dashboard. Ej: from=to=hoy
+ * (1 día) → el día anterior; from/to de 7 días → los 7 días previos a esos.
+ */
+export function previousPeriod(from, to) {
+  const fromD = new Date(`${from}T00:00:00Z`)
+  const toD   = new Date(`${to}T00:00:00Z`)
+  const days  = Math.round((toD - fromD) / 86400000) + 1
+
+  const prevTo = new Date(fromD)
+  prevTo.setUTCDate(prevTo.getUTCDate() - 1)
+  const prevFrom = new Date(prevTo)
+  prevFrom.setUTCDate(prevFrom.getUTCDate() - (days - 1))
+
+  const iso = (d) => d.toISOString().slice(0, 10)
+  return { from: iso(prevFrom), to: iso(prevTo) }
+}

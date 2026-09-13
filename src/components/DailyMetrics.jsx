@@ -1,19 +1,16 @@
-import { ArrowRightLeft, Banknote, CreditCard } from 'lucide-react'
+import { ArrowRightLeft, Banknote, CheckCircle2, Clock, CreditCard, Wallet } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
+import MetricTile from './MetricTile.jsx'
+import ProgressBar from './ProgressBar.jsx'
 import TransferBreakdown from './TransferBreakdown.jsx'
 
-function MetricCard({ label, value, sub, color = 'text-white', icon }) {
-  return (
-    <div className="card bg-surface-300 space-y-1">
-      <div className="flex items-center gap-2 text-gray-400 text-xs">
-        {icon && <span>{icon}</span>}
-        <span>{label}</span>
-      </div>
-      <p className={`font-mono font-bold text-2xl ${color}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400">{sub}</p>}
-    </div>
-  )
-}
+// Mismos iconos y colores que PaymentMethods.jsx (pantalla de cobro): dos
+// lenguajes visuales distintos para cash/transfer/card era la inconsistencia real.
+const PAY_METHODS = [
+  { key: 'cash',     label: 'Efectivo',      Icon: Banknote,       color: 'green',  text: 'text-green-400'  },
+  { key: 'transfer', label: 'Transferencia', Icon: ArrowRightLeft, color: 'blue',   text: 'text-blue-400'   },
+  { key: 'card',     label: 'Datáfono',      Icon: CreditCard,     color: 'violet', text: 'text-violet-400' },
+]
 
 export default function DailyMetrics({ data, loading }) {
   if (loading) {
@@ -34,45 +31,48 @@ export default function DailyMetrics({ data, loading }) {
     cancelled_count = 0,
     by_pay_method = {},
     by_transfer_provider = null,
+    previous = null,
   } = data
 
-  // Mismos iconos que PaymentMethods.jsx (pantalla de cobro): dos idiomas
-  // visuales distintos para cash/transfer/card era la inconsistencia real.
-  const methods = [
-    { key: 'cash',     label: 'Efectivo',       Icon: Banknote,       color: 'text-green-400'  },
-    { key: 'transfer', label: 'Transferencia',   Icon: ArrowRightLeft, color: 'text-blue-400'   },
-    { key: 'card',     label: 'Datáfono',        Icon: CreditCard,     color: 'text-violet-400' },
-  ]
-
-  const maxMethod = Math.max(...methods.map(m => by_pay_method[m.key] || 0), 1)
+  // % vs el período anterior — null si no hay base real para comparar
+  // (evita un "+∞%" sin sentido cuando el período previo no tuvo ventas).
+  const trendPct = (curr, prev) => (prev > 0 ? ((curr - prev) / prev) * 100 : null)
 
   return (
     <div className="space-y-6">
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard
+        <MetricTile
+          hero
+          icon={Wallet}
           label="Total del día"
-          value={formatCOP(total_revenue)}
+          value={total_revenue}
+          format={formatCOP}
           color="text-brand-400"
-          icon="💰"
+          trendPct={previous ? trendPct(total_revenue, previous.total_revenue) : null}
         />
-        <MetricCard
+        <MetricTile
+          icon={CheckCircle2}
           label="Facturas pagadas"
           value={invoice_count}
+          format={(n) => Math.round(n)}
           color="text-green-400"
-          icon="✅"
+          trendPct={previous ? trendPct(invoice_count, previous.invoice_count) : null}
         />
-        <MetricCard
+        <MetricTile
+          icon={CreditCard}
           label="Ticket promedio"
-          value={formatCOP(avg_ticket)}
-          icon="🎫"
+          value={avg_ticket}
+          format={formatCOP}
+          trendPct={previous ? trendPct(avg_ticket, previous.avg_ticket) : null}
         />
-        <MetricCard
+        <MetricTile
+          icon={Clock}
           label="Pendientes"
           value={pending_count}
+          format={(n) => Math.round(n)}
           color={pending_count > 0 ? 'text-yellow-400' : 'text-gray-400'}
           sub={cancelled_count > 0 ? `${cancelled_count} canceladas` : undefined}
-          icon="⏳"
         />
       </div>
 
@@ -80,7 +80,7 @@ export default function DailyMetrics({ data, loading }) {
       <div className="card bg-surface-300">
         <h3 className="text-sm font-semibold text-gray-400 mb-4">Por método de pago</h3>
         <div className="space-y-3">
-          {methods.map(m => {
+          {PAY_METHODS.map(m => {
             const val  = by_pay_method[m.key] || 0
             const pct  = total_revenue > 0 ? (val / total_revenue) * 100 : 0
             return (
@@ -89,17 +89,9 @@ export default function DailyMetrics({ data, loading }) {
                   <span className="flex items-center gap-1.5 text-gray-400">
                     <m.Icon className="w-3.5 h-3.5" /> {m.label}
                   </span>
-                  <span className={`font-mono font-semibold ${m.color}`}>{formatCOP(val)}</span>
+                  <span className={`font-mono font-semibold ${m.text}`}>{formatCOP(val)}</span>
                 </div>
-                <div className="h-1.5 bg-surface-50 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      m.key === 'cash'     ? 'bg-green-500'  :
-                      m.key === 'transfer' ? 'bg-blue-500'   : 'bg-violet-500'
-                    }`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
+                <ProgressBar pct={pct} color={m.color} />
                 {/* Las transferencias se abren por billetera/banco */}
                 {m.key === 'transfer' && <TransferBreakdown data={by_transfer_provider} />}
               </div>

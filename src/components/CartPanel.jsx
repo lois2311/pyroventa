@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { ShoppingCart, Ticket, X } from 'lucide-react'
 import { useCartStore }    from '../store/cartStore.js'
 import { formatCOP }       from '../lib/format.js'
 
@@ -9,7 +9,7 @@ export default function CartPanel({ onCheckout, loading }) {
   if (!items.length) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-400">
-        <span className="text-4xl mb-3">🛒</span>
+        <ShoppingCart className="w-10 h-10 mb-3" />
         <p className="text-sm font-medium">Carrito vacío</p>
         <p className="text-xs mt-1">Selecciona productos del catálogo</p>
       </div>
@@ -63,7 +63,9 @@ export default function CartPanel({ onCheckout, loading }) {
               Generando...
             </span>
           ) : (
-            <>🎫 Generar Factura</>
+            <span className="inline-flex items-center gap-2">
+              <Ticket className="w-4 h-4" /> Generar Factura
+            </span>
           )}
         </button>
       </div>

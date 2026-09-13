@@ -1,7 +1,10 @@
 import { useState, useEffect, useId } from 'react'
-import { ArrowRightLeft, Banknote, CreditCard, Download, X } from 'lucide-react'
+import { CheckCircle2, Clock, CreditCard, Download, Monitor, Wallet, X } from 'lucide-react'
 import { api } from '../lib/api.js'
 import { formatCOP, formatDate, payMethodLabel } from '../lib/format.js'
+import HourlyBarChart from './HourlyBarChart.jsx'
+import MetricTile from './MetricTile.jsx'
+import PaymentMethodChips from './PaymentMethodChips.jsx'
 import TransferBreakdown, { transferColumns } from './TransferBreakdown.jsx'
 import { exportToExcel } from '../lib/exportExcel.js'
 import { useModalA11y } from '../hooks/useModalA11y.js'
@@ -57,7 +60,9 @@ export default function RegisterDetailModal({ registerId, registerName, from, to
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 id={titleId} className="font-syne font-bold text-xl text-white">🖥 {registerName}</h2>
+            <h2 id={titleId} className="font-syne font-bold text-xl text-white flex items-center gap-2">
+              <Monitor className="w-5 h-5 text-gray-400" /> {registerName}
+            </h2>
             <p className="text-xs text-gray-400">Detalle de caja · {from === to ? from : `${from} → ${to}`}</p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -89,34 +94,20 @@ export default function RegisterDetailModal({ registerId, registerName, from, to
           <>
             {/* KPIs de la caja */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <KpiCard label="Total vendido" value={formatCOP(data.summary.total_revenue)} color="text-brand-400" />
-              <KpiCard label="Facturas" value={data.summary.invoice_count} color="text-green-400" />
-              <KpiCard label="Ticket promedio" value={formatCOP(data.summary.avg_ticket)} />
-              <KpiCard
+              <MetricTile icon={Wallet} label="Total vendido" value={data.summary.total_revenue} format={formatCOP} color="text-brand-400" />
+              <MetricTile icon={CheckCircle2} label="Facturas" value={data.summary.invoice_count} format={(n) => Math.round(n)} color="text-green-400" />
+              <MetricTile icon={CreditCard} label="Ticket promedio" value={data.summary.avg_ticket} format={formatCOP} />
+              <MetricTile
+                icon={Clock}
                 label="Pendientes"
                 value={data.summary.pending_count}
+                format={(n) => Math.round(n)}
                 color={data.summary.pending_count > 0 ? 'text-yellow-400' : 'text-gray-400'}
               />
             </div>
 
             {/* Por método de pago */}
-            <div className="flex flex-wrap gap-2">
-              {data.summary.by_pay_method.cash > 0 && (
-                <span className="text-xs px-2 py-1 rounded-lg bg-green-500/20 text-green-400 font-mono inline-flex items-center gap-1">
-                  <Banknote className="w-3.5 h-3.5" /> Efectivo: {formatCOP(data.summary.by_pay_method.cash)}
-                </span>
-              )}
-              {data.summary.by_pay_method.transfer > 0 && (
-                <span className="text-xs px-2 py-1 rounded-lg bg-blue-500/20 text-blue-400 font-mono inline-flex items-center gap-1">
-                  <ArrowRightLeft className="w-3.5 h-3.5" /> Transferencia: {formatCOP(data.summary.by_pay_method.transfer)}
-                </span>
-              )}
-              {data.summary.by_pay_method.card > 0 && (
-                <span className="text-xs px-2 py-1 rounded-lg bg-violet-500/20 text-violet-400 font-mono inline-flex items-center gap-1">
-                  <CreditCard className="w-3.5 h-3.5" /> Datáfono: {formatCOP(data.summary.by_pay_method.card)}
-                </span>
-              )}
-            </div>
+            <PaymentMethodChips byMethod={data.summary.by_pay_method} size="md" withLabel />
 
             {/* Desglose de las transferencias por billetera/banco */}
             <TransferBreakdown data={data.summary.by_transfer_provider} compact />
@@ -125,25 +116,7 @@ export default function RegisterDetailModal({ registerId, registerName, from, to
             {data.by_hour?.length > 0 && (
               <div>
                 <h3 className="text-sm font-semibold text-gray-400 mb-2">Ventas por hora</h3>
-                <div className="flex gap-1 items-end h-20">
-                  {data.by_hour.map(h => {
-                    const maxCount = Math.max(...data.by_hour.map(x => x.count), 1)
-                    const heightPct = (h.count / maxCount) * 100
-
-                    return (
-                      <div key={h.hour} className="flex-1 flex flex-col items-center gap-1" title={`${h.hour}: ${h.count} ventas · ${formatCOP(h.revenue)}`}>
-                        <span className="text-[9px] text-gray-400 font-mono">{h.count}</span>
-                        <div className="w-full bg-surface-50 rounded-t-sm overflow-hidden" style={{ height: '48px' }}>
-                          <div
-                            className="w-full bg-brand-500 rounded-t-sm transition-all duration-500"
-                            style={{ height: `${heightPct}%`, marginTop: `${100 - heightPct}%` }}
-                          />
-                        </div>
-                        <span className="text-[9px] text-gray-400 font-mono">{h.hour.slice(0, 2)}</span>
-                      </div>
-                    )
-                  })}
-                </div>
+                <HourlyBarChart data={data.by_hour} />
               </div>
             )}
 
@@ -226,15 +199,6 @@ export default function RegisterDetailModal({ registerId, registerName, from, to
           </>
         )}
       </div>
-    </div>
-  )
-}
-
-function KpiCard({ label, value, color = 'text-white' }) {
-  return (
-    <div className="bg-surface-400 border border-white/5 rounded-xl p-3">
-      <p className="text-[10px] text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className={`font-mono font-bold text-lg ${color}`}>{value}</p>
     </div>
   )
 }

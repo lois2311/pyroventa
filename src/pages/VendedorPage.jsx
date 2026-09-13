@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Search, ShoppingCart, Sparkles } from 'lucide-react'
 import { useAuthStore }     from '../store/authStore.js'
 import { useCartStore }     from '../store/cartStore.js'
 import { useInvoiceStore }  from '../store/invoiceStore.js'
@@ -184,7 +185,7 @@ export default function VendedorPage() {
                 active={catFilter === 'all'}
                 onClick={() => setCatFilter('all')}
                 label="Todos"
-                icon="🎆"
+                icon={<Sparkles className="w-3.5 h-3.5" />}
               />
               {categories.map(cat => (
                 <CatChip
@@ -208,7 +209,7 @@ export default function VendedorPage() {
               </div>
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 text-gray-400">
-                <span className="text-3xl mb-2">🔍</span>
+                <Search className="w-8 h-8 mb-2" />
                 <p className="text-sm">Sin resultados para "{query}"</p>
               </div>
             ) : (
@@ -238,7 +239,7 @@ export default function VendedorPage() {
           onClick={() => setCartOpen(true)}
           className="fixed bottom-4 right-4 z-40 md:hidden bg-brand-500 text-white rounded-full shadow-lg shadow-brand-500/30 active:scale-95 transition-transform flex items-center gap-2 px-5 py-3.5"
         >
-          <span className="text-lg">🛒</span>
+          <ShoppingCart className="w-5 h-5" />
           {cartCount > 0 && (
             <span className="bg-white text-brand-600 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
               {cartCount}

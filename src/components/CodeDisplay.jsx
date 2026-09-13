@@ -1,3 +1,4 @@
+import { Plus, WifiOff } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
 
 export default function CodeDisplay({ invoice, onNewSale }) {
@@ -36,7 +37,9 @@ export default function CodeDisplay({ invoice, onNewSale }) {
       {/* Indicador offline */}
       {invoice._offline && (
         <div className="bg-yellow-500/15 border border-yellow-500/30 rounded-lg px-3 py-2 mb-3 max-w-xs">
-          <p className="text-yellow-400 text-xs font-medium">📡 Factura offline</p>
+          <p className="text-yellow-400 text-xs font-medium inline-flex items-center gap-1.5">
+            <WifiOff className="w-3.5 h-3.5" /> Factura offline
+          </p>
           <p className="text-yellow-500/70 text-[10px]">Se sincronizará cuando vuelva la conexión. El código real se asignará en ese momento.</p>
         </div>
       )}
@@ -63,7 +66,7 @@ export default function CodeDisplay({ invoice, onNewSale }) {
 
       {/* Botón nueva venta */}
       <button onClick={onNewSale} className="btn btn-primary btn-lg">
-        ＋ Nueva venta
+        <Plus className="w-4 h-4" /> Nueva venta
       </button>
     </div>
   )

@@ -1,5 +1,5 @@
 import { formatCOP, TRANSFER_PROVIDERS } from '../lib/format.js'
-import { ArrowRightLeft, Banknote, CheckCircle2, CreditCard, Loader2 } from 'lucide-react'
+import { ArrowRightLeft, Banknote, CheckCircle2, CreditCard, Loader2, Wallet } from 'lucide-react'
 
 const METHODS = [
   {
@@ -107,7 +107,9 @@ export default function PaymentMethods({
           {change !== null && !isNaN(change) && (
             change >= 0 ? (
               <div className="mt-2 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2 flex items-center justify-between">
-                <span className="text-xs text-green-300 font-medium">💵 Cambio a devolver</span>
+                <span className="text-xs text-green-300 font-medium inline-flex items-center gap-1.5">
+                  <Wallet className="w-3.5 h-3.5" /> Cambio a devolver
+                </span>
                 <span className="font-mono font-bold text-green-400 text-lg">{formatCOP(change)}</span>
               </div>
             ) : (

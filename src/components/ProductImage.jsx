@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { Sparkles, X } from 'lucide-react'
 
 /**
- * Foto de producto con zoom: miniatura (o placeholder 🎆 si no hay foto o
+ * Foto de producto con zoom: miniatura (o placeholder si no hay foto o
  * falla la carga) que al tocarla se amplía a pantalla completa.
  * `className` define el tamaño del slot (ej: "w-9 h-9" o "w-full h-36").
  * `fit`: 'cover' recorta para llenar (miniaturas pequeñas);
@@ -24,8 +25,8 @@ export default function ProductImage({ src, name, className = 'w-9 h-9', fit = '
 
   if (!src || failed) {
     return (
-      <span className={`${className} shrink-0 rounded-lg bg-surface-50 flex items-center justify-center`} aria-hidden="true">
-        🎆
+      <span className={`${className} shrink-0 rounded-lg bg-surface-50 flex items-center justify-center text-gray-400`} aria-hidden="true">
+        <Sparkles className="w-1/2 h-1/2" />
       </span>
     )
   }
@@ -63,9 +64,9 @@ export default function ProductImage({ src, name, className = 'w-9 h-9', fit = '
             type="button"
             onClick={() => setZoomed(false)}
             aria-label="Cerrar foto"
-            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-surface-300 text-gray-300 hover:text-white flex items-center justify-center text-lg"
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-surface-300 text-gray-300 hover:text-white flex items-center justify-center"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
           <img
             src={src}

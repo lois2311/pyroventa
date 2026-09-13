@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react'
+import {
+  CheckCircle2, Clock, CreditCard, FileText, Hash, Monitor,
+  Pencil, Receipt, Tag, Undo2, X,
+} from 'lucide-react'
 import { useAuthStore }    from '../store/authStore.js'
 import { useModalA11y }    from '../hooks/useModalA11y.js'
 import { useInvoiceStore } from '../store/invoiceStore.js'
@@ -56,7 +60,7 @@ function PaidOverlay({ invoice, onDone }) {
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="bg-surface-300 border border-green-500/30 rounded-2xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl animate-scale-in">
-        <div className="text-5xl sm:text-6xl mb-4">✅</div>
+        <CheckCircle2 className="w-14 h-14 sm:w-16 sm:h-16 text-green-400 mx-auto mb-4" />
         <h2 id={titleId} className="font-syne font-bold text-xl sm:text-2xl text-green-400 mb-2">¡Cobrado!</h2>
         <div className="font-mono font-bold text-brand-400 text-3xl sm:text-5xl tracking-[0.2em] mb-2">
           {invoice?.code}
@@ -64,16 +68,20 @@ function PaidOverlay({ invoice, onDone }) {
         <p className="font-mono font-bold text-xl sm:text-3xl text-white mb-2">{formatCOP(invoice?.total)}</p>
 
         {Number(invoice?.discount) > 0 && (
-          <p className="text-xs text-amber-400 mb-2">🏷 Descuento aplicado: −{formatCOP(invoice.discount)}</p>
+          <p className="text-xs text-amber-400 mb-2 inline-flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5" /> Descuento aplicado: −{formatCOP(invoice.discount)}
+          </p>
         )}
 
         {invoice?.register_name && (
-          <p className="text-xs text-gray-400 mb-2">🖥 {invoice.register_name}</p>
+          <p className="text-xs text-gray-400 mb-2 inline-flex items-center gap-1.5">
+            <Monitor className="w-3.5 h-3.5" /> {invoice.register_name}
+          </p>
         )}
 
         {invoice?.observations && (
-          <p className="text-xs text-gray-400 italic mb-3 bg-surface-400 rounded-lg px-3 py-2">
-            📝 {invoice.observations}
+          <p className="text-xs text-gray-400 italic mb-3 bg-surface-400 rounded-lg px-3 py-2 flex items-start gap-1.5 text-left">
+            <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {invoice.observations}
           </p>
         )}
 
@@ -116,7 +124,7 @@ function RegisterGate({ locationId, onSelect }) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center max-w-sm">
-          <span className="text-5xl block mb-4">🖥</span>
+          <Monitor className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h2 className="font-syne font-bold text-xl text-white mb-2">No hay cajas registradas</h2>
           <p className="text-gray-400 text-sm mb-4">
             Un administrador debe crear cajas para este punto de venta desde el panel de Administración → Cajas.
@@ -135,7 +143,7 @@ function RegisterGate({ locationId, onSelect }) {
   return (
     <div className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-md text-center">
-        <span className="text-5xl block mb-3">🖥</span>
+        <Monitor className="w-12 h-12 text-gray-400 mx-auto mb-3" />
         <h2 className="font-syne font-bold text-xl text-white mb-1">Selecciona tu caja</h2>
         <p className="text-gray-400 text-sm mb-6">¿En cuál caja vas a cobrar hoy?</p>
 
@@ -146,7 +154,7 @@ function RegisterGate({ locationId, onSelect }) {
               onClick={() => onSelect(reg)}
               className="card-hover bg-surface-300 flex flex-col items-center gap-2 py-5 transition-all hover:scale-[1.02]"
             >
-              <span className="text-3xl">🖥</span>
+              <Monitor className="w-7 h-7 text-gray-400" />
               <span className="font-semibold text-white">{reg.name}</span>
             </button>
           ))}
@@ -165,9 +173,9 @@ function RegisterGate({ locationId, onSelect }) {
 
 // ---- Mobile Tab Bar para caja ---------------------------
 const CAJA_TABS = [
-  { id: 'pendientes', label: 'Pendientes', icon: '⏳' },
-  { id: 'cobrar',     label: 'Cobrar',     icon: '🔢' },
-  { id: 'pagar',      label: 'Pagar',      icon: '💳' },
+  { id: 'pendientes', label: 'Pendientes', Icon: Clock },
+  { id: 'cobrar',     label: 'Cobrar',     Icon: Hash },
+  { id: 'pagar',      label: 'Pagar',      Icon: CreditCard },
 ]
 
 // ---- CajaPage -------------------------------------------
@@ -377,7 +385,7 @@ export default function CajaPage() {
         {/* Badge de caja activa */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
           <span className="text-xs bg-surface-300 border border-white/5 rounded-lg px-2.5 py-1.5 text-gray-400 flex items-center gap-1.5">
-            🖥 <span className="text-white font-medium">{register?.name || 'Sin caja'}</span>
+            <Monitor className="w-3.5 h-3.5" /> <span className="text-white font-medium">{register?.name || 'Sin caja'}</span>
           </span>
           <button
             onClick={() => setChangingReg(true)}
@@ -387,13 +395,13 @@ export default function CajaPage() {
           </button>
           <div className="flex-1" />
           {canEdit && (
-            <button onClick={() => setRefunding(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10">
-              ↩ Devolución
+            <button onClick={() => setRefunding(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10 inline-flex items-center gap-1.5">
+              <Undo2 className="w-3.5 h-3.5" /> Devolución
             </button>
           )}
           {canEdit && (
-            <button onClick={() => setClosingReg(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10">
-              🧾 Cerrar caja
+            <button onClick={() => setClosingReg(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10 inline-flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5" /> Cerrar caja
             </button>
           )}
         </div>
@@ -419,7 +427,9 @@ export default function CajaPage() {
           <div className="max-w-lg space-y-4">
             <InvoiceDetail invoice={invoice} productImages={productImages} />
             {invoice.edited_at && (
-              <p className="text-[10px] text-yellow-500/70">✏️ Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}</p>
+              <p className="text-[10px] text-yellow-500/70 inline-flex items-center gap-1">
+                <Pencil className="w-3 h-3" /> Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}
+              </p>
             )}
             {invoice.observations && (
               <div className="bg-surface-400 border border-white/5 rounded-lg px-3 py-2">
@@ -429,16 +439,20 @@ export default function CajaPage() {
             )}
             <div className="flex items-center gap-3">
               {canEdit && (
-                <button onClick={() => setEditing(true)} className="text-xs text-brand-400 hover:text-brand-300 transition-colors">✏️ Editar factura</button>
+                <button onClick={() => setEditing(true)} className="text-xs text-brand-400 hover:text-brand-300 transition-colors inline-flex items-center gap-1">
+                  <Pencil className="w-3 h-3" /> Editar factura
+                </button>
               )}
               {canEdit && (
-                <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-red-400 transition-colors">✕ Cancelar factura</button>
+                <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-red-400 transition-colors inline-flex items-center gap-1">
+                  <X className="w-3 h-3" /> Cancelar factura
+                </button>
               )}
             </div>
           </div>
         ) : !notFound ? (
           <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-            <span className="text-4xl mb-2">🔢</span>
+            <Hash className="w-9 h-9 mb-2" />
             <p className="text-sm">Ingresa un código de 4 dígitos</p>
           </div>
         ) : null}
@@ -472,7 +486,7 @@ export default function CajaPage() {
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-center">
-            <span className="text-4xl mb-2">💳</span>
+            <CreditCard className="w-9 h-9 mb-2" />
             <p className="text-sm">Busca una factura para cobrar</p>
           </div>
         )}
@@ -505,7 +519,7 @@ export default function CajaPage() {
             {/* Badge de caja activa */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs bg-surface-300 border border-white/5 rounded-lg px-2.5 py-1.5 text-gray-400 flex items-center gap-1.5">
-                🖥 <span className="text-white font-medium">{register?.name || 'Sin caja'}</span>
+                <Monitor className="w-3.5 h-3.5" /> <span className="text-white font-medium">{register?.name || 'Sin caja'}</span>
               </span>
               <button onClick={() => setChangingReg(true)}
                 className="text-[10px] text-gray-400 hover:text-brand-400 transition-colors">
@@ -513,10 +527,14 @@ export default function CajaPage() {
               </button>
               <div className="flex-1" />
               {canEdit && (
-                <button onClick={() => setRefunding(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10">↩</button>
+                <button onClick={() => setRefunding(true)} aria-label="Devolución" className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10">
+                  <Undo2 className="w-3.5 h-3.5" />
+                </button>
               )}
               {canEdit && (
-                <button onClick={() => setClosingReg(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10">🧾 Cierre</button>
+                <button onClick={() => setClosingReg(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10 inline-flex items-center gap-1.5">
+                  <Receipt className="w-3.5 h-3.5" /> Cierre
+                </button>
               )}
             </div>
 
@@ -537,7 +555,9 @@ export default function CajaPage() {
               <div className="space-y-4">
                 <InvoiceDetail invoice={invoice} productImages={productImages} />
                 {invoice.edited_at && (
-                  <p className="text-[10px] text-yellow-500/70">✏️ Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}</p>
+                  <p className="text-[10px] text-yellow-500/70 inline-flex items-center gap-1">
+                    <Pencil className="w-3 h-3" /> Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}
+                  </p>
                 )}
                 {invoice.observations && (
                   <div className="bg-surface-400 border border-white/5 rounded-lg px-3 py-2">
@@ -546,13 +566,21 @@ export default function CajaPage() {
                   </div>
                 )}
                 <div className="flex items-center gap-3">
-                  {canEdit && <button onClick={() => setEditing(true)} className="text-xs text-brand-400">✏️ Editar</button>}
-                  {canEdit && <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-red-400">✕ Cancelar</button>}
+                  {canEdit && (
+                    <button onClick={() => setEditing(true)} className="text-xs text-brand-400 inline-flex items-center gap-1">
+                      <Pencil className="w-3 h-3" /> Editar
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-red-400 inline-flex items-center gap-1">
+                      <X className="w-3 h-3" /> Cancelar
+                    </button>
+                  )}
                 </div>
               </div>
             ) : !notFound ? (
               <div className="flex flex-col items-center justify-center h-40 text-gray-400">
-                <span className="text-4xl mb-2">🔢</span>
+                <Hash className="w-9 h-9 mb-2" />
                 <p className="text-sm">Ingresa un código de 4 dígitos</p>
               </div>
             ) : null}
@@ -572,7 +600,11 @@ export default function CajaPage() {
                     )}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">{invoice.seller_name}</p>
-                  {canEdit && <button onClick={() => setEditing(true)} className="text-[10px] text-brand-400 mt-2">✏️ Editar items</button>}
+                  {canEdit && (
+                    <button onClick={() => setEditing(true)} className="text-[10px] text-brand-400 mt-2 inline-flex items-center gap-1">
+                      <Pencil className="w-3 h-3" /> Editar items
+                    </button>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Descuento en $ (opcional)</label>
@@ -594,7 +626,7 @@ export default function CajaPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-center">
-                <span className="text-4xl mb-2">💳</span>
+                <CreditCard className="w-9 h-9 mb-2" />
                 <p className="text-sm">Busca una factura para cobrar</p>
               </div>
             )}
@@ -609,7 +641,7 @@ export default function CajaPage() {
             aria-current={mobileTab === t.id ? 'page' : undefined}
             className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors relative
               ${mobileTab === t.id ? 'text-brand-400' : 'text-gray-400'}`}>
-            <span className="text-lg">{t.icon}</span>
+            <t.Icon className="w-5 h-5" />
             <span>{t.label}</span>
             {t.id === 'pendientes' && pendingInvoices.length > 0 && (
               <span className="absolute top-1 right-1/4 bg-brand-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">

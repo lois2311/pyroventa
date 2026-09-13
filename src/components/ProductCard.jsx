@@ -1,3 +1,4 @@
+import { Sparkles } from 'lucide-react'
 import { useCartStore } from '../store/cartStore.js'
 import { formatCOP }    from '../lib/format.js'
 import ProductImage     from './ProductImage.jsx'
@@ -19,7 +20,9 @@ export default function ProductCard({ product }) {
     })
   }
 
-  const inCart = (presId) => items.some(i => i.presentationId === presId)
+  // Cantidad real en el carrito, no solo si está o no — un cajero agregando
+  // varias unidades necesita ver cuántas lleva sin abrir el carrito.
+  const qtyInCart = (presId) => items.find(i => i.presentationId === presId)?.qty || 0
 
   return (
     <div className="card bg-surface-300 hover:border-white/10 transition-all duration-150">
@@ -37,7 +40,7 @@ export default function ProductCard({ product }) {
 
       {/* Cabecera */}
       <div className="flex items-start gap-2 mb-3">
-        {!product.image_url && <span className="text-xl shrink-0">{product.categories?.icon || '🎆'}</span>}
+        {!product.image_url && <Sparkles className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />}
         <div className="min-w-0">
           <h3 className="font-medium text-white text-sm leading-tight">{product.name}</h3>
           {product.categories?.name && (
@@ -49,7 +52,8 @@ export default function ProductCard({ product }) {
       {/* Presentaciones */}
       <div className="flex flex-col gap-1.5">
         {presentations.map(pres => {
-          const active = inCart(pres.id)
+          const qty = qtyInCart(pres.id)
+          const active = qty > 0
           return (
             <button
               key={pres.id}
@@ -67,10 +71,10 @@ export default function ProductCard({ product }) {
               <div className="flex items-center gap-2 shrink-0">
                 <span className="font-semibold font-mono text-xs">{formatCOP(pres.price)}</span>
                 <span className={`
-                  w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold
+                  min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-xs font-bold font-mono
                   ${active ? 'bg-brand-500 text-white' : 'bg-surface-50 text-gray-400'}
                 `}>
-                  {active ? '✓' : '+'}
+                  {active ? `×${qty}` : '+'}
                 </span>
               </div>
             </button>

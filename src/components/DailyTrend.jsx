@@ -1,4 +1,5 @@
 import { formatCOP } from '../lib/format.js'
+import ProgressBar from './ProgressBar.jsx'
 
 // Tendencia día por día con barra proporcional al mejor día.
 // data: [{ day: 'YYYY-MM-DD', total_revenue, invoice_count, cash, transfer, card }]
@@ -34,10 +35,7 @@ export default function DailyTrend({ data, loading }) {
               <td className="py-1.5 pr-3 text-right font-mono text-violet-400/80">{formatCOP(d.card)}</td>
               <td className="py-1.5 pr-3 text-right font-mono font-semibold text-brand-400">{formatCOP(d.total_revenue)}</td>
               <td className="py-1.5">
-                <div className="h-1.5 bg-surface-50 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-brand-600 to-brand-400 rounded-full"
-                    style={{ width: `${(d.total_revenue / max) * 100}%` }} />
-                </div>
+                <ProgressBar pct={(d.total_revenue / max) * 100} />
               </td>
             </tr>
           ))}
