@@ -28,6 +28,8 @@ Admin → **Cajas** → **+ Nueva caja** → nombre (ej. "Caja 2"). Norte: Caja 
 ## Cambiar PIN o contraseña
 Admin → Usuarios → **Editar** → escribir el nuevo PIN o contraseña. Si se deja vacío, no cambia. El PIN ya no se muestra en la lista por seguridad.
 
+La contraseña de un **administrador** solo la puede restablecer el **superadministrador** desde Usuarios → Editar. En esta versión, un administrador no puede cambiar su propia contraseña desde el panel: si la olvida u olvidó, debe pedirle al superadministrador que le asigne una nueva.
+
 ## Desactivar a alguien que ya no trabaja
 Admin → Usuarios → **Desactivar**. No se borra su historial de ventas.
 
@@ -39,3 +41,5 @@ Admin → Usuarios → **Desactivar**. No se borra su historial de ventas.
 
 ## Superadministrador: trabajar en un punto
 En la barra superior, el selector de punto muestra **Todos los puntos** (solo administración) o el punto elegido. Para vender o cobrar, elegir un punto: aparecen los botones **Vender** y **Caja**.
+
+Para el paso a paso de cómo desplegar esta versión en producción (migraciones, respaldo y orden de pasos), ver [`despliegue-fase1.md`](./despliegue-fase1.md).
