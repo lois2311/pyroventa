@@ -10,11 +10,20 @@ export default function Topbar({ title }) {
   const route = useLocation()
   const { seller, location, locations, register, logout, setLocation } = useAuthStore()
   const cartCount = useCartStore(s => s.count())
+  const clearCart = useCartStore(s => s.clear)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
     navigate('/login')
+  }
+
+  // El owner puede cambiar de punto sin cerrar sesión: si queda carrito de
+  // otro punto, se podría facturar una venta en el punto equivocado.
+  const handleLocationChange = (next) => {
+    if (next?.id !== location?.id) clearCart()
+    setLocation(next)
+    if (!next && route.pathname !== '/admin') navigate('/admin')
   }
 
   const navLinks = useMemo(() => {
@@ -90,8 +99,7 @@ export default function Topbar({ title }) {
               value={location?.id || ''}
               onChange={e => {
                 const next = locations.find(l => l.id === e.target.value) || null
-                setLocation(next)
-                if (!next && route.pathname !== '/admin') navigate('/admin')
+                handleLocationChange(next)
               }}
               className="bg-transparent text-brand-300 text-xs font-medium focus:outline-none max-w-[190px]"
             >
@@ -159,8 +167,7 @@ export default function Topbar({ title }) {
                   value={location?.id || ''}
                   onChange={e => {
                     const next = locations.find(l => l.id === e.target.value) || null
-                    setLocation(next)
-                    if (!next && route.pathname !== '/admin') navigate('/admin')
+                    handleLocationChange(next)
                   }}
                   className="text-sm text-brand-300 bg-transparent w-full focus:outline-none"
                 >
