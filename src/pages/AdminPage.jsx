@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useId } from 'react'
+import { BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList } from 'lucide-react'
 import { useAuthStore }    from '../store/authStore.js'
 import { useModalA11y }    from '../hooks/useModalA11y.js'
 import { api, clearProductsCache } from '../lib/api.js'
@@ -21,12 +22,12 @@ import { can, ROLE_LABELS, assignableRoles } from '../../api/_lib/roles.js'
 
 // ---- Tabs -----------------------------------------------
 const TABS = [
-  { id: 'resumen',    label: 'Resumen',    icon: '📊', action: 'view_reports' },
-  { id: 'vendedores', label: 'Usuarios',   icon: '👥', action: 'manage_staff' },
-  { id: 'cajas',      label: 'Cajas',      icon: '🖥', action: 'manage_registers' },
-  { id: 'locaciones', label: 'Puntos',     icon: '📍', action: 'configure_printer' },
-  { id: 'productos',  label: 'Productos',  icon: '🎆', action: 'manage_catalog' },
-  { id: 'historial',  label: 'Historial',  icon: '📋', action: 'view_reports' },
+  { id: 'resumen',    label: 'Resumen',    icon: BarChart3,     action: 'view_reports' },
+  { id: 'vendedores', label: 'Usuarios',   icon: Users,         action: 'manage_staff' },
+  { id: 'cajas',      label: 'Cajas',      icon: Monitor,       action: 'manage_registers' },
+  { id: 'locaciones', label: 'Puntos',     icon: MapPin,        action: 'configure_printer' },
+  { id: 'productos',  label: 'Productos',  icon: PartyPopper,   action: 'manage_catalog' },
+  { id: 'historial',  label: 'Historial',  icon: ClipboardList, action: 'view_reports' },
 ]
 
 export default function AdminPage() {
@@ -91,7 +92,7 @@ export default function AdminPage() {
                 }
               `}
             >
-              <span>{t.icon}</span> {t.label}
+              <t.icon className="w-4 h-4 shrink-0" strokeWidth={2} /> {t.label}
             </button>
           ))}
         </div>
@@ -109,7 +110,10 @@ export default function AdminPage() {
             className="sticky top-0 z-20 lg:hidden mb-3 bg-brand-500 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg shadow-brand-500/30 active:scale-95 transition-transform"
             aria-label="Menu admin"
           >
-            <span className="text-lg">{tabs.find(t => t.id === tab)?.icon || '📊'}</span>
+            {(() => {
+              const ActiveIcon = tabs.find(t => t.id === tab)?.icon || BarChart3
+              return <ActiveIcon className="w-5 h-5" strokeWidth={2} />
+            })()}
           </button>
 
           {tab === 'resumen' && (
