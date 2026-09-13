@@ -58,6 +58,10 @@ export async function requireAuth(req, res) {
   }
 
   const { seller_locations, ...seller } = sellerRes.data
+  if (['admin', 'owner'].includes(seller.role) && claims.kind !== 'admin') {
+    res.status(401).json({ error: 'Ingresa con usuario y contraseña' })
+    return null
+  }
   let tenantLocationIds = []
   if (seller.role === 'owner') {
     const { data: locs } = await supabaseAdmin.from('locations').select('id').eq('tenant_id', tenantId)

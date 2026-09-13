@@ -67,7 +67,8 @@ beforeAll(async () => {
 beforeEach(() => { fake.current = createFakeSupabase(resolver) })
 
 async function call(user, method, url, body) {
-  const token = await signToken({ tenantId: TENANT_ID, sellerId: user.id, role: user.role })
+  const kind = ['admin', 'owner'].includes(user.role) ? { kind: 'admin' } : {}
+  const token = await signToken({ tenantId: TENANT_ID, sellerId: user.id, role: user.role, ...kind })
   const [path, qs = ''] = url.split('?')
   const req = { method, url: path + (qs ? `?${qs}` : ''), headers: { authorization: `Bearer ${token}` },
     query: Object.fromEntries(new URLSearchParams(qs)), body }
@@ -177,5 +178,32 @@ describe('superadministrador', () => {
   it('no accede a puntos de otra empresa', async () => {
     const ajena = '99999999-9999-4999-8999-999999999999'
     expect((await call(o, 'GET', `/api/reports/daily?${DAY}&location_id=${ajena}`)).statusCode).toBe(403)
+  })
+})
+
+describe('token no ligado al tipo de ingreso (kind)', () => {
+  async function callWithoutKind(user, method, url, body) {
+    const token = await signToken({ tenantId: TENANT_ID, sellerId: user.id, role: user.role })
+    const [path, qs = ''] = url.split('?')
+    const req = { method, url: path + (qs ? `?${qs}` : ''), headers: { authorization: `Bearer ${token}` },
+      query: Object.fromEntries(new URLSearchParams(qs)), body }
+    const res = {
+      statusCode: 200, body: undefined, headersSent: false,
+      setHeader() {}, status(c) { this.statusCode = c; return this },
+      json(b) { this.body = b; this.headersSent = true; return this },
+      end() { this.headersSent = true; return this },
+    }
+    await handler(req, res)
+    return res
+  }
+
+  it('admin con token sin kind (ej. PIN antiguo reactivado) → 401', async () => {
+    const res = await callWithoutKind(USERS.adminNorte, 'GET', `/api/reports/daily?${DAY}`)
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('owner con token sin kind → 401', async () => {
+    const res = await callWithoutKind(USERS.owner, 'GET', `/api/reports/daily?${DAY}`)
+    expect(res.statusCode).toBe(401)
   })
 })
