@@ -8,7 +8,7 @@ const MAX_RETRIES = 2
 const RETRY_DELAY = 1500 // ms base, se multiplica por intento
 
 async function request(method, path, body, options = {}) {
-  const { retries = MAX_RETRIES, timeout = REQUEST_TIMEOUT } = options
+  const { retries = MAX_RETRIES, timeout = REQUEST_TIMEOUT, skipAuthRedirect = false } = options
   const token = localStorage.getItem('pv_token')
 
   let lastError = null
@@ -41,8 +41,12 @@ async function request(method, path, body, options = {}) {
         const err = new Error(message)
         err.status = res.status
         err.code = code
-        // Sesión inválida o expirada → cerrar sesión y volver al login
-        if (res.status === 401 && !path.startsWith('/auth/') && !path.startsWith('/public/')) {
+        // Sesión inválida o expirada → cerrar sesión y volver al login.
+        // `skipAuthRedirect` lo usa el reintento de la cola offline: un 401
+        // ahí no debe expulsar al usuario en medio de una venta ya hecha —
+        // la operación debe quedar pendiente y reintentarse con una sesión
+        // válida más adelante (ver NetworkBanner / offlineQueue).
+        if (res.status === 401 && !skipAuthRedirect && !path.startsWith('/auth/') && !path.startsWith('/public/')) {
           const { useAuthStore } = await import('../store/authStore.js')
           useAuthStore.getState().logout()
           window.location.href = '/login'

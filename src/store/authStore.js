@@ -22,6 +22,12 @@ export const useAuthStore = create(
         localStorage.setItem('pv_token', token)
         if (tenant?.slug) localStorage.setItem('pv_tenant_slug', tenant.slug)
         set({ seller, location, tenant, token, locations, register: null })
+        // Avisa a NetworkBanner de reintentar la cola offline con la sesión
+        // recién iniciada (una operación pudo quedar 'pending' por un 401
+        // durante un reintento en segundo plano con la sesión anterior).
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('pv:queue-sync'))
+        }
         // Limpiar cachés de API del SW ANTES de que el caller navegue,
         // para que la primera pantalla no sirva datos de otro tenant.
         if (typeof caches !== 'undefined') {

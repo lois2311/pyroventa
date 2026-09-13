@@ -111,11 +111,19 @@ export function pendingCount() {
 /**
  * Intentar sincronizar todas las operaciones pendientes.
  * Recibe un `executor` que es una función async (operation) => serverResponse
- * que ejecuta la llamada al API real.
+ * que ejecuta la llamada al API real (con `skipAuthRedirect: true`).
+ *
+ * - 401 (sesión inválida a mitad del reintento): NO se marca como fallida,
+ *   queda `pending` para reintentar cuando haya una sesión válida.
+ * - Otros 4xx permanentes (403, 404, 409...): se marcan `failed` y además
+ *   se listan en `permanentFailures` para que la UI los muestre — de lo
+ *   contrario quedarían encolados fallando en silencio para siempre.
+ * - Errores transitorios (red, 5xx, 408, 429): se marcan `failed`, que
+ *   sigue siendo reintentable (`getPending` incluye 'pending' y 'failed').
  */
 export async function syncAll(executor) {
   const pending = getPending()
-  const results = { synced: 0, failed: 0 }
+  const results = { synced: 0, failed: 0, pending: 0, permanentFailures: [] }
 
   for (const op of pending) {
     try {
@@ -123,8 +131,14 @@ export async function syncAll(executor) {
       markSynced(op.id, response)
       results.synced++
     } catch (err) {
-      markFailed(op.id, err.message || 'Error de sincronización')
+      if (err?.status === 401) {
+        results.pending++
+        continue
+      }
+      markFailed(op.id, err?.message || 'Error de sincronización')
       results.failed++
+      const isPermanent4xx = err?.status >= 400 && err.status < 500 && err.status !== 408 && err.status !== 429
+      if (isPermanent4xx) results.permanentFailures.push({ op, status: err.status, message: err.message })
     }
   }
 
