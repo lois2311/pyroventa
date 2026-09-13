@@ -244,7 +244,7 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations, 
   useEffect(() => { fetchAll() }, [fetchAll])
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 w-full">
       {/* Filtros */}
       <div className="flex items-end gap-3 flex-wrap">
         <DateRangeBar from={from} to={to} onChange={setRange} />
@@ -1215,7 +1215,7 @@ function HistorialTab({ locations }) {
   useEffect(() => { fetchInvoices() }, [fetchInvoices])
 
   return (
-    <div className="max-w-5xl space-y-4">
+    <div className="w-full space-y-4">
       <h2 className="font-syne font-semibold text-white">Historial de facturas</h2>
 
       <div className="flex items-end gap-3 flex-wrap">
