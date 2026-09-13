@@ -61,6 +61,11 @@ describe('editar', () => {
     const r = checkUserChange({ actor: adminNorte, target: user({ locationIds: [NORTE, SUR] }), patch: { name: 'X' } })
     expect(r).toMatchObject({ ok: false, status: 403 })
   })
+  it('admin no edita un usuario sin punto asignado (solo el superadministrador puede)', () => {
+    const sinPunto = user({ locationIds: [] })
+    const r = checkUserChange({ actor: adminNorte, target: sinPunto, patch: { name: 'X' } })
+    expect(r).toMatchObject({ ok: false, status: 403 })
+  })
   it('admin no edita otro admin ni un owner', () => {
     const otroAdmin = user({ id: 'u-as', role: 'admin', username: 'admin.s', hasPassword: true, hasPin: false })
     expect(checkUserChange({ actor: adminNorte, target: otroAdmin, patch: { name: 'X' } })).toMatchObject({ ok: false, status: 403 })

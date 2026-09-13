@@ -39,6 +39,9 @@ export function checkUserChange({ actor, target, patch, activeOwnerCount = 0 }) 
 
   if (actor.role === 'admin') {
     const outside = (ids) => ids.some(id => !actor.locationIds.includes(id))
+    if (!creating && target.locationIds.length === 0) {
+      return deny(403, 'Este usuario no tiene punto asignado: solo el superadministrador puede modificarlo')
+    }
     if (!creating && outside(target.locationIds)) {
       return deny(403, 'Este usuario trabaja en otro punto: solo el superadministrador puede modificarlo')
     }

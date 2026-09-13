@@ -607,14 +607,23 @@ async function loadPublicUser(tenantId, id) {
   return data ? publicUser(data) : null
 }
 
-/** Columnas de credenciales que aplican al rol final. */
-function credentialColumns(role, patch) {
+/**
+ * Columnas de credenciales que aplican al rol final.
+ * `currentRole` (rol antes del cambio, solo en edición) permite borrar
+ * usuario/hash al degradar admin/owner -> seller/cashier: si no se limpian,
+ * una re-promoción posterior restaura en silencio la contraseña anterior.
+ */
+function credentialColumns(role, patch, currentRole) {
   const c = {}
   if (role === 'admin' || role === 'owner') {
     if (patch.username !== undefined) c.username = normalizeUsername(patch.username)
     if (patch.password) c.password_hash = hashPassword(patch.password)
-  } else if (patch.pin !== undefined) {
-    c.pin = patch.pin
+  } else {
+    if (patch.pin !== undefined) c.pin = patch.pin
+    if (currentRole !== undefined && currentRole !== role) {
+      c.username = null
+      c.password_hash = null
+    }
   }
   return c
 }
@@ -658,8 +667,9 @@ async function sellersCreate(req, res) {
       : res.status(500).json({ error: error.message })
   }
   if (verdict.locationIds.length) {
-    await supabaseAdmin.from('seller_locations')
+    const { error: locErr } = await supabaseAdmin.from('seller_locations')
       .insert(verdict.locationIds.map(lid => ({ tenant_id: auth.tenantId, seller_id: created.id, location_id: lid })))
+    if (locErr) return res.status(500).json({ error: locErr.message })
   }
   return res.status(201).json(await loadPublicUser(auth.tenantId, created.id))
 }
@@ -691,7 +701,7 @@ async function updateUser(auth, id, body, res) {
     return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
   }
 
-  const u = credentialColumns(verdict.role, body)
+  const u = credentialColumns(verdict.role, body, row.role)
   if (body.name !== undefined) {
     if (!String(body.name).trim()) return res.status(400).json({ error: 'El nombre es requerido' })
     u.name = String(body.name).trim()
@@ -708,10 +718,13 @@ async function updateUser(auth, id, body, res) {
     }
   }
   if (verdict.locationIds) {
-    await supabaseAdmin.from('seller_locations').delete().eq('seller_id', id).eq('tenant_id', auth.tenantId)
+    const { error: delErr } = await supabaseAdmin.from('seller_locations')
+      .delete().eq('seller_id', id).eq('tenant_id', auth.tenantId)
+    if (delErr) return res.status(500).json({ error: delErr.message })
     if (verdict.locationIds.length) {
-      await supabaseAdmin.from('seller_locations')
+      const { error: insErr } = await supabaseAdmin.from('seller_locations')
         .insert(verdict.locationIds.map(lid => ({ tenant_id: auth.tenantId, seller_id: id, location_id: lid })))
+      if (insErr) return res.status(500).json({ error: insErr.message })
     }
   }
   return res.status(200).json(await loadPublicUser(auth.tenantId, id))
