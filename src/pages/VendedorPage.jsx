@@ -99,13 +99,16 @@ export default function VendedorPage() {
       // Se siguen mandando los demás campos para que el POS funcione contra
       // una API anterior durante el despliegue.
       items:         items.map(i => ({
-        presentationId: i.presentationId,
-        productId:      i.productId,
-        product_name:   i.productName,
-        label:          i.label,
-        price:          i.price,
-        qty:            i.qty,
-        subtotal:       i.subtotal,
+        presentationId:    i.presentationId,
+        productId:         i.productId,
+        product_name:      i.productName,
+        label:             i.label,
+        price:             i.price,
+        original_price:    i.original_price ?? i.base_price ?? i.price,
+        is_price_edited:   !!i.is_price_edited,
+        price_edit_reason: i.price_edit_reason || undefined,
+        qty:               i.qty,
+        subtotal:          i.subtotal,
       })),
       total: total(),
     }

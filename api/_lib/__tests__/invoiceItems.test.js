@@ -113,3 +113,62 @@ describe('buildInvoiceItems — validación', () => {
     expect(total).toBe(0)
   })
 })
+
+describe('buildInvoiceItems — edición de precio y auditoría', () => {
+  it('aplica precio editado cuando is_price_edited es true y genera auditLog', () => {
+    const { items, total, auditLogs, error } = buildInvoiceItems(
+      [{ presentationId: 'p1', qty: 2, is_price_edited: true, price: 50000, price_edit_reason: 'Descuento cliente fiel' }],
+      catalog,
+    )
+    expect(error).toBeUndefined()
+    expect(total).toBe(100000)
+    expect(items[0].price).toBe(50000)
+    expect(items[0].original_price).toBe(60000)
+    expect(items[0].is_price_edited).toBe(true)
+    expect(items[0].price_edit_reason).toBe('Descuento cliente fiel')
+
+    expect(auditLogs).toHaveLength(1)
+    expect(auditLogs[0]).toEqual({
+      presentation_id:    'p1',
+      product_id:         'prod1',
+      product_name:       'ESTUCHE DE FUENTES',
+      presentation_label: 'Unidad',
+      original_price:     60000,
+      edited_price:       50000,
+      difference:         -10000,
+      qty:                2,
+      total_difference:   -20000,
+      reason:             'Descuento cliente fiel',
+    })
+  })
+
+  it('aplica custom_price explícito y calcula diferencia positiva (aumento)', () => {
+    const { items, total, auditLogs } = buildInvoiceItems(
+      [{ presentationId: 'p2', qty: 1, custom_price: 18000, reason: 'Precio especial evento' }],
+      catalog,
+    )
+    expect(total).toBe(18000)
+    expect(items[0].price).toBe(18000)
+    expect(items[0].original_price).toBe(15000)
+    expect(auditLogs[0].difference).toBe(3000)
+    expect(auditLogs[0].total_difference).toBe(3000)
+  })
+
+  it('rechaza precio editado negativo', () => {
+    const { error } = buildInvoiceItems(
+      [{ presentationId: 'p1', qty: 1, is_price_edited: true, price: -500 }],
+      catalog,
+    )
+    expect(error).toContain('precio editado no es válido')
+  })
+
+  it('no genera auditLog si el precio editado es idéntico al de catálogo', () => {
+    const { items, auditLogs } = buildInvoiceItems(
+      [{ presentationId: 'p1', qty: 1, is_price_edited: true, price: 60000 }],
+      catalog,
+    )
+    expect(items[0].is_price_edited).toBeUndefined()
+    expect(auditLogs).toHaveLength(0)
+  })
+})
+

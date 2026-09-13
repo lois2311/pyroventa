@@ -73,8 +73,14 @@ async function route(req, res) {
   // ---- LOCATIONS ------------------------------------
   if (route === '/locations' && method === 'GET')  return locationsGet(req, res)
   if (route === '/locations' && method === 'POST') return locationsCreate(req, res)
+  if (segments[0] === 'locations' && segments[1] && segments[2] === 'catalog-config' && method === 'GET') return locationCatalogConfigGet(req, res, segments[1])
+  if (segments[0] === 'locations' && segments[1] && segments[2] === 'catalog-config' && method === 'PUT') return locationCatalogConfigPut(req, res, segments[1])
   if (segments[0] === 'locations' && segments[1] && method === 'PUT')    return locationsUpdate(req, res, segments[1])
   if (segments[0] === 'locations' && segments[1] && method === 'DELETE') return locationsDelete(req, res, segments[1])
+
+  // ---- PRINTER & LOGO -------------------------------
+  if (route === '/printer/upload-logo' && method === 'POST') return printerUploadLogo(req, res)
+  if (route === '/printer/config'      && method === 'PUT')  return printerConfigBatchPut(req, res)
 
   // ---- PRODUCTS -------------------------------------
   if (route === '/products' && method === 'GET')   return productsGet(req, res)
@@ -124,6 +130,9 @@ async function route(req, res) {
   if (route === '/reports/register-detail' && method === 'GET') return reportRegisterDetail(req, res)
   if (route === '/reports/top-products'  && method === 'GET') return reportTopProducts(req, res)
   if (route === '/reports/by-category'   && method === 'GET') return reportByCategory(req, res)
+
+  // ---- AUDITORÍA ------------------------------------
+  if (route === '/audit/price-changes' && method === 'GET') return auditPriceChangesGet(req, res)
 
   return res.status(404).json({ error: `Ruta no encontrada: ${method} /api${route}` })
 }
@@ -305,6 +314,123 @@ async function locationsDelete(req, res, id) {
   return res.status(204).end()
 }
 
+async function locationCatalogConfigGet(req, res, locationId) {
+  const auth = await requireAuth(req, res); if (!auth) return
+  if (denyOutOfScope(auth, locationId, res)) return
+
+  const [{ data: pricesRes }, { data: prodsRes }] = await Promise.all([
+    supabaseAdmin.from('location_prices')
+      .select('presentation_id, price')
+      .eq('tenant_id', auth.tenantId).eq('location_id', locationId)
+      .catch(() => ({ data: [] })),
+    supabaseAdmin.from('location_products')
+      .select('product_id, active')
+      .eq('tenant_id', auth.tenantId).eq('location_id', locationId)
+      .catch(() => ({ data: [] })),
+  ])
+
+  return res.status(200).json({
+    prices: pricesRes || [],
+    products: prodsRes || [],
+  })
+}
+
+async function locationCatalogConfigPut(req, res, locationId) {
+  const auth = await requireAuth(req, res); if (!auth) return
+  if (auth.seller.role !== 'owner') {
+    return res.status(403).json({ error: 'Solo el superadministrador puede editar precios y catálogo por punto' })
+  }
+  if (denyOutOfScope(auth, locationId, res)) return
+  const { prices, products } = req.body || {}
+
+  // Actualizar precios diferenciales
+  if (Array.isArray(prices)) {
+    await supabaseAdmin.from('location_prices')
+      .delete().eq('tenant_id', auth.tenantId).eq('location_id', locationId)
+      .catch(() => {})
+
+    const validPrices = prices.filter(p => p.presentation_id && Number.isFinite(Number(p.price)) && Number(p.price) >= 0)
+    if (validPrices.length > 0) {
+      await supabaseAdmin.from('location_prices').insert(
+        validPrices.map(p => ({
+          tenant_id:       auth.tenantId,
+          location_id:     locationId,
+          presentation_id: p.presentation_id,
+          price:           Math.round(Number(p.price) * 100) / 100,
+        }))
+      ).catch(() => {})
+    }
+  }
+
+  // Actualizar productos habilitados/deshabilitados
+  if (Array.isArray(products)) {
+    await supabaseAdmin.from('location_products')
+      .delete().eq('tenant_id', auth.tenantId).eq('location_id', locationId)
+      .catch(() => {})
+
+    const validProds = products.filter(p => p.product_id)
+    if (validProds.length > 0) {
+      await supabaseAdmin.from('location_products').insert(
+        validProds.map(p => ({
+          tenant_id:   auth.tenantId,
+          location_id: locationId,
+          product_id:  p.product_id,
+          active:      p.active !== false,
+        }))
+      ).catch(() => {})
+    }
+  }
+
+  return res.status(200).json({ ok: true, message: 'Catálogo de punto de venta actualizado' })
+}
+
+// Subir logo para recibo térmico (guarda en bucket público y retorna URL)
+async function printerUploadLogo(req, res) {
+  const auth = await requireCan(req, res, 'configure_printer'); if (!auth) return
+  const { data } = req.body || {}
+  const parsed = parseImageDataUrl(data)
+  if (!parsed) return res.status(400).json({ error: 'Imagen inválida: se espera png/jpeg/webp en base64, máximo 2MB' })
+  try {
+    await ensureProductImagesBucket(supabaseAdmin)
+  } catch (err) {
+    return res.status(500).json({ error: `No se pudo preparar el almacenamiento: ${err.message}` })
+  }
+  const path = `${auth.tenantId}/printer_logo_${randomUUID()}.${parsed.ext}`
+  const { error: upErr } = await supabaseAdmin.storage
+    .from(PRODUCT_IMAGES_BUCKET)
+    .upload(path, parsed.buffer, { contentType: parsed.mime, cacheControl: '31536000', upsert: false })
+  if (upErr) return res.status(500).json({ error: `Error subiendo el logo: ${upErr.message}` })
+  const { data: pub } = supabaseAdmin.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path)
+  return res.status(201).json({ url: pub.publicUrl })
+}
+
+// Guardar configuración de impresora / logo para un punto o todos los puntos
+async function printerConfigBatchPut(req, res) {
+  const auth = await requireCan(req, res, 'configure_printer'); if (!auth) return
+  const { location_id, all_locations, printer_config } = req.body || {}
+  if (!printer_config || typeof printer_config !== 'object') {
+    return res.status(400).json({ error: 'printer_config requerido' })
+  }
+
+  if (all_locations) {
+    if (auth.seller.role !== 'owner') {
+      return res.status(403).json({ error: 'Solo el superadministrador puede aplicar configuración a todos los puntos' })
+    }
+    const { error } = await supabaseAdmin.from('locations')
+      .update({ printer_config }).eq('tenant_id', auth.tenantId)
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ message: 'Configuración aplicada a todos los puntos de venta' })
+  }
+
+  if (!location_id) return res.status(400).json({ error: 'location_id o all_locations requerido' })
+  if (denyOutOfScope(auth, location_id, res)) return
+
+  const { error } = await supabaseAdmin.from('locations')
+    .update({ printer_config }).eq('id', location_id).eq('tenant_id', auth.tenantId)
+  if (error) return res.status(500).json({ error: error.message })
+  return res.status(200).json({ message: 'Configuración de impresora actualizada' })
+}
+
 // =====================================================
 // PRODUCTS
 // =====================================================
@@ -337,10 +463,44 @@ async function productsGet(req, res) {
   if (error) return res.status(500).json({ error: error.message })
   let result = products.map(p => ({ ...p, presentations: (p.presentations || []).filter(pr => pr.active) }))
   if (location_id) {
-    const { data: stockRows } = await supabaseAdmin.from('stock')
-      .select('product_id, quantity').eq('location_id', location_id).eq('tenant_id', auth.tenantId)
+    const [{ data: stockRows }, { data: locPrices }, { data: locProds }] = await Promise.all([
+      supabaseAdmin.from('stock')
+        .select('product_id, quantity').eq('location_id', location_id).eq('tenant_id', auth.tenantId),
+      supabaseAdmin.from('location_prices')
+        .select('presentation_id, price').eq('location_id', location_id).eq('tenant_id', auth.tenantId)
+        .catch(() => ({ data: null })),
+      supabaseAdmin.from('location_products')
+        .select('product_id, active').eq('location_id', location_id).eq('tenant_id', auth.tenantId)
+        .catch(() => ({ data: null })),
+    ])
+
     const sm = {}; (stockRows || []).forEach(s => { sm[s.product_id] = s.quantity })
-    result = result.map(p => ({ ...p, stock_quantity: sm[p.id] ?? 0 }))
+
+    // Filtrar productos deshabilitados para este punto
+    const disabledProductIds = new Set(
+      (locProds || []).filter(lp => lp.active === false).map(lp => lp.product_id)
+    )
+    if (disabledProductIds.size > 0 && !includeInactive) {
+      result = result.filter(p => !disabledProductIds.has(p.id))
+    }
+
+    // Aplicar precios diferenciales por presentación
+    const priceMap = new Map()
+    ;(locPrices || []).forEach(lp => {
+      if (lp.price !== null && lp.price !== undefined) priceMap.set(lp.presentation_id, Number(lp.price))
+    })
+
+    result = result.map(p => ({
+      ...p,
+      stock_quantity: sm[p.id] ?? 0,
+      presentations: (p.presentations || []).map(pr => {
+        if (priceMap.has(pr.id)) {
+          const diffPrice = priceMap.get(pr.id)
+          return { ...pr, base_price: pr.price, price: diffPrice, is_differential: true }
+        }
+        return pr
+      })
+    }))
   }
   result.sort(compareProducts)
   // Respuesta por-tenant en URL compartida: private evita CDNs compartidos y
@@ -906,7 +1066,7 @@ const isMissingClientOpIdColumn = (e) =>
  * Catálogo autoritativo para cotizar: precio, etiqueta y nombre salen de la BD,
  * nunca del body. Solo presentaciones activas del propio tenant.
  */
-async function fetchPresentationCatalog(tenantId, clientItems) {
+async function fetchPresentationCatalog(tenantId, clientItems, locationId = null) {
   const ids = [...new Set(
     (clientItems || []).map(i => i?.presentationId).filter(id => typeof id === 'string' && UUID_RE.test(id))
   )]
@@ -918,6 +1078,20 @@ async function fetchPresentationCatalog(tenantId, clientItems) {
   const map = new Map()
   for (const r of data || []) {
     map.set(r.id, { label: r.label, price: r.price, product_id: r.product_id, product_name: r.products?.name || null })
+  }
+  if (locationId) {
+    const { data: locPrices } = await supabaseAdmin.from('location_prices')
+      .select('presentation_id, price')
+      .eq('tenant_id', tenantId).eq('location_id', locationId).in('presentation_id', ids)
+      .catch(() => ({ data: null }))
+    if (locPrices?.length) {
+      for (const lp of locPrices) {
+        const item = map.get(lp.presentation_id)
+        if (item && lp.price !== null && lp.price !== undefined) {
+          item.price = Number(lp.price)
+        }
+      }
+    }
   }
   return { map }
 }
@@ -949,11 +1123,14 @@ async function invoicesCreate(req, res) {
     if (previo) return res.status(200).json(previo)
   }
 
-  // Precio, nombre y etiqueta salen de la BD; del body solo qué y cuánto.
-  const catalog = await fetchPresentationCatalog(auth.tenantId, items)
+  // Precio, nombre y etiqueta salen de la BD (con precios diferenciales del punto si aplican).
+  const catalog = await fetchPresentationCatalog(auth.tenantId, items, location_id)
   if (catalog.error) return res.status(catalog.status).json({ error: catalog.error })
   const built = buildInvoiceItems(items, catalog.map)
   if (built.error) return res.status(400).json({ error: built.error })
+  if (built.auditLogs?.length && auth.seller?.role !== 'owner') {
+    return res.status(403).json({ error: 'Solo el superadministrador puede modificar precios de los productos' })
+  }
 
   // get_next_invoice_code busca un código libre, pero el INSERT ocurre después:
   // dos cobros simultáneos en el mismo punto pueden pedir el mismo. El índice
@@ -968,7 +1145,33 @@ async function invoicesCreate(req, res) {
       ...(client_op_id && invoicesHaveClientOpId ? { client_op_id } : {}),
     }).select().single()
 
-    if (!ie) return res.status(201).json(invoice)
+    if (!ie) {
+      if (built.auditLogs?.length) {
+        const auditRows = built.auditLogs.map(a => ({
+          tenant_id:          auth.tenantId,
+          location_id,
+          location_name:      location_name || null,
+          invoice_id:         invoice.id,
+          invoice_code:       invoice.code,
+          user_id:            auth.seller.id,
+          user_name:          auth.seller.name,
+          user_role:          auth.seller.role,
+          presentation_id:    a.presentation_id,
+          product_id:         a.product_id,
+          product_name:       a.product_name,
+          presentation_label: a.presentation_label,
+          original_price:     a.original_price,
+          edited_price:       a.edited_price,
+          difference:         a.difference,
+          qty:                a.qty,
+          total_difference:   a.total_difference,
+          reason:             a.reason,
+          stage:              'cart_creation',
+        }))
+        await supabaseAdmin.from('price_audit_logs').insert(auditRows).catch(() => {})
+      }
+      return res.status(201).json(invoice)
+    }
 
     // Falta la migración de idempotencia: seguir sin ella antes que no facturar
     if (invoicesHaveClientOpId && isMissingClientOpIdColumn(ie)) {
@@ -1119,23 +1322,51 @@ async function invoicesEdit(req, res, code) {
   const location_id = scopedLocation(auth, req.body?.location_id, res)
   if (location_id === undefined) return
   const { data: existing } = await supabaseAdmin.from('invoices')
-    .select('id').eq('tenant_id', auth.tenantId).eq('code', code).eq('location_id', location_id).eq('status', 'pending').single()
+    .select('id, location_name').eq('tenant_id', auth.tenantId).eq('code', code).eq('location_id', location_id).eq('status', 'pending').single()
   if (!existing) return res.status(404).json({ error: 'Factura pendiente no encontrada' })
   const u = { edited_by: auth.seller.id, edited_at: new Date().toISOString() }
+  let auditLogsToInsert = null
   if (items !== undefined) {
     if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items vacío' })
-    // Igual que al crear: recotizar contra la BD. Si no, editar una factura
-    // sería la puerta de atrás para el precio que quisiera el cliente.
-    const catalog = await fetchPresentationCatalog(auth.tenantId, items)
+    const catalog = await fetchPresentationCatalog(auth.tenantId, items, location_id)
     if (catalog.error) return res.status(catalog.status).json({ error: catalog.error })
     const built = buildInvoiceItems(items, catalog.map)
     if (built.error) return res.status(400).json({ error: built.error })
+    if (built.auditLogs?.length && auth.seller?.role !== 'owner') {
+      return res.status(403).json({ error: 'Solo el superadministrador puede modificar precios de los productos' })
+    }
     u.items = built.items; u.total = built.total
+    auditLogsToInsert = built.auditLogs
   }
   if (observations !== undefined) u.observations = observations || null
   const { data, error } = await supabaseAdmin.from('invoices')
     .update(u).eq('id', existing.id).eq('status', 'pending').select().single()
   if (error) return res.status(500).json({ error: error.message })
+
+  if (auditLogsToInsert?.length && data) {
+    const auditRows = auditLogsToInsert.map(a => ({
+      tenant_id:          auth.tenantId,
+      location_id,
+      location_name:      data.location_name || existing.location_name || null,
+      invoice_id:         data.id,
+      invoice_code:       data.code,
+      user_id:            auth.seller.id,
+      user_name:          auth.seller.name,
+      user_role:          auth.seller.role,
+      presentation_id:    a.presentation_id,
+      product_id:         a.product_id,
+      product_name:       a.product_name,
+      presentation_label: a.presentation_label,
+      original_price:     a.original_price,
+      edited_price:       a.edited_price,
+      difference:         a.difference,
+      qty:                a.qty,
+      total_difference:   a.total_difference,
+      reason:             a.reason,
+      stage:              'invoice_edit',
+    }))
+    await supabaseAdmin.from('price_audit_logs').insert(auditRows).catch(() => {})
+  }
   return res.status(200).json(data)
 }
 
@@ -1504,3 +1735,40 @@ async function reportRegisterDetail(req, res) {
     ...detail,
   })
 }
+
+// =====================================================
+// AUDITORÍA DE CAMBIOS DE PRECIOS
+// =====================================================
+async function auditPriceChangesGet(req, res) {
+  const auth = await requireCan(req, res, 'view_reports'); if (!auth) return
+  const { location_id: reqLoc, from, to, seller_id, limit = '50', offset = '0' } = req.query
+  const location_id = scopedLocation(auth, reqLoc, res, { allowAll: true })
+  if (location_id === undefined) return
+
+  let q = supabaseAdmin.from('price_audit_logs')
+    .select('*', { count: 'exact' })
+    .eq('tenant_id', auth.tenantId)
+    .order('created_at', { ascending: false })
+    .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1)
+
+  if (location_id) {
+    q = q.eq('location_id', location_id)
+  } else if (auth.scope?.locationIds?.length) {
+    q = q.in('location_id', auth.scope.locationIds)
+  }
+
+  if (from) {
+    q = q.gte('created_at', `${from}T00:00:00.000Z`)
+  }
+  if (to) {
+    q = q.lte('created_at', `${to}T23:59:59.999Z`)
+  }
+  if (seller_id) {
+    q = q.eq('user_id', seller_id)
+  }
+
+  const { data, error, count } = await q
+  if (error) return res.status(500).json({ error: error.message })
+  return res.status(200).json({ logs: data || [], total: count || 0 })
+}
+

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useId } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Pencil, RotateCcw } from 'lucide-react'
 import { api, getProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useAuthStore } from '../store/authStore.js'
@@ -7,31 +7,48 @@ import { useToast } from './Toast.jsx'
 import ProductImage from './ProductImage.jsx'
 import { useModalA11y } from '../hooks/useModalA11y.js'
 
+const COMMON_REASONS = [
+  'Descuento por volumen',
+  'Cliente frecuente / Mayorista',
+  'Empaque o producto con detalle',
+  'Negociación autorizada',
+  'Cortesía / Promoción',
+]
+
 export default function EditInvoiceModal({ invoice, productImages = {}, onClose, onSaved }) {
-  const { location } = useAuthStore()
+  const { location, seller } = useAuthStore()
+  const isOwner = seller?.role === 'owner'
   const { error: toastError, success: toastSuccess } = useToast()
   const titleId = useId()
   const panelRef = useModalA11y(onClose)
 
-  const [items,      setItems]      = useState([])
-  const [products,   setProducts]   = useState([])
-  const [query,      setQuery]      = useState('')
-  const [saving,     setSaving]     = useState(false)
-  const [showCatalog, setShowCatalog] = useState(false)
+  const [items,        setItems]        = useState([])
+  const [products,     setProducts]     = useState([])
+  const [query,        setQuery]        = useState('')
+  const [saving,       setSaving]       = useState(false)
+  const [showCatalog,  setShowCatalog]  = useState(false)
+  const [editingPriceIdx, setEditingPriceIdx] = useState(null)
 
   // Inicializar items desde la factura
   useEffect(() => {
     if (!invoice?.items) return
     const parsed = Array.isArray(invoice.items) ? invoice.items : []
-    setItems(parsed.map(item => ({
-      presentationId: item.presentationId,
-      productId:      item.productId,
-      product_name:   item.product_name || item.label,
-      label:          item.label,
-      price:          item.price,
-      qty:            item.qty,
-      subtotal:       item.price * item.qty,
-    })))
+    setItems(parsed.map(item => {
+      const base = item.original_price ?? item.base_price ?? item.price
+      return {
+        presentationId:    item.presentationId,
+        productId:         item.productId,
+        product_name:      item.product_name || item.productName || item.label,
+        label:             item.label,
+        base_price:        base,
+        original_price:    base,
+        price:             item.price,
+        is_price_edited:   !!item.is_price_edited,
+        price_edit_reason: item.price_edit_reason || '',
+        qty:               item.qty,
+        subtotal:          item.price * item.qty,
+      }
+    }))
   }, [invoice])
 
   // Cargar catálogo para agregar nuevos productos
@@ -62,19 +79,57 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
     setItems(prev => prev.filter((_, i) => i !== idx))
   }
 
+  const updateItemPrice = (idx, newPrice, reason) => {
+    const num = Math.round(Number(newPrice) * 100) / 100
+    if (!Number.isFinite(num) || num < 0) return
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      const base = item.base_price ?? item.original_price ?? item.price
+      const isEdited = num !== base
+      return {
+        ...item,
+        price:             num,
+        is_price_edited:   isEdited,
+        price_edit_reason: isEdited ? (reason?.trim() || '') : '',
+        subtotal:          num * item.qty,
+      }
+    }))
+    setEditingPriceIdx(null)
+  }
+
+  const resetItemPrice = (idx) => {
+    setItems(prev => prev.map((item, i) => {
+      if (i !== idx) return item
+      const base = item.base_price ?? item.original_price ?? item.price
+      return {
+        ...item,
+        price:             base,
+        is_price_edited:   false,
+        price_edit_reason: '',
+        subtotal:          base * item.qty,
+      }
+    }))
+    setEditingPriceIdx(null)
+  }
+
   const addFromCatalog = (product, pres) => {
-    const existIdx = items.findIndex(i => i.presentationId === pres.id)
+    const existIdx = items.findIndex(i => i.presentationId === pres.id && !i.is_price_edited)
     if (existIdx >= 0) {
       updateQty(existIdx, items[existIdx].qty + 1)
     } else {
+      const presPrice = Number(pres.price) || 0
       setItems(prev => [...prev, {
-        presentationId: pres.id,
-        productId:      product.id,
-        product_name:   product.name,
-        label:          pres.label,
-        price:          pres.price,
-        qty:            1,
-        subtotal:       pres.price,
+        presentationId:    pres.id,
+        productId:         product.id,
+        product_name:      product.name,
+        label:             pres.label,
+        base_price:        presPrice,
+        original_price:    presPrice,
+        price:             presPrice,
+        is_price_edited:   false,
+        price_edit_reason: '',
+        qty:               1,
+        subtotal:          presPrice,
       }])
     }
     setShowCatalog(false)
@@ -98,13 +153,16 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
       const updated = await api.post(`/invoices/${invoice.code}/edit`, {
         location_id: location.id,
         items: items.map(i => ({
-          presentationId: i.presentationId,
-          productId:      i.productId,
-          product_name:   i.product_name,
-          label:          i.label,
-          price:          i.price,
-          qty:            i.qty,
-          subtotal:       i.subtotal,
+          presentationId:    i.presentationId,
+          productId:         i.productId,
+          product_name:      i.product_name,
+          label:             i.label,
+          price:             i.price,
+          original_price:    i.original_price ?? i.base_price ?? i.price,
+          is_price_edited:   !!i.is_price_edited,
+          price_edit_reason: i.price_edit_reason || undefined,
+          qty:               i.qty,
+          subtotal:          i.subtotal,
         })),
       })
       toastSuccess('Factura actualizada')
@@ -141,45 +199,84 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
         </div>
 
         {/* Lista de items editables */}
-        <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
+        <div className="space-y-1.5 max-h-[45vh] overflow-y-auto">
           {items.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-4">Sin items. Agrega productos del catálogo.</p>
           ) : items.map((item, idx) => (
-            <div key={idx} className="bg-surface-400 rounded-lg px-3 py-2 flex items-center gap-2">
-              <ProductImage src={productImages[item.productId]} name={item.product_name} className="w-8 h-8" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-white truncate">{item.product_name}</p>
-                <p className="text-[10px] text-gray-400">{item.label} · {formatCOP(item.price)} c/u</p>
+            <div key={idx} className="bg-surface-400 rounded-lg px-3 py-2 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <ProductImage src={productImages[item.productId]} name={item.product_name} className="w-8 h-8 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-white truncate">{item.product_name}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-[10px] text-gray-400">{item.label} · {formatCOP(item.price)} c/u</p>
+                    {item.is_price_edited && (
+                      <span className="text-[9px] bg-amber-500/20 text-amber-300 font-medium px-1.5 py-0.2 rounded border border-amber-500/30">
+                        Editado (Base: {formatCOP(item.original_price)})
+                      </span>
+                    )}
+                  </div>
+                  {item.is_price_edited && item.price_edit_reason && (
+                    <p className="text-[10px] text-gray-400 italic truncate">
+                      Motivo: {item.price_edit_reason}
+                    </p>
+                  )}
+                </div>
+
+                {/* Botón editar precio (solo superadministrador) */}
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingPriceIdx(editingPriceIdx === idx ? null : idx)}
+                    title="Editar precio del artículo (Superadmin)"
+                    aria-label={`Editar precio de ${item.product_name}`}
+                    className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
+                      editingPriceIdx === idx ? 'bg-brand-500 text-white' : 'text-gray-400 hover:text-brand-400 hover:bg-surface-100'
+                    }`}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* Controles cantidad */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => updateQty(idx, item.qty - 1)}
+                    className="w-7 h-7 rounded-md bg-surface-50 hover:bg-surface-100 text-gray-400 hover:text-white text-sm flex items-center justify-center transition-colors"
+                  >
+                    −
+                  </button>
+                  <span className="w-7 text-center text-sm font-mono font-semibold text-white">{item.qty}</span>
+                  <button
+                    onClick={() => updateQty(idx, item.qty + 1)}
+                    className="w-7 h-7 rounded-md bg-surface-50 hover:bg-brand-500/30 text-gray-400 hover:text-brand-400 text-sm flex items-center justify-center transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <span className="text-xs font-mono font-semibold text-brand-400 w-20 text-right shrink-0">
+                  {formatCOP(item.subtotal)}
+                </span>
+
+                <button
+                  onClick={() => removeItem(idx)}
+                  className="text-gray-400 hover:text-red-400 transition-colors p-1.5 -m-1 ml-0.5"
+                  aria-label={`Quitar ${item.product_name}`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
 
-              {/* Controles cantidad */}
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => updateQty(idx, item.qty - 1)}
-                  className="w-7 h-7 rounded-md bg-surface-50 hover:bg-surface-100 text-gray-400 hover:text-white text-sm flex items-center justify-center transition-colors"
-                >
-                  −
-                </button>
-                <span className="w-7 text-center text-sm font-mono font-semibold text-white">{item.qty}</span>
-                <button
-                  onClick={() => updateQty(idx, item.qty + 1)}
-                  className="w-7 h-7 rounded-md bg-surface-50 hover:bg-brand-500/30 text-gray-400 hover:text-brand-400 text-sm flex items-center justify-center transition-colors"
-                >
-                  +
-                </button>
-              </div>
-
-              <span className="text-xs font-mono font-semibold text-brand-400 w-20 text-right shrink-0">
-                {formatCOP(item.subtotal)}
-              </span>
-
-              <button
-                onClick={() => removeItem(idx)}
-                className="text-gray-400 hover:text-red-400 transition-colors p-1.5 -m-1 ml-0.5"
-                aria-label={`Quitar ${item.product_name}`}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              {/* Panel de edición de precio inline (solo superadministrador) */}
+              {isOwner && editingPriceIdx === idx && (
+                <InlinePriceEditor
+                  item={item}
+                  onSave={(newPrice, reason) => updateItemPrice(idx, newPrice, reason)}
+                  onReset={() => resetItemPrice(idx)}
+                  onCancel={() => setEditingPriceIdx(null)}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -254,6 +351,89 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function InlinePriceEditor({ item, onSave, onReset, onCancel }) {
+  const basePrice = item.original_price ?? item.base_price ?? item.price
+  const [priceStr, setPriceStr] = useState(String(item.price))
+  const [reason,   setReason]   = useState(item.price_edit_reason || '')
+  const [err,      setErr]      = useState('')
+
+  const handleApply = (e) => {
+    e?.preventDefault()
+    const num = Number(priceStr)
+    if (!Number.isFinite(num) || num < 0) {
+      setErr('Precio inválido')
+      return
+    }
+    onSave(num, reason)
+  }
+
+  return (
+    <div className="bg-surface-300 border border-brand-500/30 rounded-lg p-2.5 space-y-2 text-xs">
+      <div className="flex items-center justify-between">
+        <span className="text-gray-400">Precio base: <strong className="text-white font-mono">{formatCOP(basePrice)}</strong></span>
+        {item.is_price_edited && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-[10px] text-amber-400 hover:text-amber-300 inline-flex items-center gap-1"
+          >
+            <RotateCcw className="w-3 h-3" /> Restablecer
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <label className="block text-[10px] text-gray-400 mb-0.5">Nuevo precio unitario</label>
+          <input
+            type="number"
+            min="0"
+            step="100"
+            value={priceStr}
+            onChange={e => { setPriceStr(e.target.value); setErr('') }}
+            className="input text-xs font-mono font-bold w-full"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] text-gray-400 mb-0.5">Motivo del cambio</label>
+          <input
+            type="text"
+            placeholder="Ej: Descuento acordado..."
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            className="input text-xs w-full"
+          />
+        </div>
+      </div>
+
+      {err && <p className="text-red-400 text-[10px]">{err}</p>}
+
+      <div className="flex flex-wrap gap-1">
+        {COMMON_REASONS.slice(0, 3).map(r => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setReason(r)}
+            className="text-[9px] bg-surface-400 hover:bg-surface-200 text-gray-300 px-1.5 py-0.5 rounded transition-colors"
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex justify-end gap-1.5 pt-1">
+        <button type="button" onClick={onCancel} className="btn btn-ghost btn-sm text-[11px] py-1 px-2">
+          Cancelar
+        </button>
+        <button type="button" onClick={handleApply} className="btn btn-primary btn-sm text-[11px] py-1 px-2">
+          Aplicar precio
+        </button>
       </div>
     </div>
   )

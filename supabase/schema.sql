@@ -4,6 +4,9 @@
 -- ¡DESTRUCTIVO! Borra y recrea todas las tablas.
 -- =====================================================
 
+DROP TABLE IF EXISTS price_audit_logs CASCADE;
+DROP TABLE IF EXISTS location_products CASCADE;
+DROP TABLE IF EXISTS location_prices   CASCADE;
 DROP TABLE IF EXISTS register_closures CASCADE;
 DROP TABLE IF EXISTS login_attempts   CASCADE;
 DROP TABLE IF EXISTS invoices         CASCADE;
@@ -117,6 +120,26 @@ CREATE TABLE stock (
   PRIMARY KEY (product_id, location_id)
 );
 
+-- ---- PRECIOS DIFERENCIALES POR PUNTO DE VENTA -------
+CREATE TABLE location_prices (
+  location_id     UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  presentation_id UUID NOT NULL REFERENCES presentations(id) ON DELETE CASCADE,
+  tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  price           NUMERIC(12,2) NOT NULL CHECK (price >= 0),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (location_id, presentation_id)
+);
+
+-- ---- PRODUCTOS HABILITADOS POR PUNTO DE VENTA -------
+CREATE TABLE location_products (
+  location_id UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  product_id  UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  active      BOOLEAN NOT NULL DEFAULT true,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (location_id, product_id)
+);
+
 -- ---- CAJAS / REGISTRADORAS (por punto de venta) ----
 CREATE TABLE registers (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -160,6 +183,31 @@ CREATE TABLE invoices (
   refunded_at   TIMESTAMPTZ,
   refund_reason TEXT,
   refunded_by   UUID REFERENCES sellers(id)
+);
+
+-- ---- AUDITORÍA DE EDICIÓN DE PRECIOS ----------------
+CREATE TABLE price_audit_logs (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id          UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  location_id        UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  location_name      TEXT,
+  invoice_id         UUID REFERENCES invoices(id) ON DELETE SET NULL,
+  invoice_code       CHAR(4),
+  user_id            UUID REFERENCES sellers(id) ON DELETE SET NULL,
+  user_name          TEXT NOT NULL,
+  user_role          TEXT NOT NULL,
+  presentation_id    UUID REFERENCES presentations(id) ON DELETE SET NULL,
+  product_id         UUID REFERENCES products(id) ON DELETE SET NULL,
+  product_name       TEXT NOT NULL,
+  presentation_label TEXT NOT NULL,
+  original_price     NUMERIC(12,2) NOT NULL,
+  edited_price       NUMERIC(12,2) NOT NULL,
+  difference         NUMERIC(12,2) NOT NULL,
+  qty                INTEGER NOT NULL DEFAULT 1,
+  total_difference   NUMERIC(12,2) NOT NULL,
+  reason             TEXT,
+  stage              TEXT NOT NULL CHECK (stage IN ('cart_creation', 'invoice_edit')),
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ---- CIERRES DE CAJA (arqueo diario) ----------------
@@ -216,6 +264,15 @@ CREATE INDEX idx_closures_tenant_date ON register_closures(tenant_id, business_d
 -- Un cierre por caja por día
 CREATE UNIQUE INDEX closures_register_day
   ON register_closures(register_id, business_date) WHERE register_id IS NOT NULL;
+
+CREATE INDEX idx_loc_prices_tenant ON location_prices(tenant_id);
+CREATE INDEX idx_loc_prices_loc    ON location_prices(location_id);
+CREATE INDEX idx_loc_prods_tenant  ON location_products(tenant_id);
+CREATE INDEX idx_loc_prods_loc     ON location_products(location_id);
+
+CREATE INDEX idx_price_audit_tenant_date ON price_audit_logs(tenant_id, created_at DESC);
+CREATE INDEX idx_price_audit_tenant_loc  ON price_audit_logs(tenant_id, location_id);
+CREATE INDEX idx_price_audit_tenant_user ON price_audit_logs(tenant_id, user_id);
 
 -- =====================================================
 -- FUNCIÓN: Generación atómica de código aleatorio (sin cambios de firma)
@@ -545,3 +602,6 @@ ALTER TABLE registers        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE register_closures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE login_attempts   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE location_prices   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE location_products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE price_audit_logs  ENABLE ROW LEVEL SECURITY;

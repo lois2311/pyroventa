@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useId } from 'react'
-import { BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList } from 'lucide-react'
+import { BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList, ShieldCheck, Sliders, Printer } from 'lucide-react'
 import { useAuthStore }    from '../store/authStore.js'
 import { useModalA11y }    from '../hooks/useModalA11y.js'
 import { api, clearProductsCache } from '../lib/api.js'
@@ -17,6 +17,9 @@ import RevenueTrendChart   from '../components/RevenueTrendChart.jsx'
 import CategoryBreakdown   from '../components/CategoryBreakdown.jsx'
 import { transferColumns } from '../components/TransferBreakdown.jsx'
 import { exportToExcel }   from '../lib/exportExcel.js'
+import LocationCatalogModal from '../components/LocationCatalogModal.jsx'
+import PriceAuditTab       from '../components/PriceAuditTab.jsx'
+import PrinterConfigTab    from '../components/PrinterConfigTab.jsx'
 import { useToast }        from '../components/Toast.jsx'
 import { can, ROLE_LABELS, assignableRoles } from '../../api/_lib/roles.js'
 
@@ -25,8 +28,10 @@ const TABS = [
   { id: 'resumen',    label: 'Resumen',    icon: BarChart3,     action: 'view_reports' },
   { id: 'vendedores', label: 'Usuarios',   icon: Users,         action: 'manage_staff' },
   { id: 'cajas',      label: 'Cajas',      icon: Monitor,       action: 'manage_registers' },
-  { id: 'locaciones', label: 'Puntos',     icon: MapPin,        action: 'configure_printer' },
+  { id: 'locaciones', label: 'Puntos',     icon: MapPin,        action: 'manage_locations' },
   { id: 'productos',  label: 'Productos',  icon: PartyPopper,   action: 'manage_catalog' },
+  { id: 'impresion',  label: 'Impresora',  icon: Printer,       action: 'configure_printer' },
+  { id: 'auditoria',  label: 'Auditoría',  icon: ShieldCheck,   action: 'view_reports' },
   { id: 'historial',  label: 'Historial',  icon: ClipboardList, action: 'view_reports' },
 ]
 
@@ -142,6 +147,14 @@ export default function AdminPage() {
 
           {tab === 'productos' && (
             <ProductosTab />
+          )}
+
+          {tab === 'impresion' && (
+            <PrinterConfigTab locations={locations} isOwner={isOwner} />
+          )}
+
+          {tab === 'auditoria' && (
+            <PriceAuditTab locations={locations} isOwner={isOwner} />
           )}
 
           {tab === 'historial' && (
@@ -533,8 +546,9 @@ function SellerForm({ seller, locations, onClose, onSave }) {
 // ===========================================================
 function LocacionesTab({ locations, setLocations, isOwner }) {
   const { error: toastError, success: toastSuccess } = useToast()
-  const [showForm, setShowForm] = useState(false)
-  const [editLoc,  setEditLoc]  = useState(null)
+  const [showForm,   setShowForm]   = useState(false)
+  const [editLoc,    setEditLoc]    = useState(null)
+  const [catalogLoc, setCatalogLoc] = useState(null)
 
   const reload = () =>
     api.get('/locations').then(d => setLocations(d || [])).catch(() => {})
@@ -566,7 +580,17 @@ function LocacionesTab({ locations, setLocations, isOwner }) {
                 <p className="text-xs text-gray-400">Impresora: {loc.printer_config.paper_width}</p>
               )}
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setCatalogLoc(loc)}
+                  className="btn btn-ghost btn-sm btn-touch-safe text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 border border-brand-500/20"
+                  title="Configurar precios diferenciales y productos habilitados (Superadmin)"
+                >
+                  <Sliders className="w-3.5 h-3.5" /> Precios y Catálogo
+                </button>
+              )}
               <button onClick={() => { setEditLoc(loc); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe">Editar</button>
               {isOwner && (
                 <button onClick={() => handleToggle(loc)} className="btn btn-ghost btn-sm btn-touch-safe text-yellow-500">
@@ -577,6 +601,14 @@ function LocacionesTab({ locations, setLocations, isOwner }) {
           </div>
         ))}
       </div>
+
+      {catalogLoc && (
+        <LocationCatalogModal
+          location={catalogLoc}
+          onClose={() => setCatalogLoc(null)}
+          onSaved={() => reload()}
+        />
+      )}
 
       {showForm && (
         <LocationForm

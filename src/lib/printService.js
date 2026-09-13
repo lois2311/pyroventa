@@ -81,6 +81,27 @@ export async function generatePDF(invoice, config) {
     addLine(char.repeat(chars))
   }
 
+  // Logo
+  if (config?.logo_url && typeof window !== 'undefined') {
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image()
+        el.crossOrigin = 'anonymous'
+        el.onload = () => resolve(el)
+        el.onerror = reject
+        el.src = config.logo_url
+      })
+      const logoW = isWide ? 30 : 22
+      const aspect = (img.naturalHeight || img.height || 1) / (img.naturalWidth || img.width || 1)
+      const logoH = Math.min(logoW * aspect, 18)
+      const logoX = (pageWidth - logoW) / 2
+      doc.addImage(img, 'PNG', logoX, y, logoW, logoH)
+      y += logoH + 2
+    } catch {
+      // Continuar sin logo si hay error de carga
+    }
+  }
+
   // Cabecera
   const headers = config?.header_lines || ['PIROTÉCNICA LA CHISPA']
   headers.forEach((line, i) => addLine(line, { align: 'center', bold: i === 0, size: i === 0 ? 10 : 8 }))
@@ -245,7 +266,7 @@ function buildEscPosCommands(invoice, config) {
 /**
  * Genera HTML para window.print().
  */
-function buildHTMLReceipt(invoice, config) {
+export function buildHTMLReceipt(invoice, config) {
   const isWide    = config?.paper_width === '80mm'
   const widthClass = isWide ? 'receipt-80mm' : 'receipt-58mm'
   const items     = Array.isArray(invoice.items) ? invoice.items : []
@@ -294,6 +315,11 @@ function buildHTMLReceipt(invoice, config) {
 </head>
 <body>
 <div class="${widthClass}">
+  ${config?.logo_url ? `
+  <div class="center" style="margin-bottom: 2.5mm;">
+    <img src="${escHtml(config.logo_url)}" alt="Logo" style="max-width: ${isWide ? '55mm' : '38mm'}; max-height: 25mm; object-fit: contain; filter: grayscale(100%) contrast(150%);" />
+  </div>
+  ` : ''}
   ${headers.map((h, i) => `<div class="center${i === 0 ? ' bold big' : ''}">${escHtml(h)}</div>`).join('')}
   <div class="divider"></div>
   <div>Factura:  #${invoice.code}</div>
