@@ -318,20 +318,18 @@ async function locationCatalogConfigGet(req, res, locationId) {
   const auth = await requireAuth(req, res); if (!auth) return
   if (denyOutOfScope(auth, locationId, res)) return
 
-  const [{ data: pricesRes }, { data: prodsRes }] = await Promise.all([
+  const [pricesRes, prodsRes] = await Promise.all([
     supabaseAdmin.from('location_prices')
       .select('presentation_id, price')
-      .eq('tenant_id', auth.tenantId).eq('location_id', locationId)
-      .catch(() => ({ data: [] })),
+      .eq('tenant_id', auth.tenantId).eq('location_id', locationId),
     supabaseAdmin.from('location_products')
       .select('product_id, active')
-      .eq('tenant_id', auth.tenantId).eq('location_id', locationId)
-      .catch(() => ({ data: [] })),
+      .eq('tenant_id', auth.tenantId).eq('location_id', locationId),
   ])
 
   return res.status(200).json({
-    prices: pricesRes || [],
-    products: prodsRes || [],
+    prices: pricesRes.data || [],
+    products: prodsRes.data || [],
   })
 }
 
@@ -347,7 +345,6 @@ async function locationCatalogConfigPut(req, res, locationId) {
   if (Array.isArray(prices)) {
     await supabaseAdmin.from('location_prices')
       .delete().eq('tenant_id', auth.tenantId).eq('location_id', locationId)
-      .catch(() => {})
 
     const validPrices = prices.filter(p => p.presentation_id && Number.isFinite(Number(p.price)) && Number(p.price) >= 0)
     if (validPrices.length > 0) {
@@ -358,7 +355,7 @@ async function locationCatalogConfigPut(req, res, locationId) {
           presentation_id: p.presentation_id,
           price:           Math.round(Number(p.price) * 100) / 100,
         }))
-      ).catch(() => {})
+      )
     }
   }
 
@@ -366,7 +363,6 @@ async function locationCatalogConfigPut(req, res, locationId) {
   if (Array.isArray(products)) {
     await supabaseAdmin.from('location_products')
       .delete().eq('tenant_id', auth.tenantId).eq('location_id', locationId)
-      .catch(() => {})
 
     const validProds = products.filter(p => p.product_id)
     if (validProds.length > 0) {
@@ -377,7 +373,7 @@ async function locationCatalogConfigPut(req, res, locationId) {
           product_id:  p.product_id,
           active:      p.active !== false,
         }))
-      ).catch(() => {})
+      )
     }
   }
 
@@ -463,16 +459,16 @@ async function productsGet(req, res) {
   if (error) return res.status(500).json({ error: error.message })
   let result = products.map(p => ({ ...p, presentations: (p.presentations || []).filter(pr => pr.active) }))
   if (location_id) {
-    const [{ data: stockRows }, { data: locPrices }, { data: locProds }] = await Promise.all([
+    const [{ data: stockRows }, locPricesRes, locProdsRes] = await Promise.all([
       supabaseAdmin.from('stock')
         .select('product_id, quantity').eq('location_id', location_id).eq('tenant_id', auth.tenantId),
       supabaseAdmin.from('location_prices')
-        .select('presentation_id, price').eq('location_id', location_id).eq('tenant_id', auth.tenantId)
-        .catch(() => ({ data: null })),
+        .select('presentation_id, price').eq('location_id', location_id).eq('tenant_id', auth.tenantId),
       supabaseAdmin.from('location_products')
-        .select('product_id, active').eq('location_id', location_id).eq('tenant_id', auth.tenantId)
-        .catch(() => ({ data: null })),
+        .select('product_id, active').eq('location_id', location_id).eq('tenant_id', auth.tenantId),
     ])
+    const locPrices = locPricesRes.data
+    const locProds = locProdsRes.data
 
     const sm = {}; (stockRows || []).forEach(s => { sm[s.product_id] = s.quantity })
 
@@ -1083,7 +1079,6 @@ async function fetchPresentationCatalog(tenantId, clientItems, locationId = null
     const { data: locPrices } = await supabaseAdmin.from('location_prices')
       .select('presentation_id, price')
       .eq('tenant_id', tenantId).eq('location_id', locationId).in('presentation_id', ids)
-      .catch(() => ({ data: null }))
     if (locPrices?.length) {
       for (const lp of locPrices) {
         const item = map.get(lp.presentation_id)
@@ -1168,7 +1163,7 @@ async function invoicesCreate(req, res) {
           reason:             a.reason,
           stage:              'cart_creation',
         }))
-        await supabaseAdmin.from('price_audit_logs').insert(auditRows).catch(() => {})
+        await supabaseAdmin.from('price_audit_logs').insert(auditRows)
       }
       return res.status(201).json(invoice)
     }
@@ -1365,7 +1360,7 @@ async function invoicesEdit(req, res, code) {
       reason:             a.reason,
       stage:              'invoice_edit',
     }))
-    await supabaseAdmin.from('price_audit_logs').insert(auditRows).catch(() => {})
+    await supabaseAdmin.from('price_audit_logs').insert(auditRows)
   }
   return res.status(200).json(data)
 }
