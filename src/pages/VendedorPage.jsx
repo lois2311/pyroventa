@@ -165,14 +165,14 @@ export default function VendedorPage() {
   const cartCount = count()
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-[#111]">
+    <div className="h-[100dvh] flex flex-col bg-[#111] overflow-hidden">
       <Topbar title="Vender" />
 
       {/* ---- DESKTOP: 2 columnas ---- */}
       <div className="flex-1 flex min-h-0">
 
         {/* ---- Panel izquierdo: catálogo ---- */}
-        <div className="flex-1 flex flex-col min-w-0 md:border-r md:border-white/5">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 md:border-r md:border-white/5">
 
           {/* Buscador + filtros */}
           <div className="px-3 sm:px-4 py-3 border-b border-white/5 space-y-3">
@@ -226,7 +226,7 @@ export default function VendedorPage() {
         </div>
 
         {/* ---- Panel derecho: carrito (DESKTOP) ---- */}
-        <div className="hidden md:flex w-72 xl:w-80 flex-col bg-surface-500">
+        <div className="hidden md:flex w-72 xl:w-80 flex-col bg-surface-500 min-h-0">
           {showCode && lastCreated ? (
             <CodeDisplay invoice={lastCreated} onNewSale={handleNewSale} />
           ) : (
