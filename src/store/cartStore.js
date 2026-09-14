@@ -33,6 +33,10 @@ export const useCartStore = create(
             price:             basePrice,
             is_price_edited:   false,
             price_edit_reason: null,
+            // Precio diferencial por punto de venta (distinto de una edición
+            // manual del cajero): viene ya calculado del backend en `price`.
+            is_location_price: !!item.isLocationPrice,
+            company_price:     item.isLocationPrice ? Number(item.companyPrice) || basePrice : null,
             qty:               1,
             subtotal:          basePrice,
           }]

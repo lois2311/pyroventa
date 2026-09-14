@@ -1,5 +1,5 @@
 import { useState, useId } from 'react'
-import { ShoppingCart, Ticket, X, Pencil, RotateCcw } from 'lucide-react'
+import { ShoppingCart, Ticket, X, Pencil, RotateCcw, MapPin } from 'lucide-react'
 import { useCartStore }    from '../store/cartStore.js'
 import { useAuthStore }    from '../store/authStore.js'
 import { formatCOP }       from '../lib/format.js'
@@ -111,6 +111,14 @@ function CartItem({ item, onUpdateQty, onEditPrice, canEditPrice, onRemove }) {
           {item.is_price_edited && (
             <span className="text-[9px] bg-amber-500/20 text-amber-300 font-medium px-1.5 py-0.2 rounded border border-amber-500/30">
               Editado (Base: {formatCOP(item.original_price)})
+            </span>
+          )}
+          {item.is_location_price && !item.is_price_edited && (
+            <span
+              className="text-[9px] bg-brand-500/20 text-brand-300 font-medium px-1.5 py-0.2 rounded border border-brand-500/30 inline-flex items-center gap-0.5"
+              title={`Precio de este punto (empresa: ${formatCOP(item.company_price)})`}
+            >
+              <MapPin className="w-2.5 h-2.5" /> Precio de este punto
             </span>
           )}
         </div>

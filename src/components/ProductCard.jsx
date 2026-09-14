@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react'
+import { Sparkles, MapPin } from 'lucide-react'
 import { useCartStore } from '../store/cartStore.js'
 import { formatCOP }    from '../lib/format.js'
 import ProductImage     from './ProductImage.jsx'
@@ -12,11 +12,13 @@ export default function ProductCard({ product }) {
 
   const handleAdd = (pres) => {
     addItem({
-      presentationId: pres.id,
-      productId:      product.id,
-      productName:    product.name,
-      label:          pres.label,
-      price:          pres.price,
+      presentationId:   pres.id,
+      productId:        product.id,
+      productName:      product.name,
+      label:            pres.label,
+      price:            pres.price,
+      isLocationPrice:  !!pres.is_differential,
+      companyPrice:     pres.is_differential ? pres.base_price : undefined,
     })
   }
 
@@ -67,9 +69,24 @@ export default function ProductCard({ product }) {
                 }
               `}
             >
-              <span className="truncate mr-2">{pres.label}</span>
+              <span className="truncate mr-2 inline-flex items-center gap-1">
+                {pres.label}
+                {pres.is_differential && (
+                  <MapPin
+                    className="w-3 h-3 text-brand-400 shrink-0"
+                    aria-label="Precio especial de este punto de venta"
+                  />
+                )}
+              </span>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="font-semibold font-mono text-xs">{formatCOP(pres.price)}</span>
+                {pres.is_differential && (
+                  <span className="text-[10px] text-gray-500 line-through font-mono">
+                    {formatCOP(pres.base_price)}
+                  </span>
+                )}
+                <span className={`font-semibold font-mono text-xs ${pres.is_differential ? 'text-brand-300' : ''}`}>
+                  {formatCOP(pres.price)}
+                </span>
                 <span className={`
                   min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-xs font-bold font-mono
                   ${active ? 'bg-brand-500 text-white' : 'bg-surface-50 text-gray-400'}
