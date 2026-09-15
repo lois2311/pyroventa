@@ -91,6 +91,10 @@ async function route(req, res) {
   if (segments[0] === 'products' && segments[1] && !PRODUCT_SUBROUTES.includes(segments[1]) && method === 'PUT')    return productsUpdate(req, res, segments[1])
   if (segments[0] === 'products' && segments[1] && !PRODUCT_SUBROUTES.includes(segments[1]) && method === 'DELETE') return productsDelete(req, res, segments[1])
 
+  // ---- CATEGORIES -----------------------------------
+  if (route === '/categories' && method === 'GET')  return categoriesGet(req, res)
+  if (route === '/categories' && method === 'POST') return categoriesCreate(req, res)
+
   // ---- SELLERS --------------------------------------
   if (route === '/sellers' && method === 'GET')  return sellersGet(req, res)
   if (route === '/sellers' && method === 'POST') return sellersCreate(req, res)
@@ -749,6 +753,44 @@ async function productsUploadImage(req, res) {
   if (upErr) return res.status(500).json({ error: `Error subiendo la imagen: ${upErr.message}` })
   const { data: pub } = supabaseAdmin.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path)
   return res.status(201).json({ url: pub.publicUrl })
+}
+
+// =====================================================
+// CATEGORÍAS (tabla categories)
+// =====================================================
+async function categoriesGet(req, res) {
+  const auth = await requireAuth(req, res); if (!auth) return
+  const { data, error } = await supabaseAdmin.from('categories')
+    .select('id, name, icon, sort_order, active')
+    .eq('tenant_id', auth.tenantId)
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+  if (error) return res.status(500).json({ error: error.message })
+  res.setHeader('Cache-Control', 'private, no-store')
+  return res.status(200).json(data || [])
+}
+
+async function categoriesCreate(req, res) {
+  const auth = await requireCan(req, res, 'manage_catalog'); if (!auth) return
+  const { name, icon } = req.body || {}
+  const trimmed = name?.trim()
+  if (!trimmed) return res.status(400).json({ error: 'El nombre es requerido' })
+
+  const namePattern = trimmed.replace(/([%_\\])/g, '\\$1')
+  const { data: existing, error: exErr } = await supabaseAdmin.from('categories')
+    .select('id, name, icon, sort_order, active')
+    .eq('tenant_id', auth.tenantId)
+    .ilike('name', namePattern)
+    .limit(1)
+  if (!exErr && existing?.length) return res.status(200).json(existing[0])
+
+  const { data, error } = await supabaseAdmin.from('categories')
+    .insert({ tenant_id: auth.tenantId, name: trimmed, icon: icon?.trim() || null, active: true })
+    .select('id, name, icon, sort_order, active')
+    .single()
+  if (error) return res.status(500).json({ error: error.message })
+  return res.status(201).json(data)
 }
 
 // =====================================================

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useId } from 'react'
-import { BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList, ShieldCheck, Sliders, Printer } from 'lucide-react'
+import { BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList, ShieldCheck, Sliders, Printer, Tag, Plus, Check, X, Pencil, Loader2 } from 'lucide-react'
 import { useAuthStore }    from '../store/authStore.js'
 import { useModalA11y }    from '../hooks/useModalA11y.js'
 import { api, clearProductsCache } from '../lib/api.js'
@@ -791,7 +791,10 @@ function ProductosTab() {
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-gray-400">{p.categories?.name}</p>
+                  <p className="text-xs text-gray-400 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-gray-500 shrink-0" />
+                    <span>{p.categories?.name || 'Sin categoría'}</span>
+                  </p>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {(p.presentations || []).map(pr => (
                       <span key={pr.id} className="text-xs bg-surface-50 text-gray-400 px-2 py-0.5 rounded-full">
@@ -801,7 +804,10 @@ function ProductosTab() {
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={() => { setEditProd(p); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe">Editar</button>
+                  <button onClick={() => { setEditProd(p); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe flex items-center gap-1">
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Editar</span>
+                  </button>
                   <button
                     onClick={() => handleToggle(p)}
                     className="btn btn-ghost btn-sm btn-touch-safe text-yellow-500"
@@ -836,12 +842,12 @@ function ProductosTab() {
 }
 
 function ProductForm({ product, onClose, onSave }) {
-  const { error: toastError } = useToast()
+  const { error: toastError, success: toastSuccess } = useToast()
   const titleId = useId()
   const panelRef = useModalA11y(onClose)
-  const [name,        setName]        = useState(product?.name || '')
-  const [catId,       setCatId]       = useState(product?.categories?.id || '')
-  const [desc,        setDesc]        = useState(product?.description || '')
+  const [name,          setName]          = useState(product?.name || '')
+  const [catId,         setCatId]         = useState(product?.category_id || product?.categories?.id || '')
+  const [desc,          setDesc]          = useState(product?.description || '')
   const [presentations, setPresentations] = useState(
     (product?.presentations || []).map(p => ({ label: p.label, price: String(p.price) }))
   )
@@ -850,6 +856,54 @@ function ProductForm({ product, onClose, onSave }) {
   const [imageUrl,  setImageUrl]  = useState(product?.image_url || null)
   const [imageFile, setImageFile] = useState(null)
   const photoRef = useRef(null)
+
+  // Categorías
+  const [categories,  setCategories]  = useState([])
+  const [loadingCats, setLoadingCats] = useState(true)
+  const [showNewCat,  setShowNewCat]  = useState(false)
+  const [newCatName,  setNewCatName]  = useState('')
+  const [savingCat,   setSavingCat]   = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    api.get('/categories')
+      .then(d => {
+        if (mounted && Array.isArray(d)) setCategories(d)
+      })
+      .catch(() => {
+        if (mounted && product?.categories) {
+          setCategories([product.categories])
+        }
+      })
+      .finally(() => {
+        if (mounted) setLoadingCats(false)
+      })
+    return () => { mounted = false }
+  }, [product])
+
+  const handleCreateCategory = async (e) => {
+    e?.preventDefault()
+    const trimmed = newCatName.trim()
+    if (!trimmed) return
+    setSavingCat(true)
+    try {
+      const created = await api.post('/categories', { name: trimmed })
+      if (created?.id) {
+        setCategories(prev => {
+          if (prev.some(c => c.id === created.id)) return prev
+          return [...prev, created].sort((a, b) => a.name.localeCompare(b.name))
+        })
+        setCatId(created.id)
+        setNewCatName('')
+        setShowNewCat(false)
+        toastSuccess?.(`Categoría "${created.name}" creada`)
+      }
+    } catch (err) {
+      toastError(err.message || 'Error al crear la categoría')
+    } finally {
+      setSavingCat(false)
+    }
+  }
 
   const filePreview = useMemo(() => imageFile ? URL.createObjectURL(imageFile) : null, [imageFile])
   useEffect(() => () => { if (filePreview) URL.revokeObjectURL(filePreview) }, [filePreview])
@@ -870,7 +924,7 @@ function ProductForm({ product, onClose, onSave }) {
   const removePres = (i) => setPresentations(p => p.filter((_, idx) => idx !== i))
 
   const handleSave = async () => {
-    if (!name) return toastError('El nombre es requerido')
+    if (!name.trim()) return toastError('El nombre es requerido')
     if (presentations.some(p => !p.label || !p.price)) return toastError('Completa todas las presentaciones')
     setSaving(true)
     const presToSave = presentations.map(p => ({ label: p.label, price: Number(p.price) }))
@@ -880,7 +934,7 @@ function ProductForm({ product, onClose, onSave }) {
         const { uploadProductImage } = await import('../lib/imageCompress.js')
         finalImageUrl = await uploadProductImage(imageFile)
       }
-      const body = { name, category_id: catId || null, description: desc, presentations: presToSave }
+      const body = { name: name.trim(), category_id: catId || null, description: desc.trim() || null, presentations: presToSave }
       // Solo enviar image_url si cambió (evita tocar la columna en BDs sin la migración)
       if (finalImageUrl !== (product?.image_url ?? null)) body.image_url = finalImageUrl
       if (product?.id) {
@@ -899,8 +953,89 @@ function ProductForm({ product, onClose, onSave }) {
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="card bg-surface-200 w-full max-w-lg space-y-4 my-4" onClick={e => e.stopPropagation()}>
         <h3 id={titleId} className="font-syne font-semibold text-white">{product ? 'Editar producto' : 'Nuevo producto'}</h3>
-        <input placeholder="Nombre del producto" value={name} onChange={e => setName(e.target.value)} className="input" />
-        <input placeholder="Descripción (opcional)" value={desc} onChange={e => setDesc(e.target.value)} className="input" />
+        
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Nombre</label>
+          <input placeholder="Nombre del producto" value={name} onChange={e => setName(e.target.value)} className="input w-full" />
+        </div>
+
+        {/* Categoría con lucide-react Tag y opción nueva categoría */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label htmlFor="prod-category-select" className="text-xs text-gray-400 flex items-center gap-1.5 font-medium">
+              <Tag className="w-3.5 h-3.5 text-brand-400" />
+              Categoría
+            </label>
+            {!showNewCat && (
+              <button
+                type="button"
+                onClick={() => setShowNewCat(true)}
+                className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Nueva categoría
+              </button>
+            )}
+          </div>
+
+          {showNewCat ? (
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                placeholder="Nombre de la nueva categoría..."
+                value={newCatName}
+                onChange={e => setNewCatName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory() } }}
+                className="input flex-1 text-sm py-1.5"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={handleCreateCategory}
+                disabled={savingCat || !newCatName.trim()}
+                className="btn btn-primary btn-sm flex items-center gap-1 px-3"
+                title="Crear categoría"
+              >
+                {savingCat ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                <span>Crear</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowNewCat(false); setNewCatName('') }}
+                disabled={savingCat}
+                className="btn btn-ghost btn-sm px-2 text-gray-400 hover:text-white"
+                title="Cancelar"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="relative">
+              <select
+                id="prod-category-select"
+                value={catId}
+                onChange={e => setCatId(e.target.value)}
+                className="input w-full text-sm py-2 pr-8 appearance-none bg-surface-300 cursor-pointer text-white"
+                disabled={loadingCats}
+              >
+                <option value="" className="bg-surface-300 text-gray-300">(Sin categoría)</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id} className="bg-surface-300 text-white">
+                    {c.icon ? `${c.icon} ` : ''}{c.name}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                <Tag className="w-3.5 h-3.5 text-gray-400" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Descripción (opcional)</label>
+          <input placeholder="Descripción (opcional)" value={desc} onChange={e => setDesc(e.target.value)} className="input w-full" />
+        </div>
 
         {/* Foto del producto */}
         <div className="flex items-center gap-3">
@@ -925,7 +1060,10 @@ function ProductForm({ product, onClose, onSave }) {
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-gray-400">Presentaciones y precios</p>
-            <button onClick={addPres} className="btn btn-ghost btn-sm text-brand-400">+ Agregar</button>
+            <button onClick={addPres} className="btn btn-ghost btn-sm text-brand-400 flex items-center gap-1">
+              <Plus className="w-3.5 h-3.5" />
+              <span>Agregar</span>
+            </button>
           </div>
           <div className="space-y-2">
             {presentations.map((pr, i) => (
@@ -943,13 +1081,15 @@ function ProductForm({ product, onClose, onSave }) {
                   onChange={e => updatePres(i, 'price', e.target.value)}
                   className="input w-28"
                 />
-                <button onClick={() => removePres(i)} className="text-gray-400 hover:text-red-400 px-2">✕</button>
+                <button onClick={() => removePres(i)} className="text-gray-400 hover:text-red-400 px-2 flex items-center justify-center" title="Eliminar presentación">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="flex gap-2 justify-end">
+        <div className="flex gap-2 justify-end pt-2">
           <button onClick={onClose} className="btn btn-ghost">Cancelar</button>
           <button onClick={handleSave} disabled={saving} className="btn btn-primary">
             {saving ? 'Guardando...' : 'Guardar'}

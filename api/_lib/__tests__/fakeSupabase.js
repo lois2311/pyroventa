@@ -1,7 +1,7 @@
 // Doble mínimo del query builder de supabase-js para tests del router.
 // Cada from() registra filtros; al hacer await se pregunta al resolver.
 
-const FILTERS = ['eq', 'in', 'gte', 'lt', 'lte', 'neq']
+const FILTERS = ['eq', 'in', 'gte', 'lt', 'lte', 'neq', 'ilike', 'like']
 const WRITES  = ['insert', 'update', 'delete', 'upsert']
 
 export function createFakeSupabase(resolver) {

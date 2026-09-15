@@ -53,6 +53,12 @@ function resolver(q) {
     case 'invoices':
       if (q.op === 'select' && id === INV_SUR) return one({ id: INV_SUR, location_id: SUR })
       return { data: q.single ? null : [], error: null, count: 0 }
+    case 'categories': {
+      if (q.op === 'insert') return one({ id: 'cat-new', name: q.payload.name, tenant_id: TENANT_ID, active: true })
+      const name = filterValue(q, 'ilike', 'name')
+      if (name) return { data: [], error: null }
+      return { data: [{ id: 'cat-1', name: 'Tortas', tenant_id: TENANT_ID, active: true }], error: null }
+    }
     default:
       return { data: q.single ? null : [], error: null }
   }
@@ -137,8 +143,15 @@ describe('admin Norte no ve ni toca Sur', () => {
   it('no edita catálogo ni puntos de venta', async () => {
     expect((await call(a, 'PUT', '/api/products/p1', { name: 'x' })).statusCode).toBe(403)
     expect((await call(a, 'POST', '/api/products/bulk', { products: [] })).statusCode).toBe(403)
+    expect((await call(a, 'POST', '/api/categories', { name: 'Luces' })).statusCode).toBe(403)
     expect((await call(a, 'POST', '/api/locations', { name: 'Centro' })).statusCode).toBe(403)
     expect((await call(a, 'PUT', `/api/locations/${NORTE}`, { name: 'Renombrado' })).statusCode).toBe(403)
+  })
+
+  it('sí consulta categorías disponibles', async () => {
+    const res = await call(a, 'GET', '/api/categories')
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual([{ id: 'cat-1', name: 'Tortas', tenant_id: TENANT_ID, active: true }])
   })
 
   it('sí configura la impresora de su punto', async () => {
@@ -178,6 +191,12 @@ describe('superadministrador', () => {
   it('no accede a puntos de otra empresa', async () => {
     const ajena = '99999999-9999-4999-8999-999999999999'
     expect((await call(o, 'GET', `/api/reports/daily?${DAY}&location_id=${ajena}`)).statusCode).toBe(403)
+  })
+
+  it('crea categorías para el catálogo', async () => {
+    const res = await call(o, 'POST', '/api/categories', { name: 'Volcanes', icon: '🌋' })
+    expect(res.statusCode).toBe(201)
+    expect(res.body.name).toBe('Volcanes')
   })
 })
 
