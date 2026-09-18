@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useId } from 'react'
-import { BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList, ShieldCheck, Sliders, Printer, Tag, Plus, Check, X, Pencil, Loader2 } from 'lucide-react'
+import { BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList, ShieldCheck, Sliders, Printer, Tag, Plus, Check, X, Pencil, Loader2, Package } from 'lucide-react'
 import { useAuthStore }    from '../store/authStore.js'
 import { useModalA11y }    from '../hooks/useModalA11y.js'
 import { api, clearProductsCache } from '../lib/api.js'
@@ -20,6 +20,7 @@ import { exportToExcel }   from '../lib/exportExcel.js'
 import LocationCatalogModal from '../components/LocationCatalogModal.jsx'
 import PriceAuditTab       from '../components/PriceAuditTab.jsx'
 import PrinterConfigTab    from '../components/PrinterConfigTab.jsx'
+import InventarioTab       from '../components/InventarioTab.jsx'
 import { useToast }        from '../components/Toast.jsx'
 import { can, ROLE_LABELS, assignableRoles } from '../../api/_lib/roles.js'
 
@@ -30,15 +31,17 @@ const TABS = [
   { id: 'cajas',      label: 'Cajas',      icon: Monitor,       action: 'manage_registers' },
   { id: 'locaciones', label: 'Puntos',     icon: MapPin,        action: 'manage_locations' },
   { id: 'productos',  label: 'Productos',  icon: PartyPopper,   action: 'manage_catalog' },
+  { id: 'inventario', label: 'Inventario', icon: Package,       action: 'manage_catalog', requiresInventory: true },
   { id: 'impresion',  label: 'Impresora',  icon: Printer,       action: 'configure_printer' },
   { id: 'auditoria',  label: 'Auditoría',  icon: ShieldCheck,   action: 'view_reports' },
   { id: 'historial',  label: 'Historial',  icon: ClipboardList, action: 'view_reports' },
 ]
 
 export default function AdminPage() {
-  const { location: authLocation, seller } = useAuthStore()
+  const { location: authLocation, seller, tenant } = useAuthStore()
   const role = seller?.role
-  const tabs = TABS.filter(t => can(role, t.action))
+  const hasInventory = Boolean(tenant?.has_inventory)
+  const tabs = TABS.filter(t => can(role, t.action) && (!t.requiresInventory || hasInventory))
   const isOwner = can(role, 'view_consolidated')
   const { error: toastError, success: toastSuccess } = useToast()
 
@@ -146,7 +149,11 @@ export default function AdminPage() {
           )}
 
           {tab === 'productos' && (
-            <ProductosTab />
+            <ProductosTab hasInventory={hasInventory} />
+          )}
+
+          {tab === 'inventario' && (
+            <InventarioTab locations={locations} isOwner={isOwner} />
           )}
 
           {tab === 'impresion' && (
@@ -685,7 +692,7 @@ function LocationForm({ location, onClose, onSave, isOwner }) {
 // ===========================================================
 // TAB: Productos
 // ===========================================================
-function ProductosTab() {
+function ProductosTab({ hasInventory = false }) {
   const { error: toastError, success: toastSuccess } = useToast()
   const [products,  setProducts]  = useState([])
   const [loading,   setLoading]   = useState(true)
@@ -796,6 +803,11 @@ function ProductosTab() {
                     <span>{p.categories?.name || 'Sin categoría'}</span>
                   </p>
                   <div className="flex flex-wrap gap-1 mt-1">
+                    {hasInventory && p.stock_quantity !== undefined && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-medium ${p.stock_quantity <= 0 ? 'bg-red-500/15 text-red-400' : p.stock_quantity <= 5 ? 'bg-yellow-500/15 text-yellow-400' : 'bg-emerald-500/15 text-emerald-400'}`}>
+                        📦 Stock: {p.stock_quantity}
+                      </span>
+                    )}
                     {(p.presentations || []).map(pr => (
                       <span key={pr.id} className="text-xs bg-surface-50 text-gray-400 px-2 py-0.5 rounded-full">
                         {pr.label} · {formatCOP(pr.price)}
@@ -833,6 +845,7 @@ function ProductosTab() {
       {showForm && (
         <ProductForm
           product={editProd}
+          hasInventory={hasInventory}
           onClose={() => setShowForm(false)}
           onSave={() => { fetch(); setShowForm(false) }}
         />
@@ -841,13 +854,14 @@ function ProductosTab() {
   )
 }
 
-function ProductForm({ product, onClose, onSave }) {
+function ProductForm({ product, onClose, onSave, hasInventory = false }) {
   const { error: toastError, success: toastSuccess } = useToast()
   const titleId = useId()
   const panelRef = useModalA11y(onClose)
   const [name,          setName]          = useState(product?.name || '')
   const [catId,         setCatId]         = useState(product?.category_id || product?.categories?.id || '')
   const [desc,          setDesc]          = useState(product?.description || '')
+  const [stock,         setStock]         = useState(product?.stock_quantity !== undefined ? String(product.stock_quantity) : '')
   const [presentations, setPresentations] = useState(
     (product?.presentations || []).map(p => ({ label: p.label, price: String(p.price) }))
   )
@@ -934,7 +948,13 @@ function ProductForm({ product, onClose, onSave }) {
         const { uploadProductImage } = await import('../lib/imageCompress.js')
         finalImageUrl = await uploadProductImage(imageFile)
       }
-      const body = { name: name.trim(), category_id: catId || null, description: desc.trim() || null, presentations: presToSave }
+      const body = {
+        name: name.trim(),
+        category_id: catId || null,
+        description: desc.trim() || null,
+        presentations: presToSave,
+        ...(hasInventory && stock !== '' && !isNaN(Number(stock)) ? { stock: Math.max(0, parseInt(stock, 10)) } : {}),
+      }
       // Solo enviar image_url si cambió (evita tocar la columna en BDs sin la migración)
       if (finalImageUrl !== (product?.image_url ?? null)) body.image_url = finalImageUrl
       if (product?.id) {
@@ -1036,6 +1056,24 @@ function ProductForm({ product, onClose, onSave }) {
           <label className="text-xs text-gray-400 block mb-1">Descripción (opcional)</label>
           <input placeholder="Descripción (opcional)" value={desc} onChange={e => setDesc(e.target.value)} className="input w-full" />
         </div>
+
+        {hasInventory && (
+          <div>
+            <label className="text-xs text-gray-400 flex items-center gap-1.5 mb-1 font-medium">
+              <Package className="w-3.5 h-3.5 text-brand-400" />
+              <span>Stock inicial / disponible {product ? '(actualizar existencias)' : '(inventario inicial)'}</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              placeholder="Ej: 50"
+              value={stock}
+              onChange={e => setStock(e.target.value)}
+              className="input w-full font-mono text-sm py-2"
+            />
+          </div>
+        )}
 
         {/* Foto del producto */}
         <div className="flex items-center gap-3">

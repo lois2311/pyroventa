@@ -329,8 +329,15 @@ El catálogo de productos se cachea en `localStorage` con TTL de 5 minutos por p
 
 ---
 
+## Documentación Técnica y Arquitectura
+
+- 🏗️ [**Plan de Mejora Arquitectónica del Backend**](./docs/PLAN_MEJORA_ARQUITECTURA_BACKEND.md): Diagnóstico del backend actual, modularización de controladores, colas asíncronas (Outbox pattern) y estrategia de alta escala.
+
+---
+
 ## Soporte
 
 Para reportar bugs o solicitar funcionalidades, abre un issue en el repositorio.
 
 **¡Manipule con responsabilidad! 🎆**
+

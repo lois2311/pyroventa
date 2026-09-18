@@ -1,11 +1,15 @@
-import { Sparkles, MapPin } from 'lucide-react'
+import { Sparkles, MapPin, Package } from 'lucide-react'
 import { useCartStore } from '../store/cartStore.js'
+import { useAuthStore } from '../store/authStore.js'
 import { formatCOP }    from '../lib/format.js'
 import ProductImage     from './ProductImage.jsx'
 
 export default function ProductCard({ product }) {
   const addItem = useCartStore(s => s.addItem)
   const items   = useCartStore(s => s.items)
+  const tenant  = useAuthStore(s => s.tenant)
+  const hasInventory = Boolean(tenant?.has_inventory)
+  const stockQty = Number(product.stock_quantity ?? 0)
 
   const presentations = (product.presentations || []).filter(p => p.active !== false)
   if (!presentations.length) return null
@@ -41,14 +45,31 @@ export default function ProductCard({ product }) {
       )}
 
       {/* Cabecera */}
-      <div className="flex items-start gap-2 mb-3">
-        {!product.image_url && <Sparkles className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />}
-        <div className="min-w-0">
-          <h3 className="font-medium text-white text-sm leading-tight">{product.name}</h3>
-          {product.categories?.name && (
-            <span className="text-xs text-gray-400">{product.categories.name}</span>
-          )}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-start gap-2 min-w-0">
+          {!product.image_url && <Sparkles className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />}
+          <div className="min-w-0">
+            <h3 className="font-medium text-white text-sm leading-tight">{product.name}</h3>
+            {product.categories?.name && (
+              <span className="text-xs text-gray-400">{product.categories.name}</span>
+            )}
+          </div>
         </div>
+
+        {hasInventory && (
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium shrink-0 flex items-center gap-1 ${
+              stockQty <= 0
+                ? 'bg-red-500/15 text-red-400 border border-red-500/20'
+                : stockQty <= 5
+                ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20'
+                : 'bg-surface-50 text-gray-400'
+            }`}
+          >
+            <Package className="w-2.5 h-2.5" />
+            {stockQty <= 0 ? 'Agotado' : `Stock: ${stockQty}`}
+          </span>
+        )}
       </div>
 
       {/* Presentaciones */}

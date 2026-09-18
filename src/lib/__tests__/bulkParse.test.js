@@ -59,6 +59,17 @@ describe('parseExcelRows', () => {
     expect(out[0].presentations).toHaveLength(1)
   })
 
+  it('parsea la columna Stock si viene presente', () => {
+    const rows = [
+      ['Producto', 'Presentación', 'Precio', 'Stock'],
+      ['Volcán', 'Unidad', 3000, 150],
+      ['Chispitas', 'Caja', 500, '40'],
+    ]
+    const out = parseExcelRows(rows)
+    expect(out[0].stock).toBe(150)
+    expect(out[1].stock).toBe(40)
+  })
+
   it('exige columnas mínimas', () => {
     expect(() => parseExcelRows([['Nombre', 'Precio'], ['x', 1]])).toThrow(/Presentación/)
   })

@@ -92,6 +92,7 @@ export async function superTenantsList(req, res) {
     const locations = locsByTenant[t.id] || []
     return {
       ...t,
+      has_inventory:   Boolean(t.has_inventory),
       today_sales:     sales[t.id]?.total || 0,
       today_invoices:  sales[t.id]?.count || 0,
       last_activity:   last[t.id] || null,
@@ -106,7 +107,7 @@ export async function superTenantsList(req, res) {
 
 export async function superTenantsCreate(req, res) {
   const auth = await requireSuperAdmin(req, res); if (!auth) return
-  const { name, slug: rawSlug, license_start, license_end, owner, location } = req.body || {}
+  const { name, slug: rawSlug, license_start, license_end, owner, location, has_inventory } = req.body || {}
   if (!name?.trim()) return res.status(400).json({ error: 'El nombre es requerido' })
   if (!license_start || !license_end) return res.status(400).json({ error: 'license_start y license_end son requeridos' })
   if (license_end < license_start) return res.status(400).json({ error: 'license_end debe ser posterior a license_start' })
@@ -123,7 +124,7 @@ export async function superTenantsCreate(req, res) {
 
   const { data: tenant, error } = await supabaseAdmin
     .from('tenants')
-    .insert({ name: name.trim(), slug, active: true, license_start, license_end })
+    .insert({ name: name.trim(), slug, active: true, license_start, license_end, has_inventory: Boolean(has_inventory) })
     .select().single()
   if (error) {
     if (error.code === '23505') return res.status(409).json({ error: `El código "${slug}" ya existe — usa otro` })
@@ -166,12 +167,13 @@ export async function superTenantLocationCreate(req, res, tenantId) {
 
 export async function superTenantsPatch(req, res, id) {
   const auth = await requireSuperAdmin(req, res); if (!auth) return
-  const { name, active, license_start, license_end } = req.body || {}
+  const { name, active, license_start, license_end, has_inventory } = req.body || {}
   const u = {}
   if (name !== undefined)          u.name = name
   if (active !== undefined)        u.active = active
   if (license_start !== undefined) u.license_start = license_start
   if (license_end !== undefined)   u.license_end = license_end
+  if (has_inventory !== undefined) u.has_inventory = Boolean(has_inventory)
   if (!Object.keys(u).length) return res.status(400).json({ error: 'Nada que actualizar' })
   if (u.name !== undefined && !String(u.name).trim()) return res.status(400).json({ error: 'El nombre no puede estar vacío' })
   if ((u.license_start ?? u.license_end) !== undefined) {

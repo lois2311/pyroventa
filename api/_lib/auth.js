@@ -41,7 +41,7 @@ export async function requireAuth(req, res) {
       .eq('id', sellerId).eq('tenant_id', tenantId).eq('active', true)
       .single(),
     supabaseAdmin.from('tenants')
-      .select('id, name, slug, active, license_start, license_end')
+      .select('id, name, slug, active, license_start, license_end, has_inventory')
       .eq('id', tenantId)
       .single(),
   ])

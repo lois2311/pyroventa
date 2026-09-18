@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Building2, Copy, Loader2, LogOut, MapPin, Pause, Play, Plus,
+  Building2, Copy, Loader2, LogOut, MapPin, Package, Pause, Play, Plus,
   RefreshCw, ShieldCheck, Users,
 } from 'lucide-react'
 import { superApi } from '../lib/superApi.js'
@@ -74,6 +74,7 @@ function NewTenantModal({ onClose, onCreated }) {
   const [slugTouched, setSlugTouched] = useState(false)
   const [start,  setStart]  = useState('')
   const [end,    setEnd]    = useState('')
+  const [hasInventory, setHasInventory] = useState(false)
   const [ownerName,  setOwnerName]  = useState('')
   const [ownerUser,  setOwnerUser]  = useState('')
   const [ownerPass,  setOwnerPass]  = useState('')
@@ -88,7 +89,7 @@ function NewTenantModal({ onClose, onCreated }) {
     e.preventDefault()
     setLoading(true); setError(null)
     try {
-      const body = { name, slug, license_start: start, license_end: end }
+      const body = { name, slug, license_start: start, license_end: end, has_inventory: hasInventory }
       if (ownerName.trim()) body.owner = { name: ownerName.trim(), username: ownerUser.trim(), password: ownerPass }
       if (locName.trim())   body.location = { name: locName.trim(), address: locAddress.trim() || undefined }
       const data = await superApi.post('/super/tenants', body)
@@ -136,6 +137,25 @@ function NewTenantModal({ onClose, onCreated }) {
                 <input type="date" value={end} onChange={e => setEnd(e.target.value)} required
                   className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
               </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-surface-400 border border-white/10">
+              <input
+                type="checkbox"
+                id="modal-has-inventory"
+                checked={hasInventory}
+                onChange={e => setHasInventory(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded border-gray-600 text-brand-500 focus:ring-brand-500 bg-surface-300"
+              />
+              <label htmlFor="modal-has-inventory" className="text-sm cursor-pointer select-none">
+                <span className="font-semibold text-white flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-brand-400" />
+                  Control de inventario
+                </span>
+                <span className="text-xs text-gray-400 block mt-0.5">
+                  Permite cargar stock a productos y descontar existencias automáticamente en cada venta.
+                </span>
+              </label>
             </div>
             <div className="border-t border-white/10 pt-4">
               <p className="text-gray-400 text-sm mb-1">Primer punto de venta</p>
@@ -435,6 +455,15 @@ export default function SuperDashboard() {
     load()
   }
 
+  const toggleInventory = async (t) => {
+    try {
+      await superApi.patch(`/super/tenants/${t.id}`, { has_inventory: !t.has_inventory })
+      load()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('pv_super_token')
     navigate('/super/login')
@@ -479,6 +508,15 @@ export default function SuperDashboard() {
                       <p className="font-semibold text-white truncate">{t.name}</p>
                       <StatusChip status={t.status} />
                       <LicenseCountdown status={t.status} licenseEnd={t.license_end} />
+                      {t.has_inventory ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full border bg-emerald-500/15 text-emerald-400 border-emerald-500/30 flex items-center gap-1 font-medium">
+                          <Package className="w-3 h-3" /> Con inventario
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded-full border bg-white/5 text-gray-400 border-white/10 flex items-center gap-1">
+                          Sin inventario
+                        </span>
+                      )}
                       {t.locations_count === 0 && (
                         <span className="text-xs px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
                           Sin puntos de venta — no pueden ingresar
@@ -559,6 +597,14 @@ export default function SuperDashboard() {
                       title="Agregar superadministrador"
                     >
                       <Plus className="w-4 h-4" /> Superadmin
+                    </button>
+                    <button
+                      onClick={() => toggleInventory(t)}
+                      className={`btn btn-sm btn-touch-safe ${t.has_inventory ? 'btn-ghost text-emerald-400 hover:bg-emerald-500/10' : 'btn-ghost text-gray-400'}`}
+                      title={t.has_inventory ? 'Desactivar inventario para este cliente' : 'Activar inventario para este cliente'}
+                    >
+                      <Package className="w-4 h-4" />
+                      {t.has_inventory ? 'Inventario: Sí' : 'Inventario: No'}
                     </button>
                     <button
                       onClick={() => toggleActive(t)}

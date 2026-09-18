@@ -5,17 +5,17 @@
 // "Imagen" (opcional) es el nombre del archivo de foto que acompaña al Excel.
 // =====================================================
 
-export const TEMPLATE_COLUMNS = ['Producto', 'Categoría', 'Descripción', 'Presentación', 'Precio', 'Imagen']
+export const TEMPLATE_COLUMNS = ['Producto', 'Categoría', 'Descripción', 'Presentación', 'Precio', 'Stock', 'Imagen']
 
 export const TEMPLATE_EXAMPLE = [
-  ['Tiro al blanco',       'Infantiles',  '',                'Unidad',   2500,   'tiro_al_blanco.jpg'],
-  ['Tiro al blanco',       'Infantiles',  '',                'Pack x12', 25000,  ''],
-  ['Tiro al blanco',       'Infantiles',  '',                'Caja x48', 85000,  ''],
-  ['Bengala colores',      'Infantiles',  '',                'Unidad',   1500,   'bengala_colores.png'],
-  ['Bengala colores',      'Infantiles',  '',                'Pack x10', 12000,  ''],
-  ['Castillo pirotécnico', 'Profesional', 'Varios tamaños',  'Pequeño',  35000,  'castillo.jpg'],
-  ['Castillo pirotécnico', 'Profesional', 'Varios tamaños',  'Mediano',  65000,  ''],
-  ['Castillo pirotécnico', 'Profesional', 'Varios tamaños',  'Grande',   120000, ''],
+  ['Tiro al blanco',       'Infantiles',  '',                'Unidad',   2500,   100, 'tiro_al_blanco.jpg'],
+  ['Tiro al blanco',       'Infantiles',  '',                'Pack x12', 25000,  '',  ''],
+  ['Tiro al blanco',       'Infantiles',  '',                'Caja x48', 85000,  '',  ''],
+  ['Bengala colores',      'Infantiles',  '',                'Unidad',   1500,   50,  'bengala_colores.png'],
+  ['Bengala colores',      'Infantiles',  '',                'Pack x10', 12000,  '',  ''],
+  ['Castillo pirotécnico', 'Profesional', 'Varios tamaños',  'Pequeño',  35000,  10,  'castillo.jpg'],
+  ['Castillo pirotécnico', 'Profesional', 'Varios tamaños',  'Mediano',  65000,  '',  ''],
+  ['Castillo pirotécnico', 'Profesional', 'Varios tamaños',  'Grande',   120000, '',  ''],
 ]
 
 /**
@@ -38,7 +38,7 @@ export function fileBaseKey(filename) {
 
 /**
  * Parsea las filas del Excel (array de arrays, primera fila = headers)
- * y agrupa por producto. Retorna [{ name, category?, description?, image?, presentations: [{label, price}] }]
+ * y agrupa por producto. Retorna [{ name, category?, description?, image?, stock?, presentations: [{label, price}] }]
  */
 export function parseExcelRows(rows) {
   if (!Array.isArray(rows) || rows.length < 2) return []
@@ -50,6 +50,7 @@ export function parseExcelRows(rows) {
     descripcion:  headers.findIndex(h => h.includes('descrip')),
     presentacion: headers.findIndex(h => h.includes('presentac') || h.includes('label')),
     precio:       headers.findIndex(h => h.includes('precio') || h.includes('price') || h.includes('valor')),
+    stock:        headers.findIndex(h => h.includes('stock') || h.includes('inventario') || h.includes('cant')),
     imagen:       headers.findIndex(h => h.includes('imagen') || h.includes('foto') || h.includes('image')),
   }
 
@@ -77,6 +78,15 @@ export function parseExcelRows(rows) {
 
     if (!label || !price || isNaN(price)) continue
 
+    const rawStock = colMap.stock >= 0 ? row[colMap.stock] : null
+    let stockNum = undefined
+    if (rawStock !== null && rawStock !== undefined && String(rawStock).trim() !== '') {
+      const parsedStock = Number(String(rawStock).replace(/[^\d.-]/g, ''))
+      if (!isNaN(parsedStock)) {
+        stockNum = Math.max(0, Math.floor(parsedStock))
+      }
+    }
+
     const key = name.toLowerCase()
     if (!productMap[key]) {
       productMap[key] = {
@@ -85,7 +95,10 @@ export function parseExcelRows(rows) {
         description: description || undefined,
         image:       image || undefined,
         presentations: [],
+        ...(stockNum !== undefined ? { stock: stockNum } : {}),
       }
+    } else if (stockNum !== undefined && productMap[key].stock === undefined) {
+      productMap[key].stock = stockNum
     }
     // La columna Imagen puede venir solo en la primera fila del producto
     if (image && !productMap[key].image) productMap[key].image = image

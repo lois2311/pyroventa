@@ -17,7 +17,7 @@ export async function adminLogin(req, res) {
   }
 
   const { data: tenant, error: tenantErr } = await supabaseAdmin
-    .from('tenants').select('id, name, slug, active, license_start, license_end')
+    .from('tenants').select('id, name, slug, active, license_start, license_end, has_inventory')
     .eq('slug', String(tenant_slug).toLowerCase().trim()).single()
   if (tenantErr && tenantErr.code !== 'PGRST116') return res.status(500).json({ error: 'Error interno del servidor' })
   const status = getTenantStatus(tenant)
@@ -55,7 +55,7 @@ export async function adminLogin(req, res) {
   const token = await signToken({ tenantId: tenant.id, sellerId: user.id, role: user.role, kind: 'admin' }, ADMIN_SESSION)
   return res.status(200).json({
     seller: { id: user.id, name: user.name, role: user.role },
-    tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug },
+    tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug, has_inventory: Boolean(tenant.has_inventory) },
     locations,
     token,
   })

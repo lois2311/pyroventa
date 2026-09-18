@@ -34,6 +34,7 @@ async function downloadTemplate() {
     { wch: 20 },
     { wch: 18 },
     { wch: 12 },
+    { wch: 10 },
     { wch: 22 },
   ]
 
@@ -207,6 +208,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
         category:      p.category,
         description:   p.description,
         presentations: p.presentations,
+        ...(p.stock !== undefined ? { stock: p.stock } : {}),
         ...(uploadedUrlsRef.current[keyOf(p)] ? { image_url: uploadedUrlsRef.current[keyOf(p)] } : {}),
       }))
       const data = await api.post('/products/bulk', { products: payload })
@@ -297,6 +299,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
               <li>Productos con nombre duplicado se omiten (no se sobreescriben), pero si adjuntas foto y el existente no tiene, la foto sí se le agrega</li>
               <li>Categorías nuevas se crean automáticamente</li>
               <li>El precio debe ser numérico (ej: 2500, no $2.500)</li>
+              <li>La columna Stock es opcional: cantidad inicial disponible para la empresa</li>
               <li>La columna Imagen es opcional: escribe el nombre del archivo de la foto (ej: volcan.jpg)</li>
               <li>Las fotos se adjuntan en el paso de vista previa y se comprimen automáticamente</li>
               <li>Soporta .xlsx, .xls y .csv</li>
@@ -411,6 +414,11 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
                     <p className="text-sm font-medium text-white">{product.name}</p>
                     <div className="flex gap-2 text-[10px] text-gray-400 flex-wrap">
                       {product.category && <span className="bg-surface-50 px-1.5 py-0.5 rounded">{product.category}</span>}
+                      {product.stock !== undefined && (
+                        <span className="bg-emerald-500/20 text-emerald-300 font-mono px-1.5 py-0.5 rounded">
+                          📦 Stock: {product.stock}
+                        </span>
+                      )}
                       {product.description && <span className="italic">{product.description}</span>}
                       {product.image && !img && <span className="text-yellow-400">Falta foto: {product.image}</span>}
                     </div>
