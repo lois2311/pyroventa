@@ -12,21 +12,56 @@ const LINE_80 = 48 // chars por línea a 80mm
 // =====================================================
 // CAPA 1 — QZ Tray (impresora USB/WiFi real)
 // =====================================================
+// La librería cliente se descarga la primera vez que se imprime (antes era un
+// <script> del CDN en index.html: bloqueaba el arranque de todas las pantallas,
+// dependía de jsDelivr y no estaba disponible sin conexión). Viene del paquete
+// npm, así que el service worker la precachea con el resto de la app.
+let qzLoading = null
+function loadQZ() {
+  if (typeof window !== 'undefined' && window.qz) return Promise.resolve(window.qz)
+  qzLoading ??= import('qz-tray')
+    .then(mod => mod.default || mod)
+    .catch(err => { qzLoading = null; throw err })
+  return qzLoading
+}
+
+// Promesa con tope de tiempo. connect() de QZ puede quedar pendiente para
+// siempre (p. ej. un proxy que acepta el socket y nunca completa el
+// handshake): sin tope, "Imprimir" se quedaba cargando y nunca pasaba al
+// respaldo del navegador.
+export function withTimeout(promise, ms, message) {
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+const QZ_CONNECT_TIMEOUT = 8000
+const QZ_PRINT_TIMEOUT = 20000
+
 async function printViaQZ(invoice, config) {
-  if (typeof window.qz === 'undefined') {
+  let qz
+  try {
+    qz = await loadQZ()
+  } catch {
     throw new Error('QZ Tray no disponible')
   }
 
   try {
-    if (!window.qz.websocket.isActive()) {
-      await window.qz.websocket.connect({ retries: 2, delay: 1000 })
+    if (!qz.websocket.isActive()) {
+      await withTimeout(
+        qz.websocket.connect({ retries: 2, delay: 1000 }),
+        QZ_CONNECT_TIMEOUT,
+        'no respondió (¿está abierto QZ Tray en este equipo?)',
+      )
     }
 
     const printerName = config?.printer_name || null
-    const qzConfig = window.qz.configs.create(printerName)
+    const qzConfig = qz.configs.create(printerName)
     const commands = buildEscPosCommands(invoice, config)
 
-    await window.qz.print(qzConfig, commands)
+    await withTimeout(qz.print(qzConfig, commands), QZ_PRINT_TIMEOUT, 'la impresora no confirmó el trabajo')
   } catch (err) {
     throw new Error(`QZ Tray error: ${err.message}`)
   }

@@ -5,17 +5,17 @@ import { useAuthStore } from './store/authStore.js'
 import { can } from '../api/_lib/roles.js'
 import LoginPage    from './pages/LoginPage.jsx'
 import TenantEntry  from './pages/TenantEntry.jsx'
-import VendedorPage from './pages/VendedorPage.jsx'
-import CajaPage     from './pages/CajaPage.jsx'
 import SuperLoginPage from './pages/SuperLoginPage.jsx'
 import { ToastProvider } from './components/Toast.jsx'
 import { ConfirmProvider } from './components/ConfirmDialog.jsx'
 import NetworkBanner from './components/NetworkBanner.jsx'
 import LicenseBlock from './components/LicenseBlock.jsx'
 
-// Administración y el panel de plataforma cargan aparte (traen Recharts y los
-// reportes): el POS (Vender / Caja) arranca sin descargar ni parsear ese código.
-// El service worker igual los precachea, así que funcionan offline.
+// Cada pantalla carga aparte: el login no descarga el POS, y Vender no descarga
+// Caja (que trae el cliente de Supabase Realtime) ni Administración (Recharts,
+// reportes). El service worker igual las precachea, así que funcionan offline.
+const VendedorPage   = lazy(() => import('./pages/VendedorPage.jsx'))
+const CajaPage       = lazy(() => import('./pages/CajaPage.jsx'))
 const AdminPage      = lazy(() => import('./pages/AdminPage.jsx'))
 const SuperDashboard = lazy(() => import('./pages/SuperDashboard.jsx'))
 
@@ -61,39 +61,39 @@ export default function App() {
   return (
     <ToastProvider>
       <ConfirmProvider>
-      <CompactViewportHint />
-      <NetworkBanner />
-      <LicenseBlock />
-      <Suspense fallback={<PageLoader />}>
-      <Routes>
-        <Route path="/c/:slug" element={<TenantEntry />} />
-        <Route path="/login" element={<LoginPage />} />
+        <CompactViewportHint />
+        <NetworkBanner />
+        <LicenseBlock />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/c/:slug" element={<TenantEntry />} />
+            <Route path="/login" element={<LoginPage />} />
 
-        <Route path="/vender" element={
-          <RequireCan action="sell" needsLocation>
-            <VendedorPage />
-          </RequireCan>
-        } />
+            <Route path="/vender" element={
+              <RequireCan action="sell" needsLocation>
+                <VendedorPage />
+              </RequireCan>
+            } />
 
-        <Route path="/caja" element={
-          <RequireCan action="charge" needsLocation>
-            <CajaPage />
-          </RequireCan>
-        } />
+            <Route path="/caja" element={
+              <RequireCan action="charge" needsLocation>
+                <CajaPage />
+              </RequireCan>
+            } />
 
-        <Route path="/admin" element={
-          <RequireCan action="view_reports">
-            <AdminPage />
-          </RequireCan>
-        } />
+            <Route path="/admin" element={
+              <RequireCan action="view_reports">
+                <AdminPage />
+              </RequireCan>
+            } />
 
-        <Route path="/super/login" element={<SuperLoginPage />} />
-        <Route path="/super"       element={<SuperDashboard />} />
+            <Route path="/super/login" element={<SuperLoginPage />} />
+            <Route path="/super"       element={<SuperDashboard />} />
 
-        {/* Redirect por defecto */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-      </Suspense>
+            {/* Redirect por defecto */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
       </ConfirmProvider>
     </ToastProvider>
   )

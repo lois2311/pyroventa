@@ -1,0 +1,14 @@
+/* Fuentes alojadas con la app (@fontsource), solo el subconjunto latino y los
+   pesos que se usan. Antes venían de Google Fonts: una petición a otro dominio
+   antes del primer render, sin fuentes en la primera carga sin conexión, y un
+   tercero viendo cada apertura de la app. El subconjunto latin cubre español
+   (á é ñ ¿ ¡), comillas tipográficas, rayas y el signo menos. */
+@import '@fontsource/syne/latin-600.css';
+@import '@fontsource/syne/latin-700.css';
+@import '@fontsource/syne/latin-800.css';
+@import '@fontsource/dm-sans/latin-400.css';
+@import '@fontsource/dm-sans/latin-400-italic.css';
+@import '@fontsource/dm-sans/latin-500.css';
+@import '@fontsource/dm-sans/latin-600.css';
+@import '@fontsource/dm-mono/latin-400.css';
+@import '@fontsource/dm-mono/latin-500.css';

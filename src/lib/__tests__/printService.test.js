@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { buildHTMLReceipt, formatReceiptText } from '../printService.js'
+import { describe, it, expect, vi } from 'vitest'
+import { buildHTMLReceipt, formatReceiptText, withTimeout } from '../printService.js'
 
 describe('printService — buildHTMLReceipt', () => {
   const sampleInvoice = {
@@ -62,5 +62,23 @@ describe('printService — formatReceiptText', () => {
     expect(text).toContain('Chispitas')
     expect(text).toContain('TOTAL')
     expect(text).toContain('Nequi')
+  })
+})
+
+describe('withTimeout', () => {
+  it('rechaza con el mensaje dado si la promesa no termina a tiempo', async () => {
+    vi.useFakeTimers()
+    try {
+      const never = new Promise(() => {})
+      const p = withTimeout(never, 8000, 'no respondió')
+      vi.advanceTimersByTime(8000)
+      await expect(p).rejects.toThrow('no respondió')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('resuelve con el valor si llega antes del tope', async () => {
+    await expect(withTimeout(Promise.resolve('ok'), 1000, 'tarde')).resolves.toBe('ok')
   })
 })

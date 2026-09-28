@@ -8,20 +8,30 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
-        // Cachear todos los assets estáticos
+        // Cachear todos los assets estáticos…
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // …menos las librerías pesadas de funciones de administración que no
+        // hacen falta para vender ni cobrar: xlsx (exportar/importar Excel) y
+        // las dependencias opcionales de jsPDF (html2canvas, canvg, DOMPurify).
+        // Eran ~0,8 MB de los 2,3 MB que cada equipo descargaba al instalar.
+        // Se cachean al primer uso (regla LAZY_CHUNKS abajo).
+        globIgnores: ['**/assets/{xlsx,html2canvas,purify,index.es}*.js'],
         // Cache de navegación (SPA)
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         // Runtime caching para APIs
         runtimeCaching: [
           {
-            // Google Fonts
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com/,
+            // LAZY_CHUNKS: los chunks excluidos del precache. Nombre con hash
+            // de contenido → inmutables, CacheFirst es seguro. (La función se
+            // copia al service worker, donde `self` es el propio worker.)
+            // eslint-disable-next-line no-undef
+            urlPattern: ({ url }) => url.origin === self.location.origin
+              && /^\/assets\/(xlsx|html2canvas|purify|index\.es)[^/]*\.js$/.test(url.pathname),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'google-fonts',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheName: 'lazy-chunks',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 60 },
             },
           },
           {
