@@ -311,7 +311,7 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations, 
         <section>
           <SectionHeader title="Ventas por día" icon={TrendingUp} description={formatRangeLabel(from, to)} />
           <div className="space-y-3">
-            <RevenueTrendChart data={daily.by_day} />
+            <RevenueTrendChart data={daily.by_day} loading={loadDaily} />
             <DailyTrend data={daily.by_day} />
           </div>
         </section>

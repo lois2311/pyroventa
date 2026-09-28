@@ -1,43 +1,79 @@
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatCOP } from '../lib/format.js'
+import { AXIS_TICK, CHART, MAX_BAR } from '../lib/chartTheme.js'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js'
+import ChartTooltip from './charts/ChartTooltip.jsx'
+
+const hourNum = (h) => parseInt(String(h).slice(0, 2), 10)
+const hourLabel = (h) => `${hourNum(h)}h`
+const hourRange = (h) => {
+  const n = hourNum(h)
+  return `${String(n).padStart(2, '0')}:00 – ${String(n).padStart(2, '0')}:59`
+}
+const salesLabel = (n) => `${n} venta${n !== 1 ? 's' : ''}`
 
 /**
- * "Ventas por hora" — antes duplicado en RegisterDetailModal y
- * SellerDetailModal, con el detalle solo en el atributo `title` (sin
- * tooltip visible, invisible en táctil). Ahora cada barra tiene un tooltip
- * real que aparece al hover/focus.
+ * Ventas por hora (detalle de vendedor y de caja). Forma de "énfasis": la
+ * hora pico va en el acento y lleva su valor encima; las demás en gris de
+ * segundo plano. Monto y rango horario en el tooltip.
  */
 export default function HourlyBarChart({ data }) {
+  const reducedMotion = usePrefersReducedMotion()
   if (!data?.length) return null
-  const maxCount = Math.max(...data.map(h => h.count), 1)
+
+  const peak = data.reduce((a, b) => (b.count > a.count ? b : a), data[0])
+  const peakIndex = data.indexOf(peak)
+
+  const renderPeakLabel = ({ x, y, width, index, value }) => (index === peakIndex
+    ? (
+      <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={11} fontWeight={600}
+        fill="#e5e7eb" fontFamily='"DM Mono", ui-monospace, monospace'>
+        {value}
+      </text>
+    )
+    : null)
 
   return (
-    <div className="flex gap-1 items-end h-24">
-      {data.map(h => {
-        const heightPct = (h.count / maxCount) * 100
-        return (
-          <div key={h.hour} className="group relative flex-1 flex flex-col items-center gap-1">
-            <div
-              className="absolute bottom-full mb-2 hidden group-hover:flex group-focus-within:flex flex-col items-center
-                         bg-surface-100 border border-white/10 rounded-lg px-2 py-1 text-2xs whitespace-nowrap z-10 shadow-lg"
-            >
-              <span className="text-white font-semibold">{h.count} venta{h.count !== 1 ? 's' : ''}</span>
-              <span className="text-brand-400 font-mono">{formatCOP(h.revenue)}</span>
-            </div>
-            <span className="text-2xs text-gray-400 font-mono">{h.count}</span>
-            <div
-              tabIndex={0}
-              className="w-full bg-surface-50 rounded-t-sm overflow-hidden focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
-              style={{ height: '48px' }}
-            >
-              <div
-                className="w-full bg-brand-500 rounded-t-sm transition-all duration-500"
-                style={{ height: `${heightPct}%`, marginTop: `${100 - heightPct}%` }}
-              />
-            </div>
-            <span className="text-2xs text-gray-400 font-mono">{h.hour.slice(0, 2)}</span>
-          </div>
-        )
-      })}
-    </div>
+    <figure>
+      <figcaption className="sr-only">
+        Ventas por hora. Hora pico {hourRange(peak.hour)}: {salesLabel(peak.count)} por {formatCOP(peak.revenue)}.
+      </figcaption>
+      <div className="h-40">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 20, right: 0, bottom: 0, left: 0 }} barCategoryGap="18%">
+            <CartesianGrid vertical={false} stroke={CHART.grid} />
+            <XAxis
+              dataKey="hour"
+              tickFormatter={hourLabel}
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={{ stroke: CHART.grid }}
+              interval="preserveStartEnd"
+              minTickGap={6}
+            />
+            <YAxis hide allowDecimals={false} />
+            <Tooltip
+              cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+              content={(
+                <ChartTooltip
+                  title={(h) => hourRange(h)}
+                  valueFormatter={(v) => salesLabel(v)}
+                  footer={(d) => formatCOP(d.revenue)}
+                />
+              )}
+            />
+            <Bar dataKey="count" name="Ventas" maxBarSize={MAX_BAR} radius={[4, 4, 0, 0]}
+              isAnimationActive={!reducedMotion} animationDuration={600}>
+              {data.map((h, i) => <Cell key={h.hour} fill={i === peakIndex ? CHART.brand : CHART.muted} />)}
+              <LabelList dataKey="count" content={renderPeakLabel} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="mt-2 text-xs text-gray-400">
+        Hora pico: <span className="font-medium text-white">{hourRange(peak.hour)}</span>
+        {' · '}{salesLabel(peak.count)}{' · '}<span className="font-mono">{formatCOP(peak.revenue)}</span>
+      </p>
+    </figure>
   )
 }

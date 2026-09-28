@@ -1,16 +1,22 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Flame } from 'lucide-react'
 import { useAuthStore } from './store/authStore.js'
 import { can } from '../api/_lib/roles.js'
 import LoginPage    from './pages/LoginPage.jsx'
 import TenantEntry  from './pages/TenantEntry.jsx'
 import VendedorPage from './pages/VendedorPage.jsx'
 import CajaPage     from './pages/CajaPage.jsx'
-import AdminPage    from './pages/AdminPage.jsx'
 import SuperLoginPage from './pages/SuperLoginPage.jsx'
-import SuperDashboard from './pages/SuperDashboard.jsx'
 import { ToastProvider } from './components/Toast.jsx'
 import NetworkBanner from './components/NetworkBanner.jsx'
 import LicenseBlock from './components/LicenseBlock.jsx'
+
+// Administración y el panel de plataforma cargan aparte (traen Recharts y los
+// reportes): el POS (Vender / Caja) arranca sin descargar ni parsear ese código.
+// El service worker igual los precachea, así que funcionan offline.
+const AdminPage      = lazy(() => import('./pages/AdminPage.jsx'))
+const SuperDashboard = lazy(() => import('./pages/SuperDashboard.jsx'))
 
 // ---- Guard por acción (roles.js) ---------------------------
 function RequireCan({ action, needsLocation = false, children }) {
@@ -37,6 +43,18 @@ function CompactViewportHint() {
   )
 }
 
+// ---- Carga de una vista diferida ----------------------------
+function PageLoader() {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center" role="status" aria-live="polite">
+      <span className="flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl border border-brand-500/30 bg-brand-500/15">
+        <Flame className="h-6 w-6 text-brand-500" />
+      </span>
+      <span className="sr-only">Cargando…</span>
+    </div>
+  )
+}
+
 // ---- App ------------------------------------------------
 export default function App() {
   return (
@@ -44,6 +62,7 @@ export default function App() {
       <CompactViewportHint />
       <NetworkBanner />
       <LicenseBlock />
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/c/:slug" element={<TenantEntry />} />
         <Route path="/login" element={<LoginPage />} />
@@ -72,6 +91,7 @@ export default function App() {
         {/* Redirect por defecto */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </Suspense>
     </ToastProvider>
   )
 }

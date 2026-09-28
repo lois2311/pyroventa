@@ -2,6 +2,8 @@ import { formatCOP, TRANSFER_PROVIDERS } from '../lib/format.js'
 import { ArrowRightLeft, Banknote, CheckCircle2, CreditCard, Loader2, Wallet } from 'lucide-react'
 
 // Tonos -700 con texto blanco: los -600 daban 3.3:1 (falla AA); -700 pasa (≥5:1).
+// Datáfono en rosa (antes violeta): con daltonismo el violeta no se distinguía
+// del azul de transferencia (ver chartTheme.js).
 const METHODS = [
   {
     id:    'cash',
@@ -21,8 +23,8 @@ const METHODS = [
     id:    'card',
     label: 'Datáfono',
     Icon:  CreditCard,
-    bg:    'bg-violet-700 hover:bg-violet-800 border-violet-500/40',
-    ring:  'ring-violet-500/30',
+    bg:    'bg-pink-700   hover:bg-pink-800   border-pink-500/40',
+    ring:  'ring-pink-500/30',
   },
 ]
 

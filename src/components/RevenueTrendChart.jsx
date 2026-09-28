@@ -1,143 +1,212 @@
+import { useId, useMemo, useState } from 'react'
+import {
+  Area, AreaChart, Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts'
 import { formatCOP, formatCOPShort, formatDayShort } from '../lib/format.js'
+import { AXIS_TICK, CHART, MAX_BAR, PAY_COLORS, PAY_KEYS, PAY_LABELS } from '../lib/chartTheme.js'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js'
+import ChartTooltip from './charts/ChartTooltip.jsx'
 
-// Escala "bonita": pasos de 1, 2, 2.5 o 5 × 10^k, así los ticks del eje son
-// números redondos ($300k, $600k…) en vez de fracciones del máximo ($321k).
-function niceTicks(maxValue, count = 4) {
-  const max = Math.max(maxValue, 1)
-  const rough = max / count
-  const pow = 10 ** Math.floor(Math.log10(rough))
-  const step = [1, 2, 2.5, 5, 10].map(m => m * pow).find(s => s >= rough)
-  const top = Math.ceil(max / step) * step
-  const ticks = []
-  for (let v = 0; v <= top + step / 2; v += step) ticks.push(v)
-  return { ticks, top }
-}
+const VIEWS = [
+  { id: 'trend',   label: 'Tendencia' },
+  { id: 'methods', label: 'Por método' },
+]
 
-// Coordenadas en un viewBox 0..100 que se estira al contenedor. Solo la
-// geometría vive en el SVG; todo el texto (ejes, tooltip) es HTML, porque con
-// preserveAspectRatio="none" el texto SVG se deformaba al ensanchar la card.
-const VB = 100
+const CHART_HEIGHT = 288 // incluye la banda del eje X (sin scroll interno)
+const MARGIN = { top: 12, right: 8, bottom: 0, left: 0 }
+
+const dayTitle = (day) => formatDayShort(day, { weekday: true })
+const invoicesLabel = (n) => `${n} factura${n !== 1 ? 's' : ''}`
 
 /**
- * Tendencia de ingresos por día: línea de 2px sobre un relleno suave.
- * Hover y foco por teclado: cada día es un botón cuya zona de impacto cubre
- * todo su tramo del eje X (no solo el punto), con crosshair, punto y tooltip.
+ * Segmento de barra apilada: solo el tramo superior no vacío de cada día
+ * lleva la punta redondeada (4px); el resto es rectangular. El trazo del
+ * color de la superficie deja una separación de 2px entre segmentos.
  */
-export default function RevenueTrendChart({ data, loading }) {
-  if (loading) return <div className="skeleton h-64 rounded-xl" />
-  if (!data || data.length < 2) return null
+function StackSegment({ x, y, width, height, fill, isTop }) {
+  if (!height || height <= 0 || !width) return null
+  const r = isTop ? Math.min(4, width / 2, height) : 0
+  const d = r
+    ? `M${x},${y + height} V${y + r} Q${x},${y} ${x + r},${y} H${x + width - r} Q${x + width},${y} ${x + width},${y + r} V${y + height} Z`
+    : `M${x},${y + height} V${y} H${x + width} V${y + height} Z`
+  return <path d={d} fill={fill} stroke={CHART.surface} strokeWidth={2} />
+}
 
-  const n = data.length
-  const { ticks, top } = niceTicks(Math.max(...data.map(d => d.total_revenue)))
+/**
+ * Ventas por día, dos lecturas del mismo rango:
+ * - Tendencia: área de un solo tono con curva suave (monotone: no se pasa de
+ *   los datos) y línea de promedio diario como referencia.
+ * - Por método: barras apiladas efectivo / transferencia / datáfono, en el
+ *   orden y los colores fijos de toda la app.
+ * La tabla de DailyTrend, debajo, es su vista en tabla (todo valor del
+ * tooltip también está ahí).
+ */
+export default function RevenueTrendChart({ data, loading = false }) {
+  const [view, setView] = useState('trend')
+  const reducedMotion = usePrefersReducedMotion()
+  const gradientId = `rev-${useId().replace(/:/g, '')}`
 
-  const points = data.map((d, i) => ({
-    ...d,
-    x: (i / (n - 1)) * VB,
-    y: VB - (d.total_revenue / top) * VB,
-  }))
-  const last = points[n - 1]
+  const stats = useMemo(() => {
+    if (!data?.length) return null
+    const total = data.reduce((n, d) => n + Number(d.total_revenue || 0), 0)
+    const best = data.reduce((a, b) => (Number(b.total_revenue) > Number(a.total_revenue) ? b : a), data[0])
+    // El tramo superior no vacío de cada día (para redondear solo esa punta)
+    const topKey = Object.fromEntries(data.map(d => [d.day, [...PAY_KEYS].reverse().find(k => Number(d[k]) > 0)]))
+    return { total, avg: total / data.length, best, topKey }
+  }, [data])
 
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')
-  const areaPath = `${linePath} L ${VB} ${VB} L 0 ${VB} Z`
+  if (!data || data.length < 2 || !stats) return null
 
-  // ~7 etiquetas como máximo en el eje X, siempre incluyendo el último día
-  const labelEvery = Math.max(1, Math.ceil(n / 7))
-  const showLabel = (i) => i === n - 1 || (i % labelEvery === 0 && n - 1 - i >= labelEvery / 2)
+  const { avg, best, topKey } = stats
+  const summary = `Ventas por día del ${dayTitle(data[0].day)} al ${dayTitle(data[data.length - 1].day)}. `
+    + `Promedio diario ${formatCOP(avg)}. Mejor día ${dayTitle(best.day)} con ${formatCOP(best.total_revenue)}.`
+
+  // En el área, un margen interno aleja el primer y el último punto de los
+  // bordes: la etiqueta del último día no se corta y la curva respira.
+  const xAxis = (
+    <XAxis
+      dataKey="day"
+      padding={view === 'trend' ? { left: 16, right: 24 } : undefined}
+      tickFormatter={(d) => formatDayShort(d)}
+      tick={AXIS_TICK}
+      tickLine={false}
+      axisLine={{ stroke: CHART.grid }}
+      tickMargin={8}
+      minTickGap={20}
+      interval="preserveStartEnd"
+    />
+  )
+  const yAxis = (
+    <YAxis
+      tickFormatter={formatCOPShort}
+      tick={AXIS_TICK}
+      tickLine={false}
+      axisLine={false}
+      width={56}
+      tickCount={5}
+      allowDecimals={false}
+    />
+  )
+  const grid = <CartesianGrid vertical={false} stroke={CHART.grid} strokeWidth={1} />
 
   return (
-    <div className="panel p-4 sm:p-5 animate-fade-in">
-      <div className="flex h-56 sm:h-64">
-        {/* Eje Y */}
-        <div className="w-12 shrink-0 pb-6 sm:w-14" aria-hidden="true">
-          <div className="relative h-full">
-            {ticks.map(t => (
-              <span
-                key={t}
-                className="absolute right-2 -translate-y-1/2 font-mono text-2xs tabular-nums text-gray-400"
-                style={{ top: `${(1 - t / top) * 100}%` }}
-              >
-                {formatCOPShort(t)}
-              </span>
-            ))}
+    <figure className={`panel p-4 transition-opacity sm:p-5 ${loading ? 'opacity-60' : ''}`}>
+      <figcaption className="sr-only">{summary}</figcaption>
+
+      {/* Encabezado: cifras de lectura rápida + selector de vista */}
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <dl className="flex flex-wrap gap-x-8 gap-y-2">
+          <div>
+            <dt className="eyebrow">Promedio diario</dt>
+            <dd className="mt-0.5 font-mono text-base font-semibold tabular-nums text-white">{formatCOP(avg)}</dd>
           </div>
-        </div>
-
-        {/* Área de trazado + eje X */}
-        <div className="relative flex-1 min-w-0 pb-6">
-          <div className="relative h-full">
-            <svg viewBox={`0 0 ${VB} ${VB}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
-              <defs>
-                <linearGradient id="revenueArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#fb923c" stopOpacity="0.16" />
-                  <stop offset="100%" stopColor="#fb923c" stopOpacity="0.02" />
-                </linearGradient>
-              </defs>
-              {ticks.map(t => {
-                const y = VB - (t / top) * VB
-                return <line key={t} x1="0" x2={VB} y1={y} y2={y} stroke="#2a2a2a" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-              })}
-              <path d={areaPath} fill="url(#revenueArea)" />
-              <path d={linePath} fill="none" stroke="#fb923c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-            </svg>
-
-            {/* Punto final fijo: ancla la lectura del último día */}
-            <span
-              className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface-300 bg-brand-400"
-              style={{ left: `${last.x}%`, top: `${last.y}%` }}
-              aria-hidden="true"
-            />
-
-            {/* Capa interactiva: un tramo por día */}
-            {points.map((p, i) => {
-              const half = VB / (n - 1) / 2
-              const left = Math.max(0, p.x - half)
-              const right = Math.min(VB, p.x + half)
-              // Tooltip alineado para no salirse por los bordes
-              const align = p.x < 15 ? 'left-0' : p.x > 85 ? 'right-0' : 'left-1/2 -translate-x-1/2'
-              return (
-                <button
-                  key={p.day}
-                  type="button"
-                  aria-label={`${formatDayShort(p.day, { weekday: true })}: ${formatCOP(p.total_revenue)}, ${p.invoice_count} factura${p.invoice_count !== 1 ? 's' : ''}`}
-                  className="group absolute inset-y-0 cursor-default focus:outline-none"
-                  style={{ left: `${left}%`, width: `${right - left}%` }}
-                >
-                  {/* Ancla en la X exacta del punto, relativa al tramo */}
-                  <span className="absolute inset-y-0" style={{ left: `${((p.x - left) / (right - left)) * 100}%` }}>
-                    <span className="absolute inset-y-0 w-px -translate-x-1/2 bg-white/15 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-                    <span
-                      className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface-300 bg-brand-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                      style={{ top: `${p.y}%` }}
-                    />
-                    <span
-                      className={`absolute z-10 hidden min-w-[8.5rem] flex-col rounded-lg border border-white/10 bg-surface-100 px-3 py-2 text-left shadow-lg group-hover:flex group-focus-visible:flex ${align}`}
-                      style={{ bottom: `calc(${100 - p.y}% + 12px)` }}
-                    >
-                      <span className="font-mono text-sm font-semibold tabular-nums text-white">{formatCOP(p.total_revenue)}</span>
-                      <span className="text-2xs text-gray-400">
-                        {formatDayShort(p.day, { weekday: true })} · {p.invoice_count} factura{p.invoice_count !== 1 ? 's' : ''}
-                      </span>
-                    </span>
-                  </span>
-                </button>
-              )
-            })}
+          <div>
+            <dt className="eyebrow">Mejor día</dt>
+            <dd className="mt-0.5 text-base font-semibold text-white">
+              <span className="font-mono tabular-nums">{formatCOP(best.total_revenue)}</span>
+              <span className="ml-2 text-xs font-normal text-gray-400">{dayTitle(best.day)}</span>
+            </dd>
           </div>
+        </dl>
 
-          {/* Eje X */}
-          <div className="absolute inset-x-0 bottom-0 h-5" aria-hidden="true">
-            {points.map((p, i) => showLabel(i) && (
-              <span
-                key={p.day}
-                className={`absolute top-1 whitespace-nowrap text-2xs text-gray-400 ${i === 0 ? '' : i === n - 1 ? '-translate-x-full' : '-translate-x-1/2'}`}
-                style={{ left: `${p.x}%` }}
-              >
-                {formatDayShort(p.day)}
-              </span>
+        <div className="flex flex-wrap items-center gap-3">
+          {view === 'methods' && (
+            <ul className="flex flex-wrap items-center gap-x-3 gap-y-1" aria-label="Leyenda">
+              {PAY_KEYS.map(k => (
+                <li key={k} className="flex items-center gap-1.5 text-xs text-gray-300">
+                  <span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm" style={{ background: PAY_COLORS[k] }} />
+                  {PAY_LABELS[k]}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="segmented" role="group" aria-label="Vista del gráfico">
+            {VIEWS.map(v => (
+              <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => setView(v.id)}>
+                {v.label}
+              </button>
             ))}
           </div>
         </div>
       </div>
-    </div>
+
+      <div style={{ height: CHART_HEIGHT }} className="-ml-1">
+        <ResponsiveContainer width="100%" height="100%">
+          {view === 'trend' ? (
+            <AreaChart data={data} margin={MARGIN}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={CHART.brand} stopOpacity={0.22} />
+                  <stop offset="100%" stopColor={CHART.brand} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              {grid}
+              {xAxis}
+              {yAxis}
+              <ReferenceLine
+                y={avg}
+                stroke={CHART.trend}
+                strokeDasharray="4 4"
+                strokeWidth={1}
+                ifOverflow="extendDomain"
+                label={{ value: 'Promedio', position: 'insideTopLeft', fill: CHART.axis, fontSize: 11, dy: -2 }}
+              />
+              <Tooltip
+                cursor={{ stroke: 'rgba(255,255,255,0.18)', strokeWidth: 1 }}
+                content={(
+                  <ChartTooltip
+                    title={(day) => dayTitle(day)}
+                    footer={(d) => invoicesLabel(d.invoice_count)}
+                  />
+                )}
+              />
+              <Area
+                type="monotone"
+                dataKey="total_revenue"
+                name="Ventas"
+                stroke={CHART.brand}
+                strokeWidth={2}
+                fill={`url(#${gradientId})`}
+                dot={(p) => (p.index === data.length - 1
+                  ? <circle key="end" cx={p.cx} cy={p.cy} r={4.5} fill={CHART.brand} stroke={CHART.surface} strokeWidth={2} />
+                  : <g key={p.index} />)}
+                activeDot={{ r: 5, fill: CHART.brand, stroke: CHART.surface, strokeWidth: 2 }}
+                isAnimationActive={!reducedMotion}
+                animationDuration={700}
+              />
+            </AreaChart>
+          ) : (
+            <BarChart data={data} margin={MARGIN} barCategoryGap="28%">
+              {grid}
+              {xAxis}
+              {yAxis}
+              <Tooltip
+                cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                content={(
+                  <ChartTooltip
+                    title={(day) => dayTitle(day)}
+                    showTotal
+                    footer={(d) => invoicesLabel(d.invoice_count)}
+                  />
+                )}
+              />
+              {PAY_KEYS.map(k => (
+                <Bar
+                  key={k}
+                  dataKey={k}
+                  name={PAY_LABELS[k]}
+                  stackId="pay"
+                  fill={PAY_COLORS[k]}
+                  maxBarSize={MAX_BAR}
+                  isAnimationActive={!reducedMotion}
+                  animationDuration={600}
+                  shape={(p) => <StackSegment {...p} isTop={topKey[p.payload?.day] === k} />}
+                />
+              ))}
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    </figure>
   )
 }

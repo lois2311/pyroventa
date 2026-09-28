@@ -46,7 +46,7 @@ export default function TransferBreakdown({ data, compact = false }) {
   }
 
   return (
-    <div className="mt-3 ml-2 space-y-2 border-l border-blue-500/25 pl-4">
+    <div className="mt-3 ml-1 space-y-2 border-l border-pay-transfer/30 pl-4">
       {rows.map(r => {
         const pct = total > 0 ? (r.value / total) * 100 : 0
         return (
@@ -60,7 +60,7 @@ export default function TransferBreakdown({ data, compact = false }) {
                 <span className="ml-1.5 font-sans text-gray-400">{pct.toFixed(0)}%</span>
               </span>
             </div>
-            <ProgressBar pct={pct} color={r.id === 'sin_detalle' ? 'neutral' : 'blue'} height="xs" />
+            <ProgressBar pct={pct} color={r.id === 'sin_detalle' ? 'neutral' : 'transfer'} height="xs" />
           </div>
         )
       })}

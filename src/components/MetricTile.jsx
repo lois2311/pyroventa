@@ -1,5 +1,7 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
+import { Line, LineChart, ResponsiveContainer, YAxis } from 'recharts'
 import { useCountUp } from '../hooks/useCountUp.js'
+import { CHART } from '../lib/chartTheme.js'
 
 // Tamaño del valor según el ancho de la propia tarjeta (container query
 // units): la misma tarjeta sirve en una grilla de 5 columnas, en un modal o
@@ -18,10 +20,13 @@ const VALUE_SIZE = {
  * `trendPct` (opcional): % vs el período anterior, del campo `previous` que
  * devuelve /reports/daily — null si no hay base de comparación válida.
  * `trendLabel` nombra contra qué se compara ("vs. período anterior").
+ * `sparkline` (opcional): serie del período (un valor por día). Se dibuja en
+ * gris de segundo plano con el último punto en el acento; es decorativa
+ * (aria-hidden) porque la tabla diaria ya tiene esos valores.
  */
 export default function MetricTile({
   icon: Icon, label, value, format = (n) => n, color = 'text-white', sub,
-  hero = false, trendPct = null, trendLabel = 'vs. período anterior', className = '',
+  hero = false, trendPct = null, trendLabel = 'vs. período anterior', sparkline = null, className = '',
 }) {
   const animated = useCountUp(typeof value === 'number' ? value : 0)
   const display = typeof value === 'number' ? format(animated) : value
@@ -63,6 +68,33 @@ export default function MetricTile({
           {sub && <span className="text-gray-400">{sub}</span>}
         </div>
       )}
+
+      {sparkline?.length > 1 && <Sparkline values={sparkline} tall={hero} />}
+    </div>
+  )
+}
+
+function Sparkline({ values, tall }) {
+  const data = values.map((v, i) => ({ i, v }))
+  const last = data.length - 1
+  return (
+    <div className={`-mx-1 mt-auto pt-1 ${tall ? 'h-12' : 'h-9'}`} aria-hidden="true">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 4, right: 5, bottom: 4, left: 5 }} accessibilityLayer={false}>
+          <YAxis hide domain={['dataMin', 'dataMax']} />
+          <Line
+            type="monotone"
+            dataKey="v"
+            stroke={CHART.trend}
+            strokeWidth={1.5}
+            dot={(p) => (p.index === last
+              ? <circle key="end" cx={p.cx} cy={p.cy} r={3} fill={CHART.brand} stroke={CHART.surface} strokeWidth={1.5} />
+              : <g key={p.index} />)}
+            activeDot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   )
 }

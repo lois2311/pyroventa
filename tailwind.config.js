@@ -1,3 +1,5 @@
+import { PAY_COLORS } from './src/lib/chartTheme.js'
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
@@ -28,6 +30,8 @@ export default {
         8: '0.08',
       },
       colors: {
+        // Métodos de pago: mismos valores que usan los gráficos (chartTheme.js)
+        pay: PAY_COLORS,
         brand: {
           50:  '#fff7ed',
           100: '#ffedd5',

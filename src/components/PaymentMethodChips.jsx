@@ -4,7 +4,7 @@ import { formatCOP } from '../lib/format.js'
 const METHODS = [
   { key: 'cash',     label: 'Efectivo',      Icon: Banknote,       classes: 'bg-green-500/20  text-green-400'  },
   { key: 'transfer', label: 'Transferencia', Icon: ArrowRightLeft, classes: 'bg-blue-500/20   text-blue-400'   },
-  { key: 'card',     label: 'Datáfono',      Icon: CreditCard,     classes: 'bg-violet-500/20 text-violet-400' },
+  { key: 'card',     label: 'Datáfono',      Icon: CreditCard,     classes: 'bg-pink-500/20 text-pink-400' },
 ]
 
 const SIZE_CLASSES = {
@@ -14,7 +14,7 @@ const SIZE_CLASSES = {
 
 /**
  * Chips de desglose por método de pago — mismo mapeo de color e iconos en
- * todo el proyecto (verde=efectivo, azul=transferencia, violeta=tarjeta),
+ * todo el proyecto (verde=efectivo, azul=transferencia, rosa=datáfono; ver chartTheme.js),
  * antes duplicado byte a byte en 4 componentes distintos.
  * `withLabel` muestra "Efectivo: $x" (encabezados de modal); si no, solo el monto (listas densas).
  */

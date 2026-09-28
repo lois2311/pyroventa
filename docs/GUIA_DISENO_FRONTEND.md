@@ -94,9 +94,9 @@ Una sola altura para inputs, selects y botones hace que una barra de filtros que
 
 - **Superficies** (de más oscura a más clara): `surface-600` fondo de login/plataforma → `surface-500` fondo de app → `surface-400` barra superior / tarjetas → `surface-300` paneles → `surface-200` modales → `surface-50` chips y pistas de barras.
 - **Marca:** `brand-500` como fondo lleva **texto oscuro** (`text-surface-700`, 7:1). Blanco sobre `brand-500` da 2,8:1 y no pasa AA.
-- **Botones de estado con texto blanco:** tonos `-700` (`green-700` 5,0:1, `blue-700` 6,7:1, `violet-700` 7,1:1, `red-700` 6,5:1). Los `-600` quedan en 3,3:1.
+- **Botones de estado con texto blanco:** tonos `-700` (`green-700` 5,0:1, `blue-700` 6,7:1, `pink-700` 6,0:1, `red-700` 6,5:1). Los `-600` quedan en 3,3:1.
 - **Grises de texto:** `gray-400` es el mínimo para texto sobre las superficies oscuras (≈ 6,8:1). `gray-500` solo para íconos decorativos.
-- **Métodos de pago** (en todo el sistema): verde = efectivo, azul = transferencia, violeta = datáfono. El color va en el ícono o la barra; **el monto va en tinta neutra**.
+- **Métodos de pago** (en todo el sistema): verde = efectivo (`#15803d`), azul = transferencia (`#3b82f6`), **rosa = datáfono** (`#ec4899`). Viven en `src/lib/chartTheme.js` (`PAY_COLORS`) y Tailwind los expone como `bg-pay-cash`, `bg-pay-transfer`, `bg-pay-card`: gráficos, barras, chips y botones usan el mismo valor. Datáfono era violeta, pero con deuteranopía quedaba a ΔE 1,3 del azul de transferencia (indistinguibles en la dona y las barras apiladas); la paleta actual pasa todas las verificaciones del validador (ver §6). El color va en el ícono o la marca; **el monto va en tinta neutra**.
 - `color-scheme: dark` en `:root`: el calendario de `<input type="date">`, los `<select>` y las barras de scroll nativas se dibujan oscuros (antes el ícono del calendario era gris oscuro sobre fondo oscuro).
 
 ### 3.6 Radios, bordes y capas
@@ -135,6 +135,7 @@ Una sola altura para inputs, selects y botones hace que una barra de filtros que
 | `EmptyState` | Estado vacío: ícono, mensaje, ayuda y acciones |
 | `MetricTile` | KPI con count-up, variación vs período anterior (con texto, no solo color) y tamaño por *container query* |
 | `DateRangeBar` | Desde / Hasta + rangos rápidos que marcan cuál está activo |
+| `charts/ChartTooltip` | Tooltip común de Recharts: valor primero, línea llave del color de la serie, total opcional y pie de detalle |
 
 ### 4.3 Hook `useModalA11y`
 
@@ -147,7 +148,7 @@ Devuelve un *callback ref* para el panel del diálogo: atrapa el foco, cierra co
 | Vista | Patrón |
 |---|---|
 | **Administración (shell)** | Barra superior fija. Secciones: barra horizontal desplazable (con fundido en los bordes) en móvil/tablet; sidebar fijo de `14rem` desde `lg`. Contenido en `.page-container` |
-| **Resumen** | `PageHeader` con Actualizar/Exportar → filtros en `.toolbar` → KPIs (el principal a lo ancho; desde `xl`, 5 columnas donde ocupa 2) → pago + categoría lado a lado → gráfico + tabla diaria → rankings en 2 columnas → cajas → puntos |
+| **Resumen** | `PageHeader` con Actualizar/Exportar → filtros en `.toolbar` → KPIs con sparkline (el principal a lo ancho; desde `xl`, 5 columnas donde ocupa 2) → dona de métodos de pago + barras por categoría → ventas por día (Tendencia / Por método) + tabla diaria → rankings en 2 columnas → cajas → puntos |
 | **Usuarios, Puntos, Productos** | Grilla de tarjetas `1 → 2 (sm) → 3 (2xl)`, acciones al pie de cada tarjeta |
 | **Cajas** | Grupos por punto de venta (grilla `1 → 2 → 3`) + sección de cierres con lista agrupada |
 | **Historial** | Filas apiladas en pantallas angostas; desde `xl`, grilla de columnas alineadas con encabezado |
@@ -159,16 +160,35 @@ Devuelve un *callback ref* para el panel del diálogo: atrapa el foco, cierra co
 
 ## 6. Visualización de datos
 
-Reglas aplicadas en `RevenueTrendChart`, `CategoryBreakdown`, `DailyMetrics` y los rankings:
+### 6.1 Stack
 
-- **Texto fuera del SVG estirable.** Con `preserveAspectRatio="none"` solo va geometría (líneas con `vector-effect: non-scaling-stroke`); ejes y tooltips son HTML posicionado en %.
-- **Ticks "bonitos".** Pasos de 1, 2, 2,5 o 5 × 10ⁿ ($500k, $1M, $1,5M) en vez de fracciones del máximo ($321k, $641k).
-- **Línea de 2 px, relleno suave** (≈ 10–16 % de opacidad), punto final fijo con anillo del color de la superficie.
-- **Zona de hover = todo el tramo del día**, no un punto de 8 px; lo mismo con teclado (cada día es un botón con `aria-label` completo).
-- **El tooltip empieza por el valor** y usa tinta neutra; el color de la serie queda para la marca gráfica.
-- **El color sigue a la entidad, nunca a su posición.** "Ventas por categoría" coloreaba por puesto en el ranking (una categoría cambiaba de color al cambiar el rango). Ahora son barras de un solo tono con nombre, valor y porcentaje visibles sin hover.
-- **Siempre hay vista en tabla.** La tabla diaria contiene todo lo que muestra el gráfico.
-- **Recargar conserva el marco.** Mientras se recargan datos, KPIs y listas mantienen lo anterior con opacidad reducida en lugar de volver al esqueleto.
+- **Recharts 3** (`recharts` + `react-is@18`, que debe coincidir con la versión de React). Solo lo importan Administración y el panel de plataforma, que se cargan con `React.lazy`: el bundle inicial de Vender/Caja bajó de 189,5 a 143,8 KB gzip aun sumando la librería, y el service worker precachea los chunks para uso offline.
+- **Tokens en `src/lib/chartTheme.js`**: `PAY_COLORS`/`PAY_KEYS`/`PAY_LABELS` (métodos de pago, orden fijo), `CHART` (marca, grilla, ejes, gris de énfasis, superficie), `AXIS_TICK` (11 px, DM Mono) y `MAX_BAR` (24 px). Tailwind importa el mismo archivo.
+- **`ChartTooltip`** para todos los tooltips y **`usePrefersReducedMotion`**: las animaciones de Recharts corren en JS (la regla CSS global no las alcanza), así que cada gráfico usa `isAnimationActive={!reducedMotion}`.
+
+### 6.2 Gráficos
+
+| Gráfico | Forma | Por qué |
+|---|---|---|
+| Ventas por día — *Tendencia* | Área de un tono, curva `monotone` (no se pasa de los datos), línea de promedio diario, punto final fijo | Tendencia en el tiempo de una sola serie |
+| Ventas por día — *Por método* | Barras apiladas efectivo / transferencia / datáfono, solo el tramo superior redondeado | Parte del todo a lo largo del tiempo |
+| Por método de pago | Dona de ≤ 3 segmentos + leyenda con monto y % | Parte del todo de un vistazo; los valores exactos están en la leyenda, no dependen de leer ángulos |
+| Ventas por categoría | Barras horizontales de un tono, valor y % en la punta, cola agrupada en "Otros" | Comparar magnitudes con nombres largos |
+| Ventas por hora (detalle de vendedor/caja) | Columnas con **énfasis**: la hora pico en naranja con su valor, el resto en gris | La historia es "cuándo se vende más" |
+| KPIs | Sparkline gris con el último punto en el acento | Tendencia de apoyo; la cifra es la protagonista |
+
+### 6.3 Reglas aplicadas
+
+- **Color validado, no a ojo.** Paletas categóricas probadas con `validate_palette.js` (skill de dataviz) sobre la superficie real, todos los pares. El color sigue a la entidad y nunca a su puesto en un ranking.
+- **Marcas finas:** línea de 2 px, relleno ≈ 10–20 %, barras ≤ 24 px con punta de 4 px redondeada, separación de 2 px del color de la superficie entre segmentos y anillo de 2 px en los puntos.
+- **Grilla y ejes recesivos:** líneas de 1 px sólidas, sin línea vertical; ticks con valores "redondos" y formato compacto (`$500k`, `$1,2M`); margen interno en el eje X para que la última etiqueta no se corte.
+- **Un solo eje Y.** Nunca doble eje; las facturas van en el tooltip, no en una segunda escala.
+- **Tooltip:** empieza por el valor en tinta blanca, cada serie con una línea llave de su color, total en las barras apiladas y crosshair / banda de hover que cubre todo el tramo del día.
+- **Dona sin tooltip encima:** al pasar sobre un segmento o su fila de la leyenda, el centro muestra ese método y el resto se atenúa, sin tapar el total.
+- **Teclado:** la capa de accesibilidad de Recharts permite enfocar el gráfico y recorrer los días con las flechas; cada gráfico lleva un `figcaption` oculto con el resumen para lectores de pantalla. Los sparklines son decorativos (`aria-hidden`, sin foco).
+- **Siempre hay vista en tabla o valores rotulados:** la tabla diaria repite todo lo del gráfico de días; dona, categorías y hora pico muestran sus valores sin hover.
+- **Recargar conserva el marco:** mientras llegan datos nuevos, los gráficos quedan con opacidad reducida en vez de volver al esqueleto.
+- **El alto incluye el eje X** (sin scroll interno) y los paneles se adaptan con *container queries* (`.cq` / `.cq-row`): la dona va arriba de su leyenda en un panel angosto y al lado cuando hay espacio.
 
 ---
 
@@ -242,6 +262,9 @@ Antes de dar la vista por terminada, revisa en 390 / 820 / 1280 / 2000 px: sin s
 - Material Design 3 — Type scale: https://m3.material.io/styles/typography/type-scale-tokens
 - Practical Typography — Largo de línea: https://practicaltypography.com/line-length.html
 - Refactoring UI (jerarquía, espaciado, color): https://www.refactoringui.com/
+
+**Gráficos**
+- Recharts — Documentación y API (ver la prop `accessibilityLayer` en los gráficos cartesianos): https://recharts.github.io/
 
 **Accesibilidad**
 - WCAG 2.2: https://www.w3.org/TR/WCAG22/

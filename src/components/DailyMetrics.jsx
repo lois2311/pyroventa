@@ -1,20 +1,15 @@
 import { ArrowRightLeft, Banknote, CheckCircle2, Clock, CreditCard, Wallet } from 'lucide-react'
+import { useState } from 'react'
+import { Cell, Pie, PieChart } from 'recharts'
 import { formatCOP } from '../lib/format.js'
+import { CHART, PAY_COLORS, PAY_KEYS, PAY_LABELS } from '../lib/chartTheme.js'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js'
 import MetricTile from './MetricTile.jsx'
-import ProgressBar from './ProgressBar.jsx'
 import TransferBreakdown from './TransferBreakdown.jsx'
 
-// Mismos iconos y colores que PaymentMethods.jsx (pantalla de cobro): dos
-// lenguajes visuales distintos para cash/transfer/card era la inconsistencia real.
-const PAY_METHODS = [
-  { key: 'cash',     label: 'Efectivo',      Icon: Banknote,       color: 'green'  },
-  { key: 'transfer', label: 'Transferencia', Icon: ArrowRightLeft, color: 'blue'   },
-  { key: 'card',     label: 'Datáfono',      Icon: CreditCard,     color: 'violet' },
-]
-
-// Marca de color junto al texto: el color identifica el método, el texto
-// se queda en tinta neutra (legible sobre la superficie oscura).
-const SWATCH = { green: 'text-green-400', blue: 'text-blue-400', violet: 'text-violet-400' }
+// Mismos íconos que PaymentMethods.jsx (pantalla de cobro) y mismos colores
+// que el resto de la app (chartTheme.js): un solo lenguaje para cash/transfer/card.
+const PAY_ICONS = { cash: Banknote, transfer: ArrowRightLeft, card: CreditCard }
 
 // % vs el período anterior — null si no hay base real para comparar
 // (evita un "+∞%" sin sentido cuando el período previo no tuvo ventas).
@@ -24,6 +19,7 @@ const trendPct = (curr, prev) => (prev > 0 ? ((curr - prev) / prev) * 100 : null
  * KPIs del período. Grilla de 3 columnas con el KPI principal a lo ancho;
  * desde xl, una sola fila de 5 columnas donde el principal ocupa 2.
  * `singleDay` ajusta los textos ("Total del día" / "vs. día anterior").
+ * Con varios días, cada KPI lleva su sparkline del período (by_day).
  */
 export function DailyKpis({ data, loading, singleDay = true }) {
   if (loading && !data) {
@@ -38,9 +34,10 @@ export function DailyKpis({ data, loading, singleDay = true }) {
 
   const {
     total_revenue = 0, invoice_count = 0, avg_ticket = 0,
-    pending_count = 0, cancelled_count = 0, previous = null,
+    pending_count = 0, cancelled_count = 0, previous = null, by_day = [],
   } = data
   const trendLabel = singleDay ? 'vs. día anterior' : 'vs. período anterior'
+  const days = by_day.length > 1 ? by_day : null
 
   return (
     <div className={`grid grid-cols-3 gap-3 transition-opacity sm:gap-4 xl:grid-cols-5 ${loading ? 'opacity-60' : ''}`}>
@@ -54,6 +51,7 @@ export function DailyKpis({ data, loading, singleDay = true }) {
         color="text-brand-400"
         trendPct={previous ? trendPct(total_revenue, previous.total_revenue) : null}
         trendLabel={trendLabel}
+        sparkline={days?.map(d => Number(d.total_revenue) || 0)}
       />
       <MetricTile
         icon={CheckCircle2}
@@ -62,6 +60,7 @@ export function DailyKpis({ data, loading, singleDay = true }) {
         format={(n) => Math.round(n)}
         trendPct={previous ? trendPct(invoice_count, previous.invoice_count) : null}
         trendLabel={trendLabel}
+        sparkline={days?.map(d => Number(d.invoice_count) || 0)}
       />
       <MetricTile
         icon={CreditCard}
@@ -70,6 +69,7 @@ export function DailyKpis({ data, loading, singleDay = true }) {
         format={formatCOP}
         trendPct={previous ? trendPct(avg_ticket, previous.avg_ticket) : null}
         trendLabel={trendLabel}
+        sparkline={days?.map(d => (Number(d.invoice_count) > 0 ? Number(d.total_revenue) / Number(d.invoice_count) : 0))}
       />
       <MetricTile
         icon={Clock}
@@ -83,41 +83,110 @@ export function DailyKpis({ data, loading, singleDay = true }) {
   )
 }
 
-/** Desglose por método de pago, con las transferencias abiertas por billetera. */
+const DONUT = 176 // px; el anillo mide 24px (radio 64 → 88)
+
+/**
+ * Desglose por método de pago: dona (parte del todo de un vistazo, ≤ 3
+ * segmentos) + leyenda con monto y porcentaje de cada método, así ningún
+ * valor depende de leer ángulos. Las transferencias se abren por billetera.
+ * Al pasar sobre un segmento o su fila de la leyenda, el centro de la dona
+ * muestra ese método y el resto se atenúa (en vez de un tooltip que tape el
+ * total).
+ */
 export function PaymentBreakdown({ data, loading, className = '' }) {
-  if (loading && !data) return <div className={`skeleton h-64 rounded-xl ${className}`} />
+  const reducedMotion = usePrefersReducedMotion()
+  const [activeKey, setActiveKey] = useState(null)
+
+  if (loading && !data) return <div className={`skeleton h-72 rounded-xl ${className}`} />
   if (!data) return null
 
   const { total_revenue = 0, by_pay_method = {}, by_transfer_provider = null } = data
+  const rows = PAY_KEYS.map(k => ({
+    key: k,
+    name: PAY_LABELS[k],
+    value: Number(by_pay_method[k] || 0),
+    fill: PAY_COLORS[k],
+  }))
+  const segments = rows.filter(r => r.value > 0)
+  const share = (v) => (total_revenue > 0 ? (v / total_revenue) * 100 : 0)
+  const active = segments.find(r => r.key === activeKey) || null
+  const summary = rows.map(r => `${r.name} ${formatCOP(r.value)} (${share(r.value).toFixed(0)}%)`).join(', ')
 
   return (
-    <div className={`panel ${className}`}>
+    <div className={`panel cq flex flex-col transition-opacity ${loading ? 'opacity-60' : ''} ${className}`}>
       <div className="panel-header">
         <h3 className="panel-title">Por método de pago</h3>
-        <span className="font-mono text-xs tabular-nums text-gray-400">{formatCOP(total_revenue)}</span>
       </div>
-      <ul className="space-y-4 px-4 pb-4 sm:px-5 sm:pb-5">
-        {PAY_METHODS.map(m => {
-          const val = by_pay_method[m.key] || 0
-          const pct = total_revenue > 0 ? (val / total_revenue) * 100 : 0
-          return (
-            <li key={m.key}>
-              <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
-                <span className="flex min-w-0 items-center gap-2 text-gray-300">
-                  <m.Icon className={`h-4 w-4 shrink-0 ${SWATCH[m.color]}`} /> {m.label}
-                </span>
-                <span className="shrink-0 whitespace-nowrap">
-                  <span className="font-mono font-semibold tabular-nums text-white">{formatCOP(val)}</span>
-                  <span className="ml-2 text-xs tabular-nums text-gray-400">{pct.toFixed(0)}%</span>
-                </span>
-              </div>
-              <ProgressBar pct={pct} color={m.color} />
-              {/* Las transferencias se abren por billetera/banco */}
-              {m.key === 'transfer' && <TransferBreakdown data={by_transfer_provider} />}
-            </li>
-          )
-        })}
-      </ul>
+
+      <figure className="cq-row gap-6 px-4 pb-5 sm:px-5">
+        <figcaption className="sr-only">Ventas por método de pago: {summary}.</figcaption>
+
+        {/* Dona con el total al centro */}
+        <div className="relative shrink-0" style={{ width: DONUT, height: DONUT }}>
+          <PieChart width={DONUT} height={DONUT}>
+            <Pie
+              data={segments.length ? segments : [{ key: 'empty', name: 'Sin ventas', value: 1, fill: CHART.grid }]}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={64}
+              outerRadius={88}
+              startAngle={90}
+              endAngle={-270}
+              stroke={CHART.surface}
+              strokeWidth={2}
+              isAnimationActive={!reducedMotion}
+              animationDuration={700}
+              onMouseEnter={(_, index) => segments[index] && setActiveKey(segments[index].key)}
+              onMouseLeave={() => setActiveKey(null)}
+            >
+              {(segments.length ? segments : [{ key: 'empty', fill: CHART.grid }]).map(s => (
+                <Cell
+                  key={s.key}
+                  fill={s.fill}
+                  fillOpacity={active && active.key !== s.key ? 0.3 : 1}
+                  style={{ transition: 'fill-opacity 150ms', outline: 'none' }}
+                />
+              ))}
+            </Pie>
+          </PieChart>
+          {/* Centro: total, o el método activo con su monto y porcentaje */}
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center" aria-live="polite">
+            <span className="eyebrow">{active ? active.name : 'Total'}</span>
+            <span className="mt-0.5 font-mono text-base font-bold tabular-nums text-white">
+              {formatCOP(active ? active.value : total_revenue)}
+            </span>
+            {active && <span className="text-2xs tabular-nums text-gray-400">{share(active.value).toFixed(1)}% del total</span>}
+          </div>
+        </div>
+
+        {/* Leyenda con valores: la lectura exacta no depende de la dona */}
+        <ul className="w-full min-w-0 flex-1 space-y-2">
+          {rows.map(r => {
+            const Icon = PAY_ICONS[r.key]
+            return (
+              <li
+                key={r.key}
+                onMouseEnter={() => r.value > 0 && setActiveKey(r.key)}
+                onMouseLeave={() => setActiveKey(null)}
+                className={`-mx-2 rounded-lg px-2 py-0.5 transition-colors ${activeKey === r.key ? 'bg-white/[0.04]' : ''}`}
+              >
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="flex min-w-0 items-center gap-2 text-gray-300">
+                    <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: r.fill }} />
+                    <Icon className="h-4 w-4 shrink-0 text-gray-400" />
+                    <span className="truncate">{r.name}</span>
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap">
+                    <span className="font-mono font-semibold tabular-nums text-white">{formatCOP(r.value)}</span>
+                    <span className="ml-2 inline-block w-9 text-right text-xs tabular-nums text-gray-400">{share(r.value).toFixed(0)}%</span>
+                  </span>
+                </div>
+                {r.key === 'transfer' && <TransferBreakdown data={by_transfer_provider} />}
+              </li>
+            )
+          })}
+        </ul>
+      </figure>
     </div>
   )
 }

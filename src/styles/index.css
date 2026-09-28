@@ -285,6 +285,23 @@
   }
 }
 
+/* Contenido que se acomoda según el ancho de SU panel (container queries),
+   no el de la ventana: la dona de métodos de pago va arriba de su leyenda en
+   un panel angosto y al lado cuando el panel tiene espacio, esté donde esté. */
+.cq {
+  container-type: inline-size;
+}
+.cq-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+@container (min-width: 26rem) {
+  .cq-row {
+    flex-direction: row;
+  }
+}
+
 /* Aviso para pantallas ultra compactas */
 @media (max-width: 359px) {
   #compact-viewport-hint {
