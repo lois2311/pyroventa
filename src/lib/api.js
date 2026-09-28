@@ -7,17 +7,41 @@ const REQUEST_TIMEOUT = 15000 // 15 segundos
 const MAX_RETRIES = 2
 const RETRY_DELAY = 1500 // ms base, se multiplica por intento
 
+function canceledError() {
+  const err = new Error('Solicitud cancelada')
+  err.name = 'AbortError'
+  err.canceled = true
+  return err
+}
+
+/** Espera entre reintentos que se corta si el pedido se cancela. */
+function wait(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => { clearTimeout(t); reject(canceledError()) }, { once: true })
+  })
+}
+
+/**
+ * `options.signal` (opcional): AbortSignal externo. Lo usa useApi para cancelar
+ * el pedido anterior al cambiar filtros o al desmontar; un pedido cancelado
+ * lanza un error con `canceled = true` y no se reintenta.
+ */
 async function request(method, path, body, options = {}) {
-  const { retries = MAX_RETRIES, timeout = REQUEST_TIMEOUT, skipAuthRedirect = false } = options
+  const { retries = MAX_RETRIES, timeout = REQUEST_TIMEOUT, skipAuthRedirect = false, signal } = options
   const token = localStorage.getItem('pv_token')
 
   let lastError = null
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), timeout)
+    if (signal?.aborted) throw canceledError()
 
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeout)
+    const onAbort = () => controller.abort()
+    signal?.addEventListener('abort', onAbort, { once: true })
+
+    try {
       const res = await fetch(`${BASE}${path}`, {
         method,
         headers: {
@@ -27,8 +51,6 @@ async function request(method, path, body, options = {}) {
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,
       })
-
-      clearTimeout(timer)
 
       if (!res.ok) {
         let message = `Error HTTP ${res.status}`
@@ -50,14 +72,19 @@ async function request(method, path, body, options = {}) {
           const { useAuthStore } = await import('../store/authStore.js')
           useAuthStore.getState().logout()
           window.location.href = '/login'
+          err.noRetry = true
           throw err
         }
         // Licencia vencida / empresa suspendida → evento global para bloquear la app
         if (res.status === 403 && ['LICENSE_EXPIRED', 'TENANT_SUSPENDED', 'LICENSE_NOT_STARTED'].includes(code)) {
           window.dispatchEvent(new CustomEvent('pv:license-error', { detail: { code, message } }))
         }
-        // No reintentar errores de cliente (4xx) excepto 408/429
+        // No reintentar errores de cliente (4xx) excepto 408/429: la respuesta
+        // no va a cambiar. Antes este throw lo atrapaba el catch de abajo y se
+        // reintentaba igual: un PIN equivocado contaba como 3 intentos para el
+        // bloqueo por fuerza bruta (5 en 15 min) y el error tardaba ~4,5 s.
         if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+          err.noRetry = true
           throw err
         }
         lastError = err
@@ -66,6 +93,8 @@ async function request(method, path, body, options = {}) {
         return await res.json()
       }
     } catch (err) {
+      if (err.noRetry) throw err
+      if (signal?.aborted) throw canceledError()
       lastError = err
       if (err.name === 'AbortError') {
         lastError = new Error('Tiempo de espera agotado — verifica tu conexión')
@@ -76,11 +105,14 @@ async function request(method, path, body, options = {}) {
         lastError = new Error('Sin conexión a internet')
         lastError.offline = true
       }
+    } finally {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
     }
 
     // Esperar antes de reintentar (exponential backoff)
     if (attempt < retries) {
-      await new Promise(r => setTimeout(r, RETRY_DELAY * (attempt + 1)))
+      await wait(RETRY_DELAY * (attempt + 1), signal)
     }
   }
 
