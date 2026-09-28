@@ -88,7 +88,7 @@ export default function NetworkBanner() {
   // Verde: reconectado OK
   if (online && wasOffline && !syncing && syncResult) {
     return (
-      <div className="fixed top-14 left-0 right-0 z-[100] bg-green-600 text-white text-xs text-center py-1.5 px-3 animate-fade-in">
+      <div className="fixed top-14 left-0 right-0 z-[100] bg-green-700 text-white text-xs text-center py-1.5 px-3 animate-fade-in">
         ✅ Reconectado — {syncResult.synced} operación(es) sincronizada(s)
         {syncResult.failed > 0 && `, ${syncResult.failed} fallida(s)`}
       </div>
@@ -98,7 +98,7 @@ export default function NetworkBanner() {
   // Amarillo: sincronizando
   if (syncing) {
     return (
-      <div className="fixed top-14 left-0 right-0 z-[100] bg-yellow-600 text-white text-xs text-center py-1.5 px-3 animate-fade-in">
+      <div className="fixed top-14 left-0 right-0 z-[100] bg-yellow-700 text-white text-xs text-center py-1.5 px-3 animate-fade-in">
         🔄 Sincronizando {queueSize} operación(es) pendiente(s)...
       </div>
     )
@@ -107,7 +107,7 @@ export default function NetworkBanner() {
   // Rojo: sin conexión
   if (!online) {
     return (
-      <div className="fixed top-14 left-0 right-0 z-[100] bg-red-600 text-white text-xs text-center py-1.5 px-3">
+      <div className="fixed top-14 left-0 right-0 z-[100] bg-red-700 text-white text-xs text-center py-1.5 px-3">
         📡 Sin conexión — Las ventas se guardarán localmente y se sincronizarán al reconectar
         {queueSize > 0 && <span className="font-bold ml-2">({queueSize} pendiente{queueSize !== 1 ? 's' : ''})</span>}
       </div>
@@ -117,7 +117,7 @@ export default function NetworkBanner() {
   // Indicador de cola pendiente (online pero con operaciones sin sincronizar)
   if (queueSize > 0 && online) {
     return (
-      <div className="fixed top-14 left-0 right-0 z-[100] bg-yellow-600/90 text-white text-xs text-center py-1.5 px-3">
+      <div className="fixed top-14 left-0 right-0 z-[100] bg-yellow-700 text-white text-xs text-center py-1.5 px-3">
         ⚠️ {queueSize} operación(es) pendiente(s) de sincronizar
         <button
           onClick={() => window.location.reload()}

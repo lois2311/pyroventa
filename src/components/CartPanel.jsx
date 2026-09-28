@@ -3,7 +3,7 @@ import { ShoppingCart, Ticket, X, Pencil, RotateCcw, MapPin } from 'lucide-react
 import { useCartStore }    from '../store/cartStore.js'
 import { useAuthStore }    from '../store/authStore.js'
 import { formatCOP }       from '../lib/format.js'
-import { useModalA11y }    from '../hooks/useModalA11y.js'
+import Modal               from './Modal.jsx'
 
 export default function CartPanel({ onCheckout, loading }) {
   const { items, updateQty, updatePrice, resetPrice, removeItem, total, clear } = useCartStore()
@@ -14,9 +14,11 @@ export default function CartPanel({ onCheckout, loading }) {
   if (!items.length) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-400">
-        <ShoppingCart className="w-10 h-10 mb-3" />
-        <p className="text-sm font-medium">Carrito vacío</p>
-        <p className="text-xs mt-1">Selecciona productos del catálogo</p>
+        <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-surface-300">
+          <ShoppingCart className="h-6 w-6" />
+        </span>
+        <p className="text-sm font-medium text-gray-200">Carrito vacío</p>
+        <p className="mt-1 text-xs">Toca una presentación del catálogo para agregarla</p>
       </div>
     )
   }
@@ -24,20 +26,21 @@ export default function CartPanel({ onCheckout, loading }) {
   return (
     <div className="flex flex-col h-full relative">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-        <span className="font-semibold text-sm text-white">
-          Carrito <span className="text-gray-400 font-normal">({items.length} ítem{items.length !== 1 ? 's' : ''})</span>
-        </span>
+      <div className="flex items-center justify-between gap-2 border-b border-white/5 px-4 py-2.5">
+        <h2 className="text-sm font-semibold text-white">
+          Carrito <span className="font-normal text-gray-400">({items.length} ítem{items.length !== 1 ? 's' : ''})</span>
+        </h2>
         <button
+          type="button"
           onClick={clear}
-          className="text-xs text-gray-400 hover:text-red-400 transition-colors"
+          className="btn-ghost btn-sm -mr-2 text-gray-400 hover:text-red-400"
         >
           Limpiar
         </button>
       </div>
 
       {/* Lista de items */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-1.5">
+      <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2">
         {items.map(item => (
           <CartItem
             key={item.presentationId}
@@ -51,17 +54,18 @@ export default function CartPanel({ onCheckout, loading }) {
       </div>
 
       {/* Total + botón */}
-      <div className="p-3 border-t border-white/5 bg-surface-500 flex flex-col gap-2">
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-gray-400">Total</span>
-          <span className="font-bold text-base font-mono text-white">
+      <div className="flex flex-col gap-3 border-t border-white/5 bg-surface-500 p-4">
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm text-gray-400">Total</span>
+          <span className="font-mono text-2xl font-bold tabular-nums text-white">
             {formatCOP(cartTotal)}
           </span>
         </div>
         <button
+          type="button"
           onClick={onCheckout}
           disabled={loading || !items.length}
-          className="w-full py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-400 text-white disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-brand-500/20 active:scale-[0.98]"
+          className="btn-primary btn-lg w-full"
         >
           {loading ? (
             <span className="flex items-center gap-2">
@@ -99,78 +103,90 @@ export default function CartPanel({ onCheckout, loading }) {
 }
 
 // ---- Item individual ------------------------------------
+// Dos filas: nombre + subtotal arriba (el nombre ya no se corta a 12
+// caracteres), detalle + controles abajo. Los botones de cantidad miden
+// 32px (antes 24px), cómodos para el dedo en tablet.
 function CartItem({ item, onUpdateQty, onEditPrice, canEditPrice, onRemove }) {
   return (
-    <div className="bg-surface-400 rounded-lg px-3 py-2 flex items-center gap-2">
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-white truncate">{item.productName}</p>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="text-[11px] text-gray-400">
-            {item.label} · {formatCOP(item.price)}
-          </p>
-          {item.is_price_edited && (
-            <span className="text-[9px] bg-amber-500/20 text-amber-300 font-medium px-1.5 py-0.2 rounded border border-amber-500/30">
-              Editado (Base: {formatCOP(item.original_price)})
-            </span>
-          )}
-          {item.is_location_price && !item.is_price_edited && (
-            <span
-              className="text-[9px] bg-brand-500/20 text-brand-300 font-medium px-1.5 py-0.2 rounded border border-brand-500/30 inline-flex items-center gap-0.5"
-              title={`Precio de este punto (empresa: ${formatCOP(item.company_price)})`}
-            >
-              <MapPin className="w-2.5 h-2.5" /> Precio de este punto
-            </span>
-          )}
-        </div>
-        {item.is_price_edited && item.price_edit_reason && (
-          <p className="text-[10px] text-gray-400 italic truncate mt-0.5">
-            Motivo: {item.price_edit_reason}
-          </p>
+    <div className="rounded-lg border border-white/5 bg-surface-400 px-3 py-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 text-sm font-medium leading-snug text-white">{item.productName}</p>
+        <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-brand-400">
+          {formatCOP(item.subtotal)}
+        </span>
+      </div>
+
+      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+        <p className="text-xs text-gray-400">
+          {item.label} · {formatCOP(item.price)}
+        </p>
+        {item.is_price_edited && (
+          <span className="rounded border border-amber-500/30 bg-amber-500/20 px-1.5 py-px text-2xs font-medium text-amber-300">
+            Editado (Base: {formatCOP(item.original_price)})
+          </span>
+        )}
+        {item.is_location_price && !item.is_price_edited && (
+          <span
+            className="inline-flex items-center gap-0.5 rounded border border-brand-500/30 bg-brand-500/20 px-1.5 py-px text-2xs font-medium text-brand-300"
+            title={`Precio de este punto (empresa: ${formatCOP(item.company_price)})`}
+          >
+            <MapPin className="h-2.5 w-2.5" /> Precio de este punto
+          </span>
         )}
       </div>
-
-      {/* Botón editar precio (solo superadministrador) */}
-      {canEditPrice && (
-        <button
-          onClick={onEditPrice}
-          title="Editar precio unitario (Superadmin)"
-          aria-label={`Editar precio de ${item.productName}`}
-          className="w-7 h-7 rounded-md text-gray-400 hover:text-brand-400 hover:bg-surface-100 flex items-center justify-center transition-colors"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
+      {item.is_price_edited && item.price_edit_reason && (
+        <p className="mt-0.5 truncate text-2xs italic text-gray-400">
+          Motivo: {item.price_edit_reason}
+        </p>
       )}
 
-      {/* Controles cantidad */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="mt-2 flex items-center gap-1">
+        {/* Controles cantidad */}
+        <div className="flex items-center rounded-lg border border-white/10 bg-surface-300">
+          <button
+            type="button"
+            onClick={() => onUpdateQty(item.qty - 1)}
+            aria-label={`Quitar una unidad de ${item.productName}`}
+            className="flex h-8 w-8 items-center justify-center rounded-l-lg text-lg text-gray-300 transition-colors hover:bg-surface-50 hover:text-white"
+          >
+            −
+          </button>
+          <span className="w-8 text-center font-mono text-sm font-semibold tabular-nums text-white" aria-live="polite">{item.qty}</span>
+          <button
+            type="button"
+            onClick={() => onUpdateQty(item.qty + 1)}
+            aria-label={`Agregar una unidad de ${item.productName}`}
+            className="flex h-8 w-8 items-center justify-center rounded-r-lg text-lg text-gray-300 transition-colors hover:bg-brand-500/20 hover:text-brand-300"
+          >
+            +
+          </button>
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Botón editar precio (solo superadministrador) */}
+        {canEditPrice && (
+          <button
+            type="button"
+            onClick={onEditPrice}
+            title="Editar precio unitario (Superadmin)"
+            aria-label={`Editar precio de ${item.productName}`}
+            className="btn-ghost btn-icon btn-sm text-gray-400 hover:text-brand-400"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {/* Eliminar */}
         <button
-          onClick={() => onUpdateQty(item.qty - 1)}
-          className="w-6 h-6 rounded-md bg-surface-50 hover:bg-surface-100 text-gray-400 hover:text-white text-sm flex items-center justify-center transition-colors"
+          type="button"
+          onClick={onRemove}
+          className="btn-ghost btn-icon btn-sm text-gray-400 hover:text-red-400"
+          aria-label={`Quitar ${item.productName}`}
         >
-          −
-        </button>
-        <span className="w-6 text-center text-sm font-mono font-semibold text-white">{item.qty}</span>
-        <button
-          onClick={() => onUpdateQty(item.qty + 1)}
-          className="w-6 h-6 rounded-md bg-surface-50 hover:bg-brand-500/30 text-gray-400 hover:text-brand-400 text-sm flex items-center justify-center transition-colors"
-        >
-          +
+          <X className="h-4 w-4" />
         </button>
       </div>
-
-      {/* Subtotal */}
-      <span className="text-xs font-mono font-semibold text-brand-400 w-16 text-right shrink-0">
-        {formatCOP(item.subtotal)}
-      </span>
-
-      {/* Eliminar */}
-      <button
-        onClick={onRemove}
-        className="text-gray-400 hover:text-red-400 transition-colors p-1.5 -m-1 ml-0.5"
-        aria-label={`Quitar ${item.productName}`}
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
     </div>
   )
 }
@@ -185,8 +201,7 @@ const COMMON_REASONS = [
 ]
 
 function EditPriceModal({ item, onClose, onSave, onReset }) {
-  const titleId = useId()
-  const panelRef = useModalA11y(onClose)
+  const fid = useId()
   const basePrice = item.original_price ?? item.base_price ?? item.price
 
   const [priceStr, setPriceStr] = useState(String(item.price))
@@ -204,92 +219,77 @@ function EditPriceModal({ item, onClose, onSave, onReset }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="card bg-surface-200 border border-white/10 w-full max-w-sm space-y-4 shadow-2xl animate-scale-in"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-white/5 pb-2">
-          <div>
-            <h3 id={titleId} className="font-syne font-bold text-white text-base">Modificar precio unitario</h3>
-            <p className="text-xs text-gray-400 truncate max-w-[240px]">{item.productName} ({item.label})</p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-1" aria-label="Cerrar">
-            <X className="w-5 h-5" />
+    <Modal
+      title="Modificar precio unitario"
+      description={`${item.productName} (${item.label})`}
+      icon={Pencil}
+      size="sm"
+      onClose={onClose}
+      onSubmit={handleSave}
+      footer={<>
+        {item.is_price_edited && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="btn-ghost text-amber-400 hover:text-amber-300 sm:mr-auto"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> Restablecer
           </button>
-        </div>
+        )}
+        <button type="button" onClick={onClose} className="btn-ghost">
+          Cancelar
+        </button>
+        <button type="submit" className="btn-primary">
+          Guardar precio
+        </button>
+      </>}
+    >
+      <div className="flex items-center justify-between rounded-lg border border-white/5 bg-surface-300 px-3 py-2.5 text-xs">
+        <span className="text-gray-400">Precio base de catálogo</span>
+        <span className="font-mono font-semibold text-white">{formatCOP(basePrice)}</span>
+      </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-xs bg-surface-300 p-2.5 rounded-lg border border-white/5">
-            <span className="text-gray-400">Precio base de catálogo:</span>
-            <span className="font-mono font-semibold text-white">{formatCOP(basePrice)}</span>
-          </div>
+      <div>
+        <label htmlFor={`${fid}-price`} className="field-label">Nuevo precio unitario ($)</label>
+        <input
+          id={`${fid}-price`}
+          type="number"
+          min="0"
+          step="100"
+          inputMode="numeric"
+          value={priceStr}
+          onChange={e => { setPriceStr(e.target.value); setError('') }}
+          placeholder="0"
+          autoFocus
+          className="input font-mono text-lg font-bold text-brand-400"
+        />
+        {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+      </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-300 mb-1">Nuevo precio unitario ($)</label>
-            <input
-              type="number"
-              min="0"
-              step="100"
-              value={priceStr}
-              onChange={e => { setPriceStr(e.target.value); setError('') }}
-              placeholder="0"
-              autoFocus
-              className="input font-mono text-lg font-bold text-brand-400 w-full"
-            />
-            {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-300 mb-1">Motivo / Justificación</label>
-            <input
-              type="text"
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              placeholder="Ej: Descuento autorizado por volumen..."
-              className="input text-xs w-full mb-1.5"
-            />
-            <div className="flex flex-wrap gap-1">
-              {COMMON_REASONS.map(r => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setReason(r)}
-                  className="text-[10px] bg-surface-400 hover:bg-surface-300 text-gray-300 hover:text-white px-2 py-0.5 rounded transition-colors"
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-2 border-t border-white/5 gap-2">
-          {item.is_price_edited ? (
+      <div>
+        <label htmlFor={`${fid}-reason`} className="field-label">Motivo / justificación</label>
+        <input
+          id={`${fid}-reason`}
+          type="text"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Ej: Descuento autorizado por volumen..."
+          className="input"
+        />
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {COMMON_REASONS.map(r => (
             <button
+              key={r}
               type="button"
-              onClick={onReset}
-              className="btn btn-ghost text-xs text-amber-400 hover:text-amber-300 inline-flex items-center gap-1"
+              onClick={() => setReason(r)}
+              aria-pressed={reason === r}
+              className="chip"
             >
-              <RotateCcw className="w-3 h-3" /> Restablecer
+              {r}
             </button>
-          ) : <div />}
-
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="btn btn-ghost text-xs">
-              Cancelar
-            </button>
-            <button type="button" onClick={handleSave} className="btn btn-primary text-xs">
-              Guardar precio
-            </button>
-          </div>
+          ))}
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

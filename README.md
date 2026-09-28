@@ -332,6 +332,7 @@ El catálogo de productos se cachea en `localStorage` con TTL de 5 minutos por p
 ## Documentación Técnica y Arquitectura
 
 - 🏗️ [**Plan de Mejora Arquitectónica del Backend**](./docs/PLAN_MEJORA_ARQUITECTURA_BACKEND.md): Diagnóstico del backend actual, modularización de controladores, colas asíncronas (Outbox pattern) y estrategia de alta escala.
+- 🎨 [**Guía de diseño del frontend**](./docs/GUIA_DISENO_FRONTEND.md): Tokens (breakpoints, contenedor, alturas de control, tipografía, contraste), clases y componentes compartidos (`PageHeader`, `Modal`, `EmptyState`), patrones de layout por vista y checklist de accesibilidad.
 
 ---
 

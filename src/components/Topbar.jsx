@@ -49,11 +49,12 @@ export default function Topbar({ title }) {
 
   return (
     <>
-      <header className="h-14 bg-surface-400 border-b border-white/5 flex items-center px-3 sm:px-4 gap-2 sm:gap-3 shrink-0 z-40">
+      <header className="sticky top-0 z-40 h-14 shrink-0 bg-surface-400 border-b border-white/5 flex items-center px-3 sm:px-4 lg:px-5 gap-2 sm:gap-3">
         <button
           onClick={() => setDrawerOpen(true)}
-          className="btn-touch-safe inline-flex md:hidden items-center justify-center rounded-lg text-gray-300 hover:text-white hover:bg-surface-50 px-2"
-          aria-label="Abrir menu"
+          className="btn btn-ghost btn-icon md:hidden -ml-1"
+          aria-label="Abrir menú"
+          aria-expanded={drawerOpen}
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -68,7 +69,7 @@ export default function Topbar({ title }) {
         )}
 
         {cartCount > 0 && (
-          <span className="bg-brand-500/90 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-1 inline-flex items-center gap-1">
+          <span className="bg-brand-500 text-surface-700 text-xs font-bold rounded-full px-2 py-0.5 ml-1 inline-flex items-center gap-1">
             <ShoppingCart className="w-3 h-3" />
             {cartCount}
           </span>
@@ -76,20 +77,21 @@ export default function Topbar({ title }) {
 
         <div className="flex-1" />
 
-        <div className="hidden md:flex items-center gap-2">
+        <nav aria-label="Módulos" className="hidden md:flex items-center gap-1">
           {navLinks.map(link => {
             const active = route.pathname === link.path
             return (
               <button
                 key={link.path}
                 onClick={() => navigate(link.path)}
-                className={`text-xs transition-colors px-2 py-1 rounded-md ${active ? 'text-white bg-surface-50' : 'text-gray-400 hover:text-white hover:bg-surface-50'}`}
+                aria-current={active ? 'page' : undefined}
+                className={`inline-flex min-h-[var(--control-h-sm)] items-center rounded-lg px-3 text-sm transition-colors ${active ? 'text-white bg-surface-50' : 'text-gray-400 hover:text-white hover:bg-surface-50'}`}
               >
                 {link.label}
               </button>
             )
           })}
-        </div>
+        </nav>
 
         {seller?.role === 'owner' && locations.length > 0 ? (
           <label className="hidden sm:flex items-center gap-1.5 bg-brand-500/15 border border-brand-500/30 rounded-lg px-2 py-1 max-w-[240px]">
@@ -128,7 +130,7 @@ export default function Topbar({ title }) {
             <button
               onClick={handleLogout}
               className="btn btn-ghost btn-sm text-gray-400 hover:text-red-400"
-              title="Cerrar sesion"
+              title="Cerrar sesión"
             >
               <LogOut className="w-4 h-4" />
               Salir
@@ -142,7 +144,7 @@ export default function Topbar({ title }) {
           <button
             className="absolute inset-0 bg-black/70"
             onClick={() => setDrawerOpen(false)}
-            aria-label="Cerrar menu"
+            aria-label="Cerrar menú"
           />
           <aside className="absolute left-0 top-0 h-full w-72 max-w-[85vw] bg-surface-300 border-r border-white/10 p-4 flex flex-col gap-4">
             <div className="flex items-center justify-between">
@@ -207,10 +209,10 @@ export default function Topbar({ title }) {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="btn btn-ghost w-full justify-start text-gray-300 hover:text-red-400 border border-white/10"
+                  className="btn-outline w-full justify-start text-gray-300 hover:text-red-400"
                 >
                   <LogOut className="w-4 h-4" />
-                  Cerrar sesion
+                  Cerrar sesión
                 </button>
               </div>
             )}

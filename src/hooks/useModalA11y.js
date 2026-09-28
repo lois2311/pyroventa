@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -12,26 +12,42 @@ const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), in
  *
  * Uso: pasar el ref devuelto al panel visible (la card interior, no el
  * backdrop) junto con `role="dialog" aria-modal="true" aria-labelledby`.
+ * Es un callback ref: el hook puede llamarse cuando el panel todavía no está
+ * montado (p. ej. la hoja del carrito en VendedorPage) y se activa al aparecer.
  */
 export function useModalA11y(onClose) {
-  const panelRef = useRef(null)
+  const [panel, setPanel] = useState(null)
+  // onClose suele llegar como función inline (nueva en cada render del padre).
+  // Con una ref el efecto corre solo al montar/desmontar el panel: si
+  // dependiera de onClose, cada re-render devolvería el foco al botón que abrió
+  // el modal y lo mandaría al primer campo, en medio de lo que se escribe.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
-    const panel = panelRef.current
     if (!panel) return
     const previouslyFocused = document.activeElement
 
     const focusables = () => Array.from(panel.querySelectorAll(FOCUSABLE))
       .filter(el => el.offsetParent !== null) // solo los visibles
 
-    const first = focusables()[0]
-    if (first) first.focus()
-    else panel.focus()
+    // Foco inicial: respeta un autoFocus que ya haya ocurrido dentro del
+    // panel; si no, el primer control marcado con data-autofocus o el primer
+    // enfocable que no sea el botón de cerrar (la "X" del encabezado va
+    // primero en el DOM, pero el usuario quiere empezar por el formulario).
+    if (!panel.contains(document.activeElement)) {
+      const items = focusables()
+      const first = panel.querySelector('[data-autofocus]')
+        || items.find(el => !el.hasAttribute('data-modal-close'))
+        || items[0]
+      if (first) first.focus()
+      else panel.focus()
+    }
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onClose?.()
+        onCloseRef.current?.()
         return
       }
       if (e.key !== 'Tab') return
@@ -52,7 +68,7 @@ export function useModalA11y(onClose) {
         previouslyFocused.focus()
       }
     }
-  }, [onClose])
+  }, [panel])
 
-  return panelRef
+  return setPanel
 }

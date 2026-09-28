@@ -8,12 +8,14 @@
  */
 export function formatCOP(amount) {
   if (amount == null || isNaN(amount)) return '$0'
+  const rounded = Math.round(amount)
   const formatted = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(Math.round(amount))
-  // es-CO usa punto como separador de miles
-  return '$' + formatted
+  }).format(Math.abs(rounded))
+  // es-CO usa punto como separador de miles. El signo va antes del símbolo:
+  // "-$5.000", no "$-5.000" (diferencias de cierre, ajustes de auditoría).
+  return (rounded < 0 ? '-' : '') + '$' + formatted
 }
 
 /**
@@ -45,6 +47,51 @@ export function formatDateShort(dateString) {
     month: '2-digit',
     year:  'numeric',
   })
+}
+
+const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+const WEEKDAYS_SHORT = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+
+/**
+ * Día de una fecha ISO (YYYY-MM-DD) en formato corto colombiano, sin pasar
+ * por Date (así no se corre un día por zona horaria).
+ * Ejemplo: "2026-09-23" → "23 sep"; con weekday → "mié 23 sep"
+ */
+export function formatDayShort(isoDay, { weekday = false } = {}) {
+  if (!isoDay) return ''
+  const [y, m, d] = String(isoDay).slice(0, 10).split('-').map(Number)
+  if (!y || !m || !d) return String(isoDay)
+  const base = `${d} ${MONTHS_SHORT[m - 1]}`
+  if (!weekday) return base
+  // Date.UTC + getUTCDay: el día de la semana del calendario, sin zona horaria
+  return `${WEEKDAYS_SHORT[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${base}`
+}
+
+/**
+ * Rango de fechas ISO legible para encabezados.
+ * Ejemplo: ("2026-09-22", "2026-09-28") → "22 sep – 28 sep 2026"
+ *          ("2026-09-28", "2026-09-28") → "28 sep 2026"
+ */
+export function formatRangeLabel(from, to) {
+  if (!from) return ''
+  const yearOf = (iso) => String(iso).slice(0, 4)
+  if (!to || from === to) return `${formatDayShort(from)} ${yearOf(from)}`
+  const sameYear = yearOf(from) === yearOf(to)
+  return `${formatDayShort(from)}${sameYear ? '' : ` ${yearOf(from)}`} – ${formatDayShort(to)} ${yearOf(to)}`
+}
+
+/**
+ * Monto compacto para ejes y etiquetas angostas: $950, $40k, $1,2M.
+ * formatCOP completo se reserva para tooltips y tablas, donde hay espacio.
+ */
+export function formatCOPShort(n) {
+  const v = Number(n) || 0
+  const abs = Math.abs(v)
+  const sign = v < 0 ? '-' : ''
+  const trim = (x) => x.toFixed(1).replace(/\.0$/, '').replace('.', ',')
+  if (abs >= 1_000_000) return `${sign}$${trim(abs / 1_000_000)}M`
+  if (abs >= 1_000) return `${sign}$${Math.round(abs / 1000)}k`
+  return `${sign}$${Math.round(abs)}`
 }
 
 /**

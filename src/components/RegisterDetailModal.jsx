@@ -51,10 +51,10 @@ export default function RegisterDetailModal({ registerId, registerName, from, to
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div
         ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-2xl my-4 space-y-5 animate-scale-in"
+        className="modal-panel sm:max-w-2xl p-5 space-y-5"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -153,16 +153,16 @@ export default function RegisterDetailModal({ registerId, registerName, from, to
                         <span className="font-mono font-bold text-brand-400 text-base">#{inv.code}</span>
                         <span className={STATUS_STYLES[inv.status]}>{STATUS_LABEL[inv.status]}</span>
                         {inv.pay_method && (
-                          <span className="text-[10px] text-gray-400">{payMethodLabel(inv.pay_method, inv.transfer_provider)}</span>
+                          <span className="text-2xs text-gray-400">{payMethodLabel(inv.pay_method, inv.transfer_provider)}</span>
                         )}
                         <span className="flex-1" />
                         <span className="font-mono font-semibold text-white text-sm">{formatCOP(inv.total)}</span>
-                        <span className="text-[10px] text-gray-400 font-mono">
+                        <span className="text-2xs text-gray-400 font-mono">
                           {new Date(inv.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </span>
                       </div>
                       {inv.seller_name && (
-                        <p className="text-[10px] text-gray-400 mt-0.5">Vendió: {inv.seller_name}</p>
+                        <p className="text-2xs text-gray-400 mt-0.5">Vendió: {inv.seller_name}</p>
                       )}
                     </button>
 
@@ -183,11 +183,11 @@ export default function RegisterDetailModal({ registerId, registerName, from, to
                           <span className="font-mono text-brand-400">{formatCOP(inv.total)}</span>
                         </div>
                         {inv.paid_at && (
-                          <p className="text-[10px] text-gray-400 mt-1">
+                          <p className="text-2xs text-gray-400 mt-1">
                             Cobrada: {formatDate(inv.paid_at)}
                           </p>
                         )}
-                        <p className="text-[10px] text-gray-400">
+                        <p className="text-2xs text-gray-400">
                           Creada: {formatDate(inv.created_at)}
                         </p>
                       </div>

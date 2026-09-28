@@ -52,7 +52,7 @@ export default function PrintButton({ invoice }) {
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
         disabled={loading}
-        className="btn btn-ghost border border-white/10 gap-2"
+        className="btn-outline gap-2"
       >
         {loading ? (
           <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">

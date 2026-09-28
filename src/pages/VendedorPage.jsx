@@ -13,6 +13,12 @@ import CodeDisplay     from '../components/CodeDisplay.jsx'
 import SuccessAnimation from '../components/SuccessAnimation.jsx'
 import { useToast }    from '../components/Toast.jsx'
 import { useModalA11y } from '../hooks/useModalA11y.js'
+import EmptyState      from '../components/EmptyState.jsx'
+
+// Grilla fluida: tantas columnas de ≥16rem como quepan junto al carrito
+// (1 en teléfono, 2 en tablet, 3 en laptop, 4–5 en monitores anchos).
+// min(100%, …) evita desbordar en pantallas más angostas que 16rem.
+const PRODUCT_GRID = 'grid gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))]'
 
 export default function VendedorPage() {
   const { seller, location } = useAuthStore()
@@ -165,7 +171,7 @@ export default function VendedorPage() {
   const cartCount = count()
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-[#111] overflow-hidden">
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
       <Topbar title="Vender" />
 
       {/* ---- DESKTOP: 2 columnas ---- */}
@@ -175,15 +181,19 @@ export default function VendedorPage() {
         <div className="flex-1 flex flex-col min-w-0 min-h-0 md:border-r md:border-white/5">
 
           {/* Buscador + filtros */}
-          <div className="px-3 sm:px-4 py-3 border-b border-white/5 space-y-3">
-            <input
-              type="search"
-              placeholder="Buscar producto..."
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              className="input"
-            />
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="space-y-3 border-b border-white/5 px-3 py-3 sm:px-4 lg:px-5">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+              <input
+                type="search"
+                placeholder="Buscar producto..."
+                aria-label="Buscar producto"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                className="input pl-9"
+              />
+            </div>
+            <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 scrollbar-hide sm:-mx-4 sm:px-4 lg:-mx-5 lg:px-5">
               <CatChip
                 active={catFilter === 'all'}
                 onClick={() => setCatFilter('all')}
@@ -203,20 +213,22 @@ export default function VendedorPage() {
           </div>
 
           {/* Grid de productos */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 pb-24 md:pb-4">
+          <div className="flex-1 overflow-y-auto p-3 pb-28 sm:p-4 sm:pb-28 md:pb-4 lg:p-5">
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="skeleton h-32 rounded-xl" />
+              <div className={PRODUCT_GRID}>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="skeleton h-40 rounded-xl" />
                 ))}
               </div>
             ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-gray-400">
-                <Search className="w-8 h-8 mb-2" />
-                <p className="text-sm">Sin resultados para "{query}"</p>
-              </div>
+              <EmptyState
+                icon={Search}
+                title={query.trim() ? `Sin resultados para "${query.trim()}"` : 'No hay productos en esta categoría'}
+                description={query.trim() ? 'Revisa la ortografía o busca por otra palabra.' : undefined}
+                className="mx-auto mt-6 max-w-md"
+              />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className={PRODUCT_GRID}>
                 {filtered.map(product => (
                   <ProductCard key={product.id} product={product} />
                 ))}
@@ -226,13 +238,13 @@ export default function VendedorPage() {
         </div>
 
         {/* ---- Panel derecho: carrito (DESKTOP) ---- */}
-        <div className="hidden md:flex w-72 xl:w-80 flex-col bg-surface-500 min-h-0">
+        <aside aria-label="Carrito" className="hidden min-h-0 w-64 shrink-0 flex-col bg-surface-500 md:flex lg:w-80 2xl:w-96">
           {showCode && lastCreated ? (
             <CodeDisplay invoice={lastCreated} onNewSale={handleNewSale} />
           ) : (
             <CartPanel onCheckout={handleCheckout} loading={submitting} />
           )}
-        </div>
+        </aside>
 
       </div>
 
@@ -240,11 +252,13 @@ export default function VendedorPage() {
       {!showCode && (
         <button
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-4 right-4 z-40 md:hidden bg-brand-500 text-white rounded-full shadow-lg shadow-brand-500/30 active:scale-95 transition-transform flex items-center gap-2 px-5 py-3.5"
+          aria-label={cartCount > 0 ? `Ver carrito: ${cartCount} productos, ${formatCOP(total())}` : 'Ver carrito'}
+          className="fixed right-4 z-40 flex min-h-[3.25rem] items-center gap-2 rounded-full bg-brand-500 px-5 text-surface-700 shadow-lg shadow-black/40 transition-transform active:scale-95 md:hidden"
+          style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
           <ShoppingCart className="w-5 h-5" />
           {cartCount > 0 && (
-            <span className="bg-white text-brand-600 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-surface-700 px-1.5 text-xs font-bold text-brand-300">
               {cartCount}
             </span>
           )}
@@ -274,7 +288,7 @@ export default function VendedorPage() {
           {/* Sheet */}
           <div
             ref={cartPanelRef} role="dialog" aria-modal="true" aria-label="Carrito de compra" tabIndex={-1}
-            className="absolute bottom-0 left-0 right-0 bg-surface-500 border-t border-white/10 rounded-t-2xl max-h-[85dvh] flex flex-col animate-slide-up"
+            className="safe-area-pb absolute bottom-0 left-0 right-0 bg-surface-500 border-t border-white/10 rounded-t-2xl max-h-[85dvh] flex flex-col animate-slide-up"
             onClick={e => e.stopPropagation()}
           >
             {/* Handle */}
@@ -299,19 +313,8 @@ export default function VendedorPage() {
 
 function CatChip({ active, onClick, label, icon }) {
   return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      className={`
-        flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap
-        border transition-all duration-100 shrink-0
-        ${active
-          ? 'bg-brand-500/20 border-brand-500/60 text-brand-300'
-          : 'bg-surface-300 border-white/5 text-gray-400 hover:border-white/15 hover:text-white'
-        }
-      `}
-    >
-      <span>{icon}</span> {label}
+    <button type="button" onClick={onClick} aria-pressed={active} className="chip">
+      <span aria-hidden="true">{icon}</span> {label}
     </button>
   )
 }

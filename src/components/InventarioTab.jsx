@@ -18,6 +18,7 @@ import { api, clearProductsCache } from '../lib/api.js'
 import { exportToExcel } from '../lib/exportExcel.js'
 import { useModalA11y } from '../hooks/useModalA11y.js'
 import { useToast } from './Toast.jsx'
+import PageHeader from './PageHeader.jsx'
 
 export default function InventarioTab({ locations = [], isOwner = false }) {
   const { error: toastError, success: toastSuccess } = useToast()
@@ -86,58 +87,52 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
   }
 
   return (
-    <div className="space-y-4 max-w-5xl">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h2 className="font-syne font-semibold text-white flex items-center gap-2">
-            <Package className="w-5 h-5 text-brand-400" />
-            Control de Inventario
-          </h2>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Existencias en tiempo real con descuento automático en ventas
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
+    <div className="space-y-6">
+      <PageHeader
+        title="Control de inventario"
+        icon={Package}
+        description="Existencias en tiempo real con descuento automático en ventas"
+        actions={<>
           <button
+            type="button"
             onClick={fetchInventory}
             disabled={loading}
-            className="btn btn-ghost btn-sm text-xs flex items-center gap-1.5"
+            className="btn-outline"
             title="Refrescar existencias"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>Refrescar</span>
           </button>
           <button
+            type="button"
             onClick={handleExport}
             disabled={inventory.length === 0}
-            className="btn btn-ghost border border-white/10 btn-sm text-xs flex items-center gap-1.5"
+            className="btn-outline"
             title="Exportar a Excel"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
             <span>Exportar Excel</span>
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Tarjetas de métricas */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="card bg-surface-400 text-center py-3">
           <p className="font-mono font-bold text-xl text-white">{totalProducts}</p>
-          <p className="text-[11px] text-gray-400">Total Productos</p>
+          <p className="text-2xs text-gray-400">Total Productos</p>
         </div>
         <div className="card bg-surface-400 text-center py-3">
           <p className="font-mono font-bold text-xl text-brand-400">{totalUnits.toLocaleString()}</p>
-          <p className="text-[11px] text-gray-400">Unidades en Stock</p>
+          <p className="text-2xs text-gray-400">Unidades en Stock</p>
         </div>
-        <div className="card bg-surface-400 text-center py-3 border-l-2 border-yellow-500">
+        <div className="card bg-surface-400 text-center py-3 border-l-2 border-l-yellow-500">
           <p className="font-mono font-bold text-xl text-yellow-400">{lowStockCount}</p>
-          <p className="text-[11px] text-yellow-400/80">Stock Bajo (≤ 5)</p>
+          <p className="text-2xs text-yellow-400/80">Stock Bajo (≤ 5)</p>
         </div>
-        <div className="card bg-surface-400 text-center py-3 border-l-2 border-red-500">
+        <div className="card bg-surface-400 text-center py-3 border-l-2 border-l-red-500">
           <p className="font-mono font-bold text-xl text-red-400">{outOfStockCount}</p>
-          <p className="text-[11px] text-red-400/80">Agotados (0)</p>
+          <p className="text-2xs text-red-400/80">Agotados (0)</p>
         </div>
       </div>
 
@@ -219,13 +214,13 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
         <div className="card bg-surface-400 text-center py-10">
           <Package className="w-10 h-10 text-gray-500 mx-auto mb-2" />
           <p className="text-sm text-gray-300">No se encontraron productos en el inventario</p>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-400 mt-1">
             {query ? 'Prueba cambiando el término de búsqueda' : 'Carga productos desde el catálogo o la importación Excel'}
           </p>
         </div>
       ) : (
         <div className="card bg-surface-300 p-0 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-white/5 bg-surface-400 text-gray-400 font-medium">
@@ -260,19 +255,19 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
                           <div className="min-w-0">
                             <p className="font-medium text-white truncate">{item.name}</p>
                             {item.description && (
-                              <p className="text-[10px] text-gray-400 truncate max-w-xs">{item.description}</p>
+                              <p className="text-2xs text-gray-400 truncate max-w-xs">{item.description}</p>
                             )}
                           </div>
                         </div>
                       </td>
                       <td className="py-2.5 px-3 text-gray-400">
                         {item.categories?.name ? (
-                          <span className="inline-flex items-center gap-1 bg-surface-200 px-2 py-0.5 rounded text-[11px]">
+                          <span className="inline-flex items-center gap-1 bg-surface-200 px-2 py-0.5 rounded text-2xs">
                             <Tag className="w-2.5 h-2.5 text-gray-500" />
                             {item.categories.name}
                           </span>
                         ) : (
-                          <span className="text-gray-500 italic">—</span>
+                          <span className="text-gray-400 italic">—</span>
                         )}
                       </td>
                       <td className="py-2.5 px-3 text-center">
@@ -282,17 +277,17 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
                       </td>
                       <td className="py-2.5 px-3 text-center">
                         {isOut ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/15 text-red-400 border border-red-500/20">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-red-500/15 text-red-400 border border-red-500/20">
                             <XCircle className="w-3 h-3" />
                             Agotado
                           </span>
                         ) : isLow ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">
                             <AlertTriangle className="w-3 h-3" />
                             Stock Bajo ({qty})
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
                             <CheckCircle2 className="w-3 h-3" />
                             Disponible
                           </span>
@@ -370,14 +365,14 @@ function StockAdjustModal({ product, locations = [], defaultLocationId, onClose,
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-md space-y-4 shadow-xl border border-white/10"
+        className="modal-panel sm:max-w-md p-5 space-y-4"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
@@ -388,8 +383,8 @@ function StockAdjustModal({ product, locations = [], defaultLocationId, onClose,
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">{product.name}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-1">
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} data-modal-close aria-label="Cerrar" className="btn btn-ghost btn-icon -mr-2 -mt-1 text-gray-400">
+            <X className="w-5 h-5" />
           </button>
         </div>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Delete, Flame, KeyRound, Loader2, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Delete, Flame, KeyRound, Loader2, Monitor, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '../store/authStore.js'
 import { api } from '../lib/api.js'
 import { classifyBootstrapError } from '../lib/bootstrapError.js'
@@ -24,13 +24,13 @@ function NumPad({ value, onChange, onSubmit, loading }) {
   }
 
   return (
-    <div className="w-full max-w-[220px] mx-auto">
+    <div className="mx-auto w-full max-w-[16rem]">
       <div className="flex justify-center gap-3 mb-5">
         {[0,1,2,3].map(i => (
           <div
             key={i}
             className={`
-              w-11 h-11 rounded-xl border-2 flex items-center justify-center font-mono text-xl font-bold transition-all duration-150
+              w-12 h-12 rounded-xl border-2 flex items-center justify-center font-mono text-xl font-bold transition-all duration-150
               ${i < value.length
                 ? 'bg-brand-500/20 border-brand-500 text-brand-400'
                 : 'bg-surface-300 border-white/10 text-gray-400'
@@ -42,12 +42,13 @@ function NumPad({ value, onChange, onSubmit, loading }) {
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2.5">
         {keys.map((k, idx) => (
           <button
             key={idx}
             onClick={() => k && handleKey(k)}
             disabled={loading || k === ''}
+            aria-label={k === '⌫' ? 'Borrar' : undefined}
             className={`
               numpad-key
               ${k === '⌫' ? 'text-red-400 hover:bg-red-900/20' : ''}
@@ -110,7 +111,7 @@ function RegisterSelector({ locationId, value, onChange }) {
               }
             `}
           >
-            <span className="text-xl block mb-1">🖥</span>
+            <Monitor className="mx-auto mb-1.5 h-6 w-6" aria-hidden="true" />
             <span className="text-sm font-medium">{reg.name}</span>
           </button>
         )
@@ -255,8 +256,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
+    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-surface-600 px-gutter py-10">
+      {/* Halo de marca, solo decorativo. Gradiente radial en vez de
+          filter: blur — más barato de pintar en tablets modestas. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(ellipse_60%_55%_at_50%_0%,rgba(249,115,22,0.13),transparent)]" />
+      <div className="relative w-full max-w-lg">
 
         {/* Logo */}
         <div className="text-center mb-8">
@@ -270,7 +274,7 @@ export default function LoginPage() {
         </div>
 
         {/* Card principal */}
-        <div className="card bg-surface-300 border-white/8 p-6">
+        <div className="card bg-surface-300 border-white/8 p-6 shadow-2xl shadow-black/40 sm:p-8">
 
           {bootLoading && (
             <div className="py-10 text-center">
@@ -289,11 +293,12 @@ export default function LoginPage() {
               </p>
               <input
                 type="text"
+                aria-label="Código de empresa"
                 value={slugInput}
                 onChange={e => setSlugInput(e.target.value)}
                 placeholder="ej: pirotecnia-el-coheton"
                 autoFocus
-                className="w-full px-4 py-3 rounded-xl bg-surface-400 border-2 border-white/10 text-white placeholder-gray-400 focus:border-brand-500 focus:outline-none"
+                className="input input-lg"
               />
               <button
                 type="submit"
@@ -397,16 +402,16 @@ export default function LoginPage() {
                 <p className="text-gray-400 text-sm">Para administradores y superadministradores.</p>
               </div>
               <div>
-                <label htmlFor="admin-user" className="block text-xs text-gray-400 mb-1">Usuario</label>
+                <label htmlFor="admin-user" className="field-label">Usuario</label>
                 <input id="admin-user" value={adminUser} onChange={e => setAdminUser(e.target.value)}
                   autoComplete="username" autoCapitalize="none" autoFocus
-                  className="w-full px-4 py-3 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+                  className="input input-lg" />
               </div>
               <div>
-                <label htmlFor="admin-pass" className="block text-xs text-gray-400 mb-1">Contraseña</label>
+                <label htmlFor="admin-pass" className="field-label">Contraseña</label>
                 <input id="admin-pass" type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)}
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
+                  className="input input-lg" />
               </div>
               <button type="submit" disabled={loading || !adminUser.trim() || !adminPass} className="btn btn-primary btn-lg w-full">
                 {loading

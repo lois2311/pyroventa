@@ -77,9 +77,9 @@ export default function CloseRegisterModal({ register, location, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-md my-4 space-y-4 animate-scale-in" onClick={e => e.stopPropagation()}>
+        className="modal-panel sm:max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div>
             <h2 id={titleId} className="font-syne font-bold text-lg text-white">Cierre de caja</h2>
@@ -118,7 +118,7 @@ export default function CloseRegisterModal({ register, location, onClose }) {
                   <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {closure.notes}
                 </p>
               )}
-              <p className="text-[10px] text-gray-400 pt-1">
+              <p className="text-2xs text-gray-400 pt-1">
                 Cerrada por {closure.cashier_name} · {new Date(closure.closed_at).toLocaleString('es-CO')}
               </p>
             </div>
@@ -128,7 +128,7 @@ export default function CloseRegisterModal({ register, location, onClose }) {
           /* ---- Formulario de cierre ---- */
           <div className="space-y-4">
             <div className="bg-surface-400 rounded-xl p-3 space-y-1.5">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Según el sistema (hoy)</p>
+              <p className="text-2xs text-gray-400 uppercase tracking-wider mb-1">Según el sistema (hoy)</p>
               <ExpectedRow label="Facturas cobradas" value={String(summary.invoice_count)} />
               <ExpectedRow label="Efectivo esperado" value={formatCOP(summary.expected_cash)} strong />
               <ExpectedRow label="Transferencias" value={formatCOP(summary.expected_transfer)} />

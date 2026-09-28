@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Building2, Copy, Loader2, LogOut, MapPin, Package, Pause, Play, Plus,
-  RefreshCw, ShieldCheck, Users,
+  BarChart3, Building2, CalendarClock, CheckCircle2, Copy, Flame, Loader2, LogOut, MapPin, Package,
+  Pause, Play, Plus, RefreshCw, ShieldCheck, Users, Wallet,
 } from 'lucide-react'
 import { superApi } from '../lib/superApi.js'
-import { formatCOP } from '../lib/format.js'
-import { toISO } from '../components/DateRangeBar.jsx'
+import { formatCOP, formatRangeLabel } from '../lib/format.js'
+import DateRangeBar, { toISO } from '../components/DateRangeBar.jsx'
+import Modal from '../components/Modal.jsx'
+import PageHeader, { SectionHeader } from '../components/PageHeader.jsx'
+import EmptyState from '../components/EmptyState.jsx'
+import MetricTile from '../components/MetricTile.jsx'
 
 const STATUS_LABEL = {
   active:              { text: 'Activo',        cls: 'bg-green-500/15 text-green-400 border-green-500/30' },
@@ -52,7 +56,7 @@ function StaffSummary({ staffCount }) {
   const parts = ROLE_COUNT_META
     .map(r => ({ ...r, n: staffCount?.[r.key] || 0 }))
     .filter(r => r.n > 0)
-  if (parts.length === 0) return <span className="text-gray-500">Sin personal por punto</span>
+  if (parts.length === 0) return <span className="text-gray-400">Sin personal por punto</span>
   return (
     <span className="text-gray-400">
       {parts.map((r, i) => (
@@ -103,110 +107,123 @@ function NewTenantModal({ onClose, onCreated }) {
   }
 
   const fullLink = created ? `${window.location.origin}${created.link}` : ''
+  const ownerIncomplete = ownerName.trim() !== '' && (ownerUser.trim().length < 3 || ownerPass.length < 10)
+
+  if (created) {
+    return (
+      <Modal
+        title="¡Cliente creado!"
+        icon={CheckCircle2}
+        description="Comparte este link con tu cliente: sus dispositivos quedarán amarrados a su empresa."
+        onClose={onClose}
+        footer={<button type="button" onClick={onClose} className="btn-primary">Listo</button>}
+      >
+        <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-surface-400 p-3">
+          <code className="flex-1 break-all text-left text-sm text-brand-400">{fullLink}</code>
+          <button type="button" onClick={() => {
+            navigator.clipboard.writeText(fullLink)
+              .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+              .catch(() => {})
+          }} className="btn-outline btn-sm shrink-0" aria-label="Copiar link">
+            {copied ? <span className="text-xs text-green-400">Copiado ✓</span> : <><Copy className="h-4 w-4" /> Copiar</>}
+          </button>
+        </div>
+      </Modal>
+    )
+  }
 
   return (
-    <div className="fixed inset-0 z-[1100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="card bg-surface-300 border-white/10 p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        {!created ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <h2 className="font-syne text-lg font-bold text-white">Nuevo cliente</h2>
-            <div>
-              <label className="text-gray-400 text-sm block mb-1.5">Nombre de la empresa</label>
-              <input value={name} onChange={e => {
-                  setName(e.target.value)
-                  if (!slugTouched) setSlug(slugify(e.target.value))
-                }} required autoFocus
-                placeholder="Pirotecnia El Cohetón"
-                className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-gray-400 text-sm block mb-1.5">Código (slug) — será el link /c/&lt;código&gt;</label>
-              <input value={slug}
-                onChange={e => { setSlugTouched(true); setSlug(slugify(e.target.value)) }}
-                placeholder="pirotecnia-el-coheton"
-                className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white font-mono text-sm focus:border-brand-500 focus:outline-none" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-gray-400 text-sm block mb-1.5">Inicio licencia</label>
-                <input type="date" value={start} onChange={e => setStart(e.target.value)} required
-                  className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-gray-400 text-sm block mb-1.5">Fin licencia</label>
-                <input type="date" value={end} onChange={e => setEnd(e.target.value)} required
-                  className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-surface-400 border border-white/10">
-              <input
-                type="checkbox"
-                id="modal-has-inventory"
-                checked={hasInventory}
-                onChange={e => setHasInventory(e.target.checked)}
-                className="mt-1 w-4 h-4 rounded border-gray-600 text-brand-500 focus:ring-brand-500 bg-surface-300"
-              />
-              <label htmlFor="modal-has-inventory" className="text-sm cursor-pointer select-none">
-                <span className="font-semibold text-white flex items-center gap-1.5">
-                  <Package className="w-4 h-4 text-brand-400" />
-                  Control de inventario
-                </span>
-                <span className="text-xs text-gray-400 block mt-0.5">
-                  Permite cargar stock a productos y descontar existencias automáticamente en cada venta.
-                </span>
-              </label>
-            </div>
-            <div className="border-t border-white/10 pt-4">
-              <p className="text-gray-400 text-sm mb-1">Primer punto de venta</p>
-              <p className="text-gray-400 text-xs mb-3">Sin al menos un punto de venta, nadie puede iniciar sesión en la empresa.</p>
-              <div className="grid grid-cols-2 gap-3">
-                <input value={locName} onChange={e => setLocName(e.target.value)} placeholder="Nombre (ej: Principal)"
-                  className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-                <input value={locAddress} onChange={e => setLocAddress(e.target.value)} placeholder="Dirección (opcional)"
-                  className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-              </div>
-            </div>
-            <div className="border-t border-white/10 pt-4">
-              <p className="text-gray-400 text-sm mb-1">Superadministrador de la empresa</p>
-              <p className="text-gray-400 text-xs mb-3">Ve todos los puntos y crea a los administradores. Entra con usuario y contraseña.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <input value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Nombre"
-                  className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-                <input value={ownerUser} onChange={e => setOwnerUser(e.target.value.toLowerCase())} placeholder="Usuario"
-                  autoComplete="off" className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-                <input type="password" value={ownerPass} onChange={e => setOwnerPass(e.target.value)} placeholder="Contraseña (mín. 10)"
-                  autoComplete="new-password" className="w-full px-3 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-              </div>
-            </div>
-            {error && <p className="text-red-400 text-sm">{error}</p>}
-            <div className="flex gap-2">
-              <button type="button" onClick={onClose} className="btn btn-ghost flex-1">Cancelar</button>
-              <button type="submit" disabled={loading || (ownerName.trim() !== '' && (ownerUser.trim().length < 3 || ownerPass.length < 10))}
-                className="btn btn-primary flex-1">
-                {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Crear'}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="text-center space-y-4">
-            <h2 className="font-syne text-lg font-bold text-white">¡Cliente creado!</h2>
-            <p className="text-gray-400 text-sm">Comparte este link con tu cliente — sus dispositivos quedarán amarrados a su empresa:</p>
-            <div className="flex items-center gap-2 bg-surface-400 rounded-xl p-3">
-              <code className="text-brand-400 text-sm flex-1 break-all text-left">{fullLink}</code>
-              <button onClick={() => {
-                navigator.clipboard.writeText(fullLink)
-                  .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
-                  .catch(() => {})
-              }} className="btn btn-ghost btn-sm shrink-0">
-                {copied ? <span className="text-green-400 text-xs">Copiado ✓</span> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-            <button onClick={onClose} className="btn btn-primary w-full">Listo</button>
-          </div>
-        )}
+    <Modal
+      title="Nuevo cliente"
+      icon={Building2}
+      size="lg"
+      closeOnBackdrop={false}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      footer={<>
+        <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button type="submit" disabled={loading || ownerIncomplete} className="btn-primary">
+          {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Crear cliente'}
+        </button>
+      </>}
+    >
+      <div>
+        <label htmlFor="nt-name" className="field-label">Nombre de la empresa</label>
+        <input id="nt-name" value={name} onChange={e => {
+            setName(e.target.value)
+            if (!slugTouched) setSlug(slugify(e.target.value))
+          }} required autoFocus
+          placeholder="Pirotecnia El Cohetón"
+          className="input" />
       </div>
-    </div>
+      <div>
+        <label htmlFor="nt-slug" className="field-label">Código (slug) — será el link /c/&lt;código&gt;</label>
+        <input id="nt-slug" value={slug}
+          onChange={e => { setSlugTouched(true); setSlug(slugify(e.target.value)) }}
+          placeholder="pirotecnia-el-coheton"
+          className="input font-mono" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="nt-start" className="field-label">Inicio licencia</label>
+          <input id="nt-start" type="date" value={start} onChange={e => setStart(e.target.value)} required className="input" />
+        </div>
+        <div>
+          <label htmlFor="nt-end" className="field-label">Fin licencia</label>
+          <input id="nt-end" type="date" value={end} onChange={e => setEnd(e.target.value)} required className="input" />
+        </div>
+      </div>
+
+      <label htmlFor="modal-has-inventory" className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-surface-400 p-3 has-[:checked]:border-brand-500/40">
+        <input
+          type="checkbox"
+          id="modal-has-inventory"
+          checked={hasInventory}
+          onChange={e => setHasInventory(e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-brand-500"
+        />
+        <span className="select-none text-sm">
+          <span className="flex items-center gap-1.5 font-semibold text-white">
+            <Package className="h-4 w-4 text-brand-400" />
+            Control de inventario
+          </span>
+          <span className="mt-0.5 block text-xs text-gray-400">
+            Permite cargar stock a productos y descontar existencias automáticamente en cada venta.
+          </span>
+        </span>
+      </label>
+
+      <fieldset className="space-y-3 border-t border-white/10 pt-4">
+        <legend className="sr-only">Primer punto de venta</legend>
+        <div>
+          <p className="text-sm font-medium text-gray-200">Primer punto de venta</p>
+          <p className="text-xs text-gray-400">Sin al menos un punto de venta, nadie puede iniciar sesión en la empresa.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input value={locName} onChange={e => setLocName(e.target.value)} placeholder="Nombre (ej: Principal)"
+            aria-label="Nombre del punto de venta" className="input" />
+          <input value={locAddress} onChange={e => setLocAddress(e.target.value)} placeholder="Dirección (opcional)"
+            aria-label="Dirección del punto de venta" className="input" />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-3 border-t border-white/10 pt-4">
+        <legend className="sr-only">Superadministrador de la empresa</legend>
+        <div>
+          <p className="text-sm font-medium text-gray-200">Superadministrador de la empresa</p>
+          <p className="text-xs text-gray-400">Ve todos los puntos y crea a los administradores. Entra con usuario y contraseña.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <input value={ownerName} onChange={e => setOwnerName(e.target.value)} placeholder="Nombre"
+            aria-label="Nombre del superadministrador" className="input" />
+          <input value={ownerUser} onChange={e => setOwnerUser(e.target.value.toLowerCase())} placeholder="Usuario"
+            aria-label="Usuario del superadministrador" autoComplete="off" className="input" />
+          <input type="password" value={ownerPass} onChange={e => setOwnerPass(e.target.value)} placeholder="Contraseña (mín. 10)"
+            aria-label="Contraseña del superadministrador" autoComplete="new-password" className="input" />
+        </div>
+      </fieldset>
+      {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+    </Modal>
   )
 }
 
@@ -231,27 +248,31 @@ function AddLocationModal({ tenant, onClose, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[1100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="card bg-surface-300 border-white/10 p-6 w-full max-w-md">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <h2 className="font-syne text-lg font-bold text-white">Nuevo punto de venta</h2>
-          <p className="text-gray-400 text-sm">Para <span className="text-white">{tenant.name}</span></p>
-          <input value={name} onChange={e => setName(e.target.value)} required autoFocus
-            placeholder="Nombre (ej: Principal, Stand Norte)"
-            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-          <input value={address} onChange={e => setAddress(e.target.value)}
-            placeholder="Dirección (opcional)"
-            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="btn btn-ghost flex-1">Cancelar</button>
-            <button type="submit" disabled={loading || !name.trim()} className="btn btn-primary flex-1">
-              {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Crear'}
-            </button>
-          </div>
-        </form>
+    <Modal
+      title="Nuevo punto de venta"
+      icon={MapPin}
+      description={<>Para <span className="text-white">{tenant.name}</span></>}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      footer={<>
+        <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button type="submit" disabled={loading || !name.trim()} className="btn-primary">
+          {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Crear punto'}
+        </button>
+      </>}
+    >
+      <div>
+        <label htmlFor="al-name" className="field-label">Nombre</label>
+        <input id="al-name" value={name} onChange={e => setName(e.target.value)} required autoFocus
+          placeholder="Ej: Principal, Stand Norte" className="input" />
       </div>
-    </div>
+      <div>
+        <label htmlFor="al-address" className="field-label">Dirección <span className="font-normal">(opcional)</span></label>
+        <input id="al-address" value={address} onChange={e => setAddress(e.target.value)}
+          placeholder="Calle, número, barrio" className="input" />
+      </div>
+      {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+    </Modal>
   )
 }
 
@@ -277,31 +298,38 @@ function AddOwnerModal({ tenant, onClose, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[1100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="card bg-surface-300 border-white/10 p-6 w-full max-w-md">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <h2 className="font-syne text-lg font-bold text-white">Nuevo superadministrador</h2>
-          <p className="text-gray-400 text-sm">Para <span className="text-white">{tenant.name}</span></p>
-          <p className="text-gray-400 text-xs mb-3">Ve todos los puntos y crea a los administradores. Entra con usuario y contraseña.</p>
-          <input value={name} onChange={e => setName(e.target.value)} required autoFocus
-            placeholder="Nombre"
-            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-          <input value={username} onChange={e => setUsername(e.target.value.toLowerCase())}
-            placeholder="Usuario" autoComplete="off"
-            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-            placeholder="Contraseña (mín. 10)" autoComplete="new-password"
-            className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none" />
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="btn btn-ghost flex-1">Cancelar</button>
-            <button type="submit" disabled={loading || !name.trim() || username.trim().length < 3 || password.length < 10} className="btn btn-primary flex-1">
-              {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Crear'}
-            </button>
-          </div>
-        </form>
+    <Modal
+      title="Nuevo superadministrador"
+      icon={ShieldCheck}
+      description={<>Para <span className="text-white">{tenant.name}</span>. Ve todos los puntos y crea a los administradores; entra con usuario y contraseña.</>}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      footer={<>
+        <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button type="submit" disabled={loading || !name.trim() || username.trim().length < 3 || password.length < 10} className="btn-primary">
+          {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Crear superadmin'}
+        </button>
+      </>}
+    >
+      <div>
+        <label htmlFor="ao-name" className="field-label">Nombre</label>
+        <input id="ao-name" value={name} onChange={e => setName(e.target.value)} required autoFocus
+          placeholder="Nombre y apellido" className="input" />
       </div>
-    </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="ao-user" className="field-label">Usuario</label>
+          <input id="ao-user" value={username} onChange={e => setUsername(e.target.value.toLowerCase())}
+            placeholder="Mínimo 3 caracteres" autoComplete="off" className="input" />
+        </div>
+        <div>
+          <label htmlFor="ao-pass" className="field-label">Contraseña</label>
+          <input id="ao-pass" type="password" value={password} onChange={e => setPassword(e.target.value)}
+            placeholder="Mínimo 10 caracteres" autoComplete="new-password" className="input" />
+        </div>
+      </div>
+      {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+    </Modal>
   )
 }
 
@@ -324,14 +352,17 @@ function LicenseEditor({ tenant, onSaved }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="eyebrow w-full sm:w-auto">Licencia</span>
       <input type="date" value={start} onChange={e => setStart(e.target.value)}
-        className="px-2 py-1 rounded-lg bg-surface-400 border border-white/10 text-white text-xs" />
-      <span className="text-gray-400 text-xs">→</span>
+        aria-label={`Inicio de licencia de ${tenant.name}`}
+        className="input w-auto text-xs" />
+      <span className="text-xs text-gray-400" aria-hidden="true">→</span>
       <input type="date" value={end} onChange={e => setEnd(e.target.value)}
-        className="px-2 py-1 rounded-lg bg-surface-400 border border-white/10 text-white text-xs" />
+        aria-label={`Fin de licencia de ${tenant.name}`}
+        className="input w-auto text-xs" />
       {dirty && (
-        <button onClick={save} disabled={saving} className="btn btn-primary btn-sm">
+        <button type="button" onClick={save} disabled={saving} className="btn-primary btn-sm">
           {saving ? <Loader2 className="animate-spin h-3 w-3" /> : 'Guardar'}
         </button>
       )}
@@ -347,52 +378,70 @@ function MetricsSection() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try { setData(await superApi.get(`/super/metrics?from=${from}&to=${to}`)) }
     catch { setData(null) }
     finally { setLoading(false) }
-  }
-  useEffect(() => { load() /* eslint-disable-line */ }, []) // carga inicial (hoy)
+  }, [from, to])
+  // Se consulta solo al cambiar el rango: sin botón extra de por medio
+  useEffect(() => { load() }, [load])
+
+  const totalRevenue = (data?.tenants || []).reduce((n, t) => n + Number(t.revenue || 0), 0)
 
   return (
-    <div className="mt-8">
-      <h2 className="font-syne text-xl font-bold text-white mb-3">Métricas globales</h2>
-      <div className="flex items-end gap-2 flex-wrap mb-3">
-        <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)}
-          className="px-3 py-2 rounded-xl bg-surface-400 border border-white/10 text-white text-sm" />
-        <span className="text-gray-400 pb-2">→</span>
-        <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)}
-          className="px-3 py-2 rounded-xl bg-surface-400 border border-white/10 text-white text-sm" />
-        <button onClick={load} disabled={loading} className="btn btn-primary btn-sm">
-          {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Consultar'}
-        </button>
-      </div>
-      {data?.tenants?.length > 0 ? (
-        <div className="card bg-surface-300 border-white/8 overflow-x-auto">
-          <table className="w-full text-sm min-w-[420px]">
-            <thead>
-              <tr className="text-left text-xs text-gray-400">
-                <th className="py-1.5 pr-3 font-medium">Cliente</th>
-                <th className="py-1.5 pr-3 font-medium text-right">Facturas</th>
-                <th className="py-1.5 font-medium text-right">Total vendido</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.tenants.map(t => (
-                <tr key={t.tenant_id} className="border-t border-white/5">
-                  <td className="py-1.5 pr-3 text-white">{t.tenant_name}</td>
-                  <td className="py-1.5 pr-3 text-right text-gray-400">{t.invoice_count}</td>
-                  <td className="py-1.5 text-right font-mono text-brand-400">{formatCOP(t.revenue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <section>
+      <SectionHeader
+        title="Métricas globales"
+        icon={BarChart3}
+        description={formatRangeLabel(from, to)}
+        actions={
+          <button type="button" onClick={load} disabled={loading} className="btn-outline btn-sm">
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+          </button>
+        }
+      />
+      <div className="space-y-3">
+        <div className="toolbar panel p-3 sm:p-4">
+          <DateRangeBar from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
         </div>
-      ) : (
-        <p className="text-gray-400 text-sm">{loading ? 'Cargando…' : 'Sin ventas en el rango.'}</p>
-      )}
-    </div>
+        {data?.tenants?.length > 0 ? (
+          <div className={`panel relative overflow-x-auto transition-opacity ${loading ? 'opacity-60' : ''}`}>
+            <table className="w-full min-w-[420px] text-sm tabular-nums">
+              <thead>
+                <tr className="text-left text-xs text-gray-400">
+                  <th scope="col" className="py-2.5 pl-4 pr-3 font-medium sm:pl-5">Cliente</th>
+                  <th scope="col" className="py-2.5 pr-3 text-right font-medium">Facturas</th>
+                  <th scope="col" className="py-2.5 pr-4 text-right font-medium sm:pr-5">Total vendido</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.tenants.map(t => (
+                  <tr key={t.tenant_id} className="border-t border-white/5">
+                    <td className="py-2 pl-4 pr-3 text-white sm:pl-5">{t.tenant_name}</td>
+                    <td className="py-2 pr-3 text-right text-gray-400">{t.invoice_count}</td>
+                    <td className="py-2 pr-4 text-right font-mono text-gray-200 sm:pr-5">{formatCOP(t.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {data.tenants.length > 1 && (
+                <tfoot>
+                  <tr className="border-t border-white/10">
+                    <th scope="row" className="py-2.5 pl-4 pr-3 text-left font-semibold text-white sm:pl-5">Total</th>
+                    <td className="py-2.5 pr-3 text-right text-gray-300">{data.tenants.reduce((n, t) => n + Number(t.invoice_count || 0), 0)}</td>
+                    <td className="py-2.5 pr-4 text-right font-mono font-semibold text-brand-400 sm:pr-5">{formatCOP(totalRevenue)}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        ) : loading ? (
+          <div className="skeleton h-24 rounded-xl" />
+        ) : (
+          <EmptyState compact icon={BarChart3} title="Sin ventas en el rango" />
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -406,23 +455,17 @@ function PlatformSummary({ tenants }) {
     return d != null && d <= 15
   }).length
   const salesToday = tenants.reduce((n, t) => n + t.today_sales, 0)
-
-  const tiles = [
-    { label: 'Empresas activas', value: `${active.length}/${tenants.length}` },
-    { label: 'Puntos de venta', value: totalLocations },
-    { label: 'Superadmins', value: totalOwners },
-    { label: 'Licencias por vencer', value: expiringSoon, warn: expiringSoon > 0 },
-    { label: 'Ventas hoy (todas)', value: formatCOP(salesToday) },
-  ]
+  const int = (n) => Math.round(n)
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-      {tiles.map(tile => (
-        <div key={tile.label} className="card bg-surface-300 border-white/8 p-3">
-          <p className={`text-xl font-bold ${tile.warn ? 'text-amber-400' : 'text-white'}`}>{tile.value}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{tile.label}</p>
-        </div>
-      ))}
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <MetricTile icon={Building2} label="Empresas activas" value={`${active.length}/${tenants.length}`} />
+      <MetricTile icon={MapPin} label="Puntos de venta" value={totalLocations} format={int} />
+      <MetricTile icon={ShieldCheck} label="Superadmins" value={totalOwners} format={int} />
+      <MetricTile icon={CalendarClock} label="Licencias por vencer" value={expiringSoon} format={int}
+        color={expiringSoon > 0 ? 'text-amber-400' : 'text-white'} sub="en 15 días o menos" />
+      <MetricTile icon={Wallet} label="Ventas hoy (todas)" value={salesToday} format={formatCOP}
+        color="text-brand-400" className="col-span-2 sm:col-span-1" />
     </div>
   )
 }
@@ -470,87 +513,99 @@ export default function SuperDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] p-4 sm:p-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="font-syne text-2xl font-bold text-white">Clientes</h1>
-            <p className="text-gray-400 text-sm">Panel de plataforma PyroVenta</p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={load} className="btn btn-ghost btn-sm"><RefreshCw className="w-4 h-4" /></button>
-            <button onClick={() => setShowNew(true)} className="btn btn-primary btn-sm">
-              <Plus className="w-4 h-4" /> Nuevo cliente
-            </button>
-            <button onClick={handleLogout} className="btn btn-ghost btn-sm"><LogOut className="w-4 h-4" /></button>
-          </div>
+    <div className="min-h-[100dvh] bg-surface-600">
+      <div className="mx-auto w-full max-w-6xl space-y-8 px-gutter py-8 sm:py-10">
+        <div className="space-y-2">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-500">
+            <Flame className="h-4 w-4" /> <span className="font-syne">PyroVenta</span>
+            <span className="font-normal text-gray-400">· Plataforma</span>
+          </p>
+          <PageHeader
+            title="Clientes"
+            description={tenants ? `${tenants.length} empresa${tenants.length !== 1 ? 's' : ''} registrada${tenants.length !== 1 ? 's' : ''}` : 'Panel de plataforma PyroVenta'}
+            actions={<>
+              <button type="button" onClick={load} className="btn-outline btn-icon" aria-label="Actualizar lista" title="Actualizar">
+                <RefreshCw className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => setShowNew(true)} className="btn-primary">
+                <Plus className="h-4 w-4" /> Nuevo cliente
+              </button>
+              <button type="button" onClick={handleLogout} className="btn-ghost btn-icon" aria-label="Cerrar sesión" title="Cerrar sesión">
+                <LogOut className="h-4 w-4" />
+              </button>
+            </>}
+          />
         </div>
 
-        {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+        {error && (
+          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300" role="alert">{error}</p>
+        )}
 
         {tenants?.length > 0 && <PlatformSummary tenants={tenants} />}
 
         {!tenants ? (
-          <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}</div>
+          <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="skeleton h-40 rounded-xl" />)}</div>
         ) : tenants.length === 0 ? (
-          <div className="card bg-surface-300 border-white/8 p-10 text-center">
-            <Building2 className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-400">Aún no hay clientes. Crea el primero.</p>
-          </div>
+          <EmptyState
+            icon={Building2}
+            title="Aún no hay clientes"
+            description="Crea el primero: su link de acceso queda listo para compartir."
+            action={<button type="button" onClick={() => setShowNew(true)} className="btn-primary"><Plus className="h-4 w-4" /> Nuevo cliente</button>}
+          />
         ) : (
-          <div className="space-y-3">
+          <ul className="space-y-3">
             {tenants.map(t => (
-              <div key={t.id} className="card bg-surface-300 border-white/8 p-4">
+              <li key={t.id} className="card bg-surface-300 border-white/8">
                 {/* Encabezado: identidad, estado y ventas de hoy */}
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-white truncate">{t.name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="truncate font-semibold text-white">{t.name}</h2>
                       <StatusChip status={t.status} />
                       <LicenseCountdown status={t.status} licenseEnd={t.license_end} />
                       {t.has_inventory ? (
-                        <span className="text-xs px-2 py-0.5 rounded-full border bg-emerald-500/15 text-emerald-400 border-emerald-500/30 flex items-center gap-1 font-medium">
+                        <span className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-400">
                           <Package className="w-3 h-3" /> Con inventario
                         </span>
                       ) : (
-                        <span className="text-xs px-2 py-0.5 rounded-full border bg-white/5 text-gray-400 border-white/10 flex items-center gap-1">
+                        <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-gray-400">
                           Sin inventario
                         </span>
                       )}
                       {t.locations_count === 0 && (
-                        <span className="text-xs px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
+                        <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
                           Sin puntos de venta — no pueden ingresar
                         </span>
                       )}
                       {t.owners.length === 0 && (
-                        <span className="text-xs px-2 py-0.5 rounded-full border bg-amber-500/15 text-amber-400 border-amber-500/30">
+                        <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
                           Sin superadministrador
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      /c/{t.slug}
+                    <p className="mt-1 text-xs text-gray-400">
+                      <span className="font-mono">/c/{t.slug}</span>
                       {t.last_activity && ` · última venta: ${new Date(t.last_activity).toLocaleString('es-CO')}`}
                     </p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-white font-semibold">{formatCOP(t.today_sales)}</p>
+                  <div className="shrink-0 text-right">
+                    <p className="font-mono font-semibold tabular-nums text-white">{formatCOP(t.today_sales)}</p>
                     <p className="text-xs text-gray-400">{t.today_invoices} factura{t.today_invoices === 1 ? '' : 's'} hoy</p>
                   </div>
                 </div>
 
                 {/* Cuerpo: puntos de venta, superadmins y personal */}
-                <div className="mt-3 pt-3 border-t border-white/5 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="mt-4 grid grid-cols-1 gap-4 border-t border-white/5 pt-4 text-sm sm:grid-cols-2">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                    <p className="eyebrow mb-1.5 flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5" /> Puntos de venta ({t.locations.length})
                     </p>
                     {t.locations.length === 0 ? (
-                      <p className="text-gray-500 text-xs">Ninguno todavía</p>
+                      <p className="text-gray-400 text-xs">Ninguno todavía</p>
                     ) : (
                       <ul className="space-y-1">
                         {t.locations.map(l => (
-                          <li key={l.id} className={`flex items-baseline gap-1.5 ${l.active ? 'text-white' : 'text-gray-500 line-through'}`}>
+                          <li key={l.id} className={`flex items-baseline gap-1.5 ${l.active ? 'text-white' : 'text-gray-400 line-through'}`}>
                             <span className="font-medium">{l.name}</span>
                             {l.address && <span className="text-gray-400 text-xs font-normal truncate">— {l.address}</span>}
                             {!l.active && <span className="text-xs">(inactivo)</span>}
@@ -560,11 +615,11 @@ export default function SuperDashboard() {
                     )}
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                    <p className="eyebrow mb-1.5 flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5" /> Superadministradores ({t.owners.length})
                     </p>
                     {t.owners.length === 0 ? (
-                      <p className="text-gray-500 text-xs">Ninguno — crea uno para que la empresa pueda administrarse</p>
+                      <p className="text-gray-400 text-xs">Ninguno — crea uno para que la empresa pueda administrarse</p>
                     ) : (
                       <ul className="space-y-1">
                         {t.owners.map(o => (
@@ -581,34 +636,39 @@ export default function SuperDashboard() {
                 </div>
 
                 {/* Pie: vigencia y acciones */}
-                <div className="mt-3 pt-3 border-t border-white/5 flex flex-wrap items-center gap-2 justify-between">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-4">
                   <LicenseEditor key={`${t.id}-${t.license_start}-${t.license_end}`} tenant={t} onSaved={load} />
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-1">
                     <button
+                      type="button"
                       onClick={() => setLocTenant(t)}
-                      className="btn btn-ghost btn-sm btn-touch-safe"
+                      className="btn-ghost btn-sm btn-touch-safe"
                       title="Agregar punto de venta"
                     >
                       <Plus className="w-4 h-4" /> Punto
                     </button>
                     <button
+                      type="button"
                       onClick={() => setOwnerTenant(t)}
-                      className="btn btn-ghost btn-sm btn-touch-safe"
+                      className="btn-ghost btn-sm btn-touch-safe"
                       title="Agregar superadministrador"
                     >
                       <Plus className="w-4 h-4" /> Superadmin
                     </button>
                     <button
+                      type="button"
                       onClick={() => toggleInventory(t)}
-                      className={`btn btn-sm btn-touch-safe ${t.has_inventory ? 'btn-ghost text-emerald-400 hover:bg-emerald-500/10' : 'btn-ghost text-gray-400'}`}
+                      aria-pressed={t.has_inventory}
+                      className={`btn-ghost btn-sm btn-touch-safe ${t.has_inventory ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-gray-400'}`}
                       title={t.has_inventory ? 'Desactivar inventario para este cliente' : 'Activar inventario para este cliente'}
                     >
                       <Package className="w-4 h-4" />
                       {t.has_inventory ? 'Inventario: Sí' : 'Inventario: No'}
                     </button>
                     <button
+                      type="button"
                       onClick={() => toggleActive(t)}
-                      className={`btn btn-sm btn-touch-safe ${t.active ? 'btn-ghost text-red-400' : 'btn-primary'}`}
+                      className={`btn-sm btn-touch-safe ${t.active ? 'btn-ghost text-red-400' : 'btn-primary'}`}
                       title={t.active ? 'Suspender' : 'Reactivar'}
                     >
                       {t.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -616,9 +676,9 @@ export default function SuperDashboard() {
                     </button>
                   </div>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
 
         <MetricsSection />

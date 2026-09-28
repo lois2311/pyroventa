@@ -1,51 +1,65 @@
+import { Tags } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
+import EmptyState from './EmptyState.jsx'
+import ProgressBar from './ProgressBar.jsx'
 
-// 8 tonos categóricos (columna oscura, dataviz/references/palette.md),
-// validados con validate_palette.js contra nuestra superficie real (#111111):
-// lightness band, chroma floor, separación CVD y contraste — todo OK en orden fijo.
-// Nunca se ciclan ni se generan de más: la 9ª+ categoría se agrupa en "Otros".
-const PALETTE = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
-const OTHER_COLOR = '#5b5b5b'
+// Máximo de filas visibles; el resto se agrupa en "Otros" para que la lista
+// no crezca sin límite con catálogos de muchas categorías.
+const MAX_ROWS = 7
 
-export default function CategoryBreakdown({ data, loading }) {
-  if (loading) return <div className="skeleton h-56 rounded-xl" />
-  if (!data?.length) return <p className="text-gray-400 text-sm">Sin ventas registradas para este período.</p>
+/**
+ * Ventas por categoría como barras horizontales de un solo tono.
+ * Antes eran columnas de 8 colores asignados por posición en el ranking: el
+ * color de una categoría cambiaba al cambiar el rango de fechas, y el nombre
+ * (9px) y el valor (solo en hover) casi no se leían. Aquí la etiqueta
+ * identifica la categoría, así que el color queda para la magnitud.
+ */
+export default function CategoryBreakdown({ data, loading, className = '' }) {
+  if (loading) return <div className={`skeleton h-64 rounded-xl ${className}`} />
 
-  const top = data.slice(0, 7)
-  const rest = data.slice(7)
+  const top = (data || []).slice(0, MAX_ROWS)
+  const rest = (data || []).slice(MAX_ROWS)
   const restRevenue = rest.reduce((s, d) => s + d.total_revenue, 0)
   const restQty = rest.reduce((s, d) => s + d.total_qty, 0)
-
-  const bars = [
-    ...top.map((d, i) => ({ ...d, color: PALETTE[i] })),
-    ...(restRevenue > 0 ? [{ category_name: 'Otros', total_revenue: restRevenue, total_qty: restQty, color: OTHER_COLOR }] : []),
+  const rows = [
+    ...top,
+    ...(restRevenue > 0 ? [{ category_name: `Otros (${rest.length})`, total_revenue: restRevenue, total_qty: restQty, isOther: true }] : []),
   ]
-
-  const max = Math.max(...bars.map(b => b.total_revenue), 1)
+  const total = rows.reduce((s, r) => s + r.total_revenue, 0)
+  const max = Math.max(...rows.map(r => r.total_revenue), 1)
 
   return (
-    <div className="card bg-surface-300">
-      <div className="flex items-end gap-3 h-40">
-        {bars.map(b => {
-          const pct = (b.total_revenue / max) * 100
-          return (
-            <div key={b.category_id || b.category_name} className="group relative flex-1 flex flex-col items-center justify-end h-full min-w-0">
-              <div className="absolute bottom-full mb-2 hidden group-hover:flex group-focus-within:flex flex-col items-center bg-surface-100 border border-white/10 rounded-lg px-2.5 py-1.5 text-[10px] whitespace-nowrap z-10 shadow-lg">
-                <span className="text-white font-semibold">{formatCOP(b.total_revenue)}</span>
-                <span className="text-gray-400">{b.total_qty} uds vendidas</span>
-              </div>
-              <div
-                tabIndex={0}
-                className="w-full rounded-t-md transition-all duration-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
-                style={{ height: `${Math.max(pct, 3)}%`, backgroundColor: b.color }}
-              />
-              <span className="text-[9px] text-gray-400 mt-1.5 text-center truncate w-full" title={b.category_name}>
-                {b.category_name}
-              </span>
-            </div>
-          )
-        })}
+    <div className={`panel flex flex-col ${className}`}>
+      <div className="panel-header">
+        <h3 className="panel-title">Ventas por categoría</h3>
+        {rows.length > 0 && <span className="text-xs text-gray-400">{rows.length} categoría{rows.length !== 1 ? 's' : ''}</span>}
       </div>
+      {!rows.length ? (
+        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+          <EmptyState compact icon={Tags} title="Sin ventas en este período" />
+        </div>
+      ) : (
+        <ul className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
+          {rows.map(r => {
+            const share = total > 0 ? (r.total_revenue / total) * 100 : 0
+            return (
+              <li key={r.category_id || r.category_name}>
+                <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                  <span className={`min-w-0 truncate ${r.isOther ? 'italic text-gray-400' : 'text-gray-300'}`} title={r.category_name}>
+                    {r.category_name}
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap text-right">
+                    <span className="font-mono font-semibold tabular-nums text-white">{formatCOP(r.total_revenue)}</span>
+                    <span className="ml-2 text-xs tabular-nums text-gray-400">{share.toFixed(0)}%</span>
+                  </span>
+                </div>
+                <ProgressBar pct={(r.total_revenue / max) * 100} color={r.isOther ? 'neutral' : 'brand'} />
+                <p className="mt-1 text-2xs text-gray-400">{r.total_qty} uds vendidas</p>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }

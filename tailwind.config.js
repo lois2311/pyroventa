@@ -3,6 +3,30 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
+      // Monitores de cabina/caja de 1920px+ — por encima de 2xl (1536)
+      screens: {
+        '3xl': '1920px',
+      },
+      // Ancho máximo del contenido de las vistas de datos: más allá de ~1440px
+      // las filas de un dashboard se vuelven ilegibles (el ojo recorre demasiado
+      // de un extremo al otro) y las barras pierden proporción.
+      maxWidth: {
+        content: '90rem',
+      },
+      // Margen lateral fluido (16px en móvil → 32px en escritorio), ver --gutter
+      spacing: {
+        gutter: 'var(--gutter)',
+      },
+      // Piso tipográfico: 11px para micro-etiquetas (badges, ejes, "label small"
+      // de Material 3). Reemplaza los text-[9px]/[10px] sueltos por el código.
+      fontSize: {
+        '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+      },
+      // border-white/8 se usaba en varias cards sin existir en la escala por
+      // defecto (no generaba CSS); ahora sí es un paso válido.
+      opacity: {
+        8: '0.08',
+      },
       colors: {
         brand: {
           50:  '#fff7ed',

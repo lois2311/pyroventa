@@ -31,7 +31,7 @@ export default function ProductCard({ product }) {
   const qtyInCart = (presId) => items.find(i => i.presentationId === presId)?.qty || 0
 
   return (
-    <div className="card bg-surface-300 hover:border-white/10 transition-all duration-150">
+    <div className="card flex flex-col bg-surface-300 transition-colors duration-150 hover:border-white/10">
       {/* Foto — completa, sin recortar; tocar para ampliar */}
       {product.image_url && (
         <div className="mb-3">
@@ -51,14 +51,14 @@ export default function ProductCard({ product }) {
           <div className="min-w-0">
             <h3 className="font-medium text-white text-sm leading-tight">{product.name}</h3>
             {product.categories?.name && (
-              <span className="text-xs text-gray-400">{product.categories.name}</span>
+              <span className="mt-0.5 block text-xs leading-4 text-gray-400">{product.categories.name}</span>
             )}
           </div>
         </div>
 
         {hasInventory && (
           <span
-            className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium shrink-0 flex items-center gap-1 ${
+            className={`text-2xs px-2 py-0.5 rounded-full font-mono font-medium shrink-0 flex items-center gap-1 ${
               stockQty <= 0
                 ? 'bg-red-500/15 text-red-400 border border-red-500/20'
                 : stockQty <= 5
@@ -82,8 +82,8 @@ export default function ProductCard({ product }) {
               key={pres.id}
               onClick={() => handleAdd(pres)}
               className={`
-                w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm
-                border transition-all duration-100 cursor-pointer
+                w-full min-h-[var(--control-h)] flex items-center justify-between px-3 py-1.5 rounded-lg text-sm
+                border transition-all duration-100 cursor-pointer active:scale-[0.99]
                 ${active
                   ? 'bg-brand-500/20 border-brand-500/60 text-brand-300'
                   : 'bg-surface-400 border-white/5 text-gray-300 hover:bg-surface-200 hover:border-white/10 hover:text-white'
@@ -101,7 +101,7 @@ export default function ProductCard({ product }) {
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 {pres.is_differential && (
-                  <span className="text-[10px] text-gray-500 line-through font-mono">
+                  <span className="text-2xs text-gray-400 line-through font-mono">
                     {formatCOP(pres.base_price)}
                   </span>
                 )}
@@ -110,7 +110,7 @@ export default function ProductCard({ product }) {
                 </span>
                 <span className={`
                   min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-xs font-bold font-mono
-                  ${active ? 'bg-brand-500 text-white' : 'bg-surface-50 text-gray-400'}
+                  ${active ? 'bg-brand-500 text-surface-700' : 'bg-surface-50 text-gray-400'}
                 `}>
                   {active ? `×${qty}` : '+'}
                 </span>

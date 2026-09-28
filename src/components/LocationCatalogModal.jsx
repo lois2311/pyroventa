@@ -139,14 +139,14 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-start justify-center p-3 sm:p-6 overflow-y-auto animate-fade-in" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="card bg-surface-200 border border-white/10 w-full max-w-2xl my-4 space-y-4 shadow-2xl animate-scale-in flex flex-col max-h-[90vh]"
+        className="modal-panel sm:max-w-2xl p-5 space-y-4 flex flex-col max-h-[90dvh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -179,7 +179,7 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
             <DollarSign className="w-3.5 h-3.5" />
             Precios Diferenciales
             {differentialCount > 0 && (
-              <span className="bg-brand-500/20 text-brand-300 px-1.5 py-0.2 rounded-full text-[10px] border border-brand-500/30">
+              <span className="bg-brand-500/20 text-brand-300 px-1.5 py-0.2 rounded-full text-2xs border border-brand-500/30">
                 {differentialCount}
               </span>
             )}
@@ -197,7 +197,7 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
             <Package className="w-3.5 h-3.5" />
             Disponibilidad de Productos
             {disabledCount > 0 && (
-              <span className="bg-red-500/20 text-red-300 px-1.5 py-0.2 rounded-full text-[10px] border border-red-500/30">
+              <span className="bg-red-500/20 text-red-300 px-1.5 py-0.2 rounded-full text-2xs border border-red-500/30">
                 {disabledCount} deshabilitado(s)
               </span>
             )}
@@ -221,14 +221,14 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
               <button
                 type="button"
                 onClick={enableAll}
-                className="btn btn-ghost btn-sm text-[11px] py-1 text-gray-300"
+                className="btn btn-ghost btn-sm text-2xs py-1 text-gray-300"
               >
                 Habilitar todos
               </button>
               <button
                 type="button"
                 onClick={disableAll}
-                className="btn btn-ghost btn-sm text-[11px] py-1 text-gray-400 hover:text-red-300"
+                className="btn btn-ghost btn-sm text-2xs py-1 text-gray-400 hover:text-red-300"
               >
                 Deshabilitar todos
               </button>
@@ -261,11 +261,11 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
                   >
                     <div>
                       <p className="text-xs font-semibold text-white">{prod.name}</p>
-                      <p className="text-[10px] text-gray-400">{prod.categories?.name || 'Sin categoría'}</p>
+                      <p className="text-2xs text-gray-400">{prod.categories?.name || 'Sin categoría'}</p>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                      <span className={`text-2xs font-medium px-2 py-0.5 rounded-full ${
                         !isDisabled
                           ? 'bg-green-500/15 text-green-400 border border-green-500/30'
                           : 'bg-red-500/15 text-red-400 border border-red-500/30'
@@ -289,10 +289,10 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-semibold text-white">{prod.name}</p>
-                      <p className="text-[10px] text-gray-400">{prod.categories?.name || 'Sin categoría'}</p>
+                      <p className="text-2xs text-gray-400">{prod.categories?.name || 'Sin categoría'}</p>
                     </div>
                     {isDisabled && (
-                      <span className="text-[9px] bg-red-500/15 text-red-400 border border-red-500/30 px-1.5 py-0.2 rounded">
+                      <span className="text-2xs bg-red-500/15 text-red-400 border border-red-500/30 px-1.5 py-0.2 rounded">
                         Oculto en este punto
                       </span>
                     )}
@@ -307,7 +307,7 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
                         <div key={pres.id} className="flex items-center justify-between gap-3 bg-surface-400/70 rounded-lg px-2.5 py-1.5">
                           <div className="flex-1 min-w-0">
                             <span className="text-xs text-gray-200 font-medium">{pres.label}</span>
-                            <span className="text-[10px] text-gray-400 block">
+                            <span className="text-2xs text-gray-400 block">
                               Base: {formatCOP(pres.price)}
                             </span>
                           </div>

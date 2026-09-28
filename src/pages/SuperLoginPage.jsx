@@ -25,7 +25,7 @@ export default function SuperLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center p-4">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-surface-600 px-gutter py-10">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-500/15 border border-brand-500/30 mb-3">
@@ -35,22 +35,22 @@ export default function SuperLoginPage() {
           <p className="text-gray-400 text-sm mt-1">Panel de plataforma</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card bg-surface-300 border-white/8 p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="card bg-surface-300 border-white/8 p-6 space-y-4 shadow-2xl shadow-black/40 sm:p-8">
           <div>
-            <label className="text-gray-400 text-sm block mb-1.5">Email</label>
+            <label htmlFor="super-email" className="field-label">Email</label>
             <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus
-              className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none"
+              id="super-email" type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required autoFocus
+              className="input input-lg"
             />
           </div>
           <div>
-            <label className="text-gray-400 text-sm block mb-1.5">Contraseña</label>
+            <label htmlFor="super-pass" className="field-label">Contraseña</label>
             <input
-              type="password" value={password} onChange={e => setPassword(e.target.value)} required
-              className="w-full px-4 py-2.5 rounded-xl bg-surface-400 border-2 border-white/10 text-white focus:border-brand-500 focus:outline-none"
+              id="super-pass" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required
+              className="input input-lg"
             />
           </div>
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm" role="alert">{error}</p>}
           <button type="submit" disabled={loading} className="btn btn-primary btn-lg w-full">
             {loading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Ingresar'}
           </button>

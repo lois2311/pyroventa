@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import {
-  CheckCircle2, Clock, CreditCard, FileText, Hash, Monitor,
-  Pencil, Receipt, Tag, Undo2, X,
+  CheckCircle2, Clock, CreditCard, FileText, Hash, Loader2, Monitor,
+  Pencil, Receipt, Search, Tag, Undo2, X,
 } from 'lucide-react'
 import { useAuthStore }    from '../store/authStore.js'
 import { useModalA11y }    from '../hooks/useModalA11y.js'
@@ -19,33 +19,37 @@ import CloseRegisterModal from '../components/CloseRegisterModal.jsx'
 import RefundModal     from '../components/RefundModal.jsx'
 import { useToast }    from '../components/Toast.jsx'
 import { formatCOP }   from '../lib/format.js'
+import EmptyState      from '../components/EmptyState.jsx'
 
-// ---- Teclado de código ----------------------------------
-function CodeInput({ value, onChange, onSearch, loading }) {
+// ---- Campo de código ------------------------------------
+function CodeInput({ id, value, onChange, onSearch, loading }) {
   const inputRef = useRef(null)
   useEffect(() => { inputRef.current?.focus() }, [])
   const handleKey = (e) => {
     if (e.key === 'Enter' && value.length === 4) onSearch()
   }
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-stretch gap-2">
       <input
+        id={id}
         ref={inputRef}
         type="text"
         inputMode="numeric"
+        autoComplete="off"
         maxLength={4}
         value={value}
         onChange={e => onChange(e.target.value.replace(/\D/g, '').slice(0, 4))}
         onKeyDown={handleKey}
-        placeholder="_ _ _ _"
-        className="input text-center font-mono text-xl sm:text-2xl tracking-[0.4em] sm:tracking-[0.5em] placeholder-gray-400 flex-1"
-        style={{ letterSpacing: '0.4em' }}
+        placeholder="____"
+        className="input input-lg min-w-0 flex-1 text-center font-mono text-2xl tracking-[0.5em] indent-[0.5em]"
       />
       <button
+        type="button"
         onClick={onSearch}
         disabled={value.length !== 4 || loading}
-        className="btn btn-primary shrink-0"
+        className="btn-primary btn-lg shrink-0 px-5"
       >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
         Buscar
       </button>
     </div>
@@ -89,7 +93,7 @@ function PaidOverlay({ invoice, onDone }) {
           <PrintButton invoice={invoice} />
         </div>
 
-        <button onClick={onDone} className="btn btn-ghost border border-white/10 w-full">
+        <button onClick={onDone} className="btn-outline w-full">
           Continuar →
         </button>
       </div>
@@ -131,7 +135,7 @@ function RegisterGate({ locationId, onSelect }) {
           </p>
           <button
             onClick={() => onSelect(null)}
-            className="btn btn-ghost border border-white/10"
+            className="btn-outline"
           >
             Continuar sin caja asignada
           </button>
@@ -352,7 +356,7 @@ export default function CajaPage() {
   // ==========================================================
   if (needsRegister || changingReg) {
     return (
-      <div className="min-h-[100dvh] flex flex-col bg-[#111]">
+      <div className="min-h-[100dvh] flex flex-col">
         <Topbar title="Caja" />
         <RegisterGate
           locationId={location?.id}
@@ -362,301 +366,226 @@ export default function CajaPage() {
     )
   }
 
-  // ==========================================================
-  // DESKTOP LAYOUT (md+)
-  // ==========================================================
-  const DesktopLayout = (
-    <div className="hidden md:flex flex-1 min-h-0">
-      {/* Pendientes */}
-      <div className="w-[220px] lg:w-[260px] shrink-0 flex flex-col border-r border-white/5 bg-surface-500">
-        <div className="px-3 py-3 border-b border-white/5 flex items-center justify-between">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pendientes</span>
-          {pendingInvoices.length > 0 && (
-            <span className="bg-brand-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-              {pendingInvoices.length}
-            </span>
-          )}
-        </div>
-        <PendingList invoices={pendingInvoices} selectedId={invoice?.id} onSelect={handleSelectPending} />
+  const pendingBadge = pendingInvoices.length > 0 && (
+    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs font-bold text-surface-700">
+      {pendingInvoices.length}
+    </span>
+  )
+
+  // ---- Búsqueda + detalle de la factura (columna central / pestaña Cobrar)
+  const renderCenter = (prefix) => (
+    <div className="space-y-6">
+      {/* Caja activa y acciones de turno */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-surface-300 px-2.5 py-1.5 text-xs text-gray-400">
+          <Monitor className="h-3.5 w-3.5" /> <span className="font-medium text-white">{register?.name || 'Sin caja'}</span>
+        </span>
+        <button type="button" onClick={() => setChangingReg(true)} className="btn-ghost btn-sm text-gray-400 hover:text-brand-400">
+          <span className="sm:hidden">Cambiar</span><span className="hidden sm:inline">Cambiar caja</span>
+        </button>
+        <div className="flex-1" />
+        {canEdit && (
+          <button type="button" onClick={() => setRefunding(true)} aria-label="Devolución" className="btn-outline btn-sm btn-touch-safe">
+            <Undo2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Devolución</span>
+          </button>
+        )}
+        {canEdit && (
+          <button type="button" onClick={() => setClosingReg(true)} className="btn-outline btn-sm btn-touch-safe">
+            <Receipt className="h-3.5 w-3.5" /> Cerrar caja
+          </button>
+        )}
       </div>
 
-      {/* Central: buscar + detalle */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto p-5 lg:p-6">
-        {/* Badge de caja activa */}
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <span className="text-xs bg-surface-300 border border-white/5 rounded-lg px-2.5 py-1.5 text-gray-400 flex items-center gap-1.5">
-            <Monitor className="w-3.5 h-3.5" /> <span className="text-white font-medium">{register?.name || 'Sin caja'}</span>
-          </span>
-          <button
-            onClick={() => setChangingReg(true)}
-            className="text-[10px] text-gray-400 hover:text-brand-400 transition-colors"
-          >
-            Cambiar caja
-          </button>
-          <div className="flex-1" />
-          {canEdit && (
-            <button onClick={() => setRefunding(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10 inline-flex items-center gap-1.5">
-              <Undo2 className="w-3.5 h-3.5" /> Devolución
-            </button>
-          )}
-          {canEdit && (
-            <button onClick={() => setClosingReg(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10 inline-flex items-center gap-1.5">
-              <Receipt className="w-3.5 h-3.5" /> Cerrar caja
-            </button>
-          )}
-        </div>
+      <div>
+        <label htmlFor={`${prefix}-code`} className="eyebrow mb-2 block">Código de factura</label>
+        <CodeInput id={`${prefix}-code`} value={code} onChange={setCode} onSearch={handleSearch} loading={searching} />
+        {notFound && !invoice && (
+          <p className="mt-2 text-sm text-red-400" role="alert">
+            No hay factura pendiente con el código <strong>{code}</strong>
+          </p>
+        )}
+      </div>
 
-        <div className="mb-6 max-w-md">
-          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-            Código de factura
-          </label>
-          <CodeInput value={code} onChange={setCode} onSearch={handleSearch} loading={searching} />
-          {notFound && !invoice && (
-            <p className="text-red-400 text-sm mt-2">
-              No hay factura pendiente con el código <strong>{code}</strong>
+      {searching ? (
+        <div className="space-y-3">
+          <div className="skeleton h-8 w-40 rounded-lg" />
+          <div className="skeleton h-32 rounded-xl" />
+        </div>
+      ) : invoice ? (
+        <div className="space-y-4">
+          <InvoiceDetail invoice={invoice} productImages={productImages} />
+          {invoice.edited_at && (
+            <p className="inline-flex items-center gap-1 text-2xs text-yellow-500/80">
+              <Pencil className="h-3 w-3" /> Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}
             </p>
           )}
-        </div>
-
-        {searching ? (
-          <div className="space-y-3 max-w-lg">
-            <div className="skeleton h-8 w-40 rounded-lg" />
-            <div className="skeleton h-32 rounded-xl" />
-          </div>
-        ) : invoice ? (
-          <div className="max-w-lg space-y-4">
-            <InvoiceDetail invoice={invoice} productImages={productImages} />
-            {invoice.edited_at && (
-              <p className="text-[10px] text-yellow-500/70 inline-flex items-center gap-1">
-                <Pencil className="w-3 h-3" /> Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}
-              </p>
-            )}
-            {invoice.observations && (
-              <div className="bg-surface-400 border border-white/5 rounded-lg px-3 py-2">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Observaciones</p>
-                <p className="text-xs text-gray-300 italic">{invoice.observations}</p>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              {canEdit && (
-                <button onClick={() => setEditing(true)} className="text-xs text-brand-400 hover:text-brand-300 transition-colors inline-flex items-center gap-1">
-                  <Pencil className="w-3 h-3" /> Editar factura
-                </button>
-              )}
-              {canEdit && (
-                <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-red-400 transition-colors inline-flex items-center gap-1">
-                  <X className="w-3 h-3" /> Cancelar factura
-                </button>
-              )}
+          {invoice.observations && (
+            <div className="rounded-lg border border-white/5 bg-surface-400 px-3 py-2">
+              <p className="eyebrow mb-0.5">Observaciones</p>
+              <p className="text-xs italic text-gray-300">{invoice.observations}</p>
             </div>
-          </div>
-        ) : !notFound ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-            <Hash className="w-9 h-9 mb-2" />
-            <p className="text-sm">Ingresa un código de 4 dígitos</p>
-          </div>
-        ) : null}
+          )}
+          {canEdit && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => setEditing(true)} className="btn-ghost btn-sm text-brand-400 hover:text-brand-300">
+                <Pencil className="h-3.5 w-3.5" /> Editar factura
+              </button>
+              <button type="button" onClick={handleCancel} className="btn-ghost btn-sm text-gray-400 hover:text-red-400">
+                <X className="h-3.5 w-3.5" /> Cancelar factura
+              </button>
+            </div>
+          )}
+        </div>
+      ) : !notFound ? (
+        <EmptyState
+          icon={Hash}
+          title="Ingresa un código de 4 dígitos"
+          description="O elige una factura de la lista de pendientes."
+        />
+      ) : null}
+    </div>
+  )
+
+  // ---- Cobro: total, ajustes opcionales y método de pago ----------------
+  const renderPayForm = (prefix) => (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-white/5 bg-surface-300 p-4 text-center">
+        <p className="eyebrow">Total a cobrar</p>
+        <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-white">{formatCOP(totalToPay)}</p>
+        {discountNum > 0 && !invalidDiscount && (
+          <p className="mt-0.5 text-xs text-gray-400">
+            <span className="line-through">{formatCOP(invoice.total)}</span> · descuento {formatCOP(discountNum)}
+          </p>
+        )}
+        <p className="mt-2 text-xs text-gray-400">
+          Factura <span className="font-mono font-semibold text-brand-400">#{invoice.code}</span> · {invoice.seller_name}
+        </p>
+        {canEdit && (
+          <button type="button" onClick={() => setEditing(true)} className="btn-ghost btn-sm mt-2 text-brand-400 md:hidden">
+            <Pencil className="h-3.5 w-3.5" /> Editar ítems
+          </button>
+        )}
       </div>
 
-      {/* Panel derecho: cobrar */}
-      <div className="w-[250px] lg:w-[280px] shrink-0 flex flex-col border-l border-white/5 bg-surface-500 p-4">
-        {invoice ? (
-          <div className="flex-1 flex flex-col gap-4">
-            <div>
-              <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Descuento en $ (opcional)</label>
-              <input type="number" inputMode="numeric" min="0" value={discountStr}
-                onChange={e => setDiscountStr(e.target.value)}
-                placeholder="0" className="input text-sm font-mono" />
-              {invalidDiscount && <p className="text-xs text-red-400 mt-1">No puede superar {formatCOP(invoice.total)}</p>}
-              {!invalidDiscount && discountNum > 0 && (
-                <p className="text-xs text-green-400 mt-1">Nuevo total: {formatCOP(totalToPay)}</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Observaciones (opcional)</label>
-              <textarea value={observations} onChange={e => setObservations(e.target.value)}
-                placeholder="Ej: Se obsequió producto x con autorización del jefe"
-                rows={2} className="input text-xs resize-none" />
-            </div>
-            <div className="flex-1" />
-            <PaymentMethods total={totalToPay} selected={payMethod}
-              onSelect={selectPayMethod} onConfirm={handlePay} loading={paying}
-              cashReceived={cashReceived} onCashReceived={setCashReceived}
-              transferProvider={transferProv} onTransferProvider={setTransferProv} />
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
+        <div>
+          <label htmlFor={`${prefix}-discount`} className="field-label">Descuento en $ <span className="font-normal">(opcional)</span></label>
+          <input id={`${prefix}-discount`} type="number" inputMode="numeric" min="0" value={discountStr}
+            onChange={e => setDiscountStr(e.target.value)}
+            placeholder="0" className="input font-mono" />
+          {invalidDiscount && <p className="mt-1 text-xs text-red-400">No puede superar {formatCOP(invoice.total)}</p>}
+        </div>
+        <div>
+          <label htmlFor={`${prefix}-obs`} className="field-label">Observaciones <span className="font-normal">(opcional)</span></label>
+          <textarea id={`${prefix}-obs`} value={observations} onChange={e => setObservations(e.target.value)}
+            placeholder="Ej: Se obsequió producto x con autorización del jefe"
+            rows={2} className="input resize-none" />
+        </div>
+      </div>
+
+      <PaymentMethods total={totalToPay} selected={payMethod}
+        onSelect={selectPayMethod} onConfirm={handlePay} loading={paying}
+        cashReceived={cashReceived} onCashReceived={setCashReceived}
+        transferProvider={transferProv} onTransferProvider={setTransferProv} />
+    </div>
+  )
+
+  // ==========================================================
+  // DESKTOP / TABLET (md+)
+  //   md:  [pendientes | búsqueda + cobro apilados]
+  //   lg+: [pendientes | búsqueda | cobro] — el contenedor del medio pasa a
+  //        display: contents y sus dos hijos se vuelven columnas de la grilla.
+  // ==========================================================
+  const DesktopLayout = (
+    <div className="hidden min-h-0 flex-1 md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)] lg:grid-cols-[16rem_minmax(0,1fr)_20rem] xl:grid-cols-[18rem_minmax(0,1fr)_22rem] 2xl:grid-cols-[20rem_minmax(0,1fr)_24rem]">
+      {/* Pendientes */}
+      <aside aria-label="Facturas pendientes" className="flex min-h-0 flex-col border-r border-white/5 bg-surface-500">
+        <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
+          <h2 className="eyebrow">Pendientes</h2>
+          {pendingBadge}
+        </div>
+        <PendingList invoices={pendingInvoices} selectedId={invoice?.id} onSelect={handleSelectPending} />
+      </aside>
+
+      <div className="min-h-0 overflow-y-auto lg:contents">
+        {/* Central: buscar + detalle */}
+        <section aria-label="Buscar factura" className="p-5 lg:min-h-0 lg:overflow-y-auto lg:p-6 xl:p-8">
+          <div className="mx-auto max-w-2xl">
+            {renderCenter('d')}
           </div>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-center">
-            <CreditCard className="w-9 h-9 mb-2" />
-            <p className="text-sm">Busca una factura para cobrar</p>
-          </div>
-        )}
+        </section>
+
+        {/* Cobro */}
+        <aside
+          aria-label="Cobro"
+          className={`border-t border-white/5 bg-surface-500 p-5 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0 xl:p-6 ${invoice ? '' : 'hidden lg:block'}`}
+        >
+          {invoice ? (
+            <div className="mx-auto max-w-2xl lg:max-w-none">{renderPayForm('d')}</div>
+          ) : (
+            <EmptyState compact icon={CreditCard} title="Busca una factura para cobrar" className="mt-8" />
+          )}
+        </aside>
       </div>
     </div>
   )
 
   // ==========================================================
-  // MOBILE LAYOUT (<md)
+  // MOBILE LAYOUT (<md): tres pestañas con barra inferior fija
   // ==========================================================
   const MobileLayout = (
-    <div className="flex flex-col flex-1 min-h-0 md:hidden">
-      <div className="flex-1 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col md:hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {mobileTab === 'pendientes' && (
-          <div className="h-full bg-surface-500 flex flex-col">
-            <div className="px-3 py-3 border-b border-white/5 flex items-center justify-between shrink-0">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pendientes</span>
-              {pendingInvoices.length > 0 && (
-                <span className="bg-brand-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                  {pendingInvoices.length}
-                </span>
-              )}
+          <div className="flex min-h-full flex-col bg-surface-500">
+            <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-4 py-3">
+              <h2 className="eyebrow">Pendientes</h2>
+              {pendingBadge}
             </div>
             <PendingList invoices={pendingInvoices} selectedId={invoice?.id} onSelect={handleSelectPending} />
           </div>
         )}
 
         {mobileTab === 'cobrar' && (
-          <div className="p-4 space-y-4">
-            {/* Badge de caja activa */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs bg-surface-300 border border-white/5 rounded-lg px-2.5 py-1.5 text-gray-400 flex items-center gap-1.5">
-                <Monitor className="w-3.5 h-3.5" /> <span className="text-white font-medium">{register?.name || 'Sin caja'}</span>
-              </span>
-              <button onClick={() => setChangingReg(true)}
-                className="text-[10px] text-gray-400 hover:text-brand-400 transition-colors">
-                Cambiar
-              </button>
-              <div className="flex-1" />
-              {canEdit && (
-                <button onClick={() => setRefunding(true)} aria-label="Devolución" className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10">
-                  <Undo2 className="w-3.5 h-3.5" />
-                </button>
-              )}
-              {canEdit && (
-                <button onClick={() => setClosingReg(true)} className="btn btn-ghost btn-sm btn-touch-safe text-xs border border-white/10 inline-flex items-center gap-1.5">
-                  <Receipt className="w-3.5 h-3.5" /> Cierre
-                </button>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Código de factura</label>
-              <CodeInput value={code} onChange={setCode} onSearch={handleSearch} loading={searching} />
-              {notFound && !invoice && (
-                <p className="text-red-400 text-sm mt-2">No hay factura pendiente con el código <strong>{code}</strong></p>
-              )}
-            </div>
-
-            {searching ? (
-              <div className="space-y-3">
-                <div className="skeleton h-8 w-40 rounded-lg" />
-                <div className="skeleton h-32 rounded-xl" />
-              </div>
-            ) : invoice ? (
-              <div className="space-y-4">
-                <InvoiceDetail invoice={invoice} productImages={productImages} />
-                {invoice.edited_at && (
-                  <p className="text-[10px] text-yellow-500/70 inline-flex items-center gap-1">
-                    <Pencil className="w-3 h-3" /> Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}
-                  </p>
-                )}
-                {invoice.observations && (
-                  <div className="bg-surface-400 border border-white/5 rounded-lg px-3 py-2">
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Observaciones</p>
-                    <p className="text-xs text-gray-300 italic">{invoice.observations}</p>
-                  </div>
-                )}
-                <div className="flex items-center gap-3">
-                  {canEdit && (
-                    <button onClick={() => setEditing(true)} className="text-xs text-brand-400 inline-flex items-center gap-1">
-                      <Pencil className="w-3 h-3" /> Editar
-                    </button>
-                  )}
-                  {canEdit && (
-                    <button onClick={handleCancel} className="text-xs text-gray-400 hover:text-red-400 inline-flex items-center gap-1">
-                      <X className="w-3 h-3" /> Cancelar
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : !notFound ? (
-              <div className="flex flex-col items-center justify-center h-40 text-gray-400">
-                <Hash className="w-9 h-9 mb-2" />
-                <p className="text-sm">Ingresa un código de 4 dígitos</p>
-              </div>
-            ) : null}
-          </div>
+          <div className="p-4">{renderCenter('m')}</div>
         )}
 
         {mobileTab === 'pagar' && (
           <div className="p-4">
-            {invoice ? (
-              <div className="space-y-4">
-                <div className="card bg-surface-400 text-center">
-                  <p className="font-mono font-bold text-brand-400 text-2xl tracking-[0.2em] mb-1">#{invoice.code}</p>
-                  <p className="font-mono font-bold text-lg text-white">
-                    {formatCOP(totalToPay)}
-                    {discountNum > 0 && !invalidDiscount && (
-                      <span className="text-xs text-gray-400 line-through ml-2">{formatCOP(invoice.total)}</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">{invoice.seller_name}</p>
-                  {canEdit && (
-                    <button onClick={() => setEditing(true)} className="text-[10px] text-brand-400 mt-2 inline-flex items-center gap-1">
-                      <Pencil className="w-3 h-3" /> Editar items
-                    </button>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Descuento en $ (opcional)</label>
-                  <input type="number" inputMode="numeric" min="0" value={discountStr}
-                    onChange={e => setDiscountStr(e.target.value)}
-                    placeholder="0" className="input text-sm font-mono" />
-                  {invalidDiscount && <p className="text-xs text-red-400 mt-1">No puede superar {formatCOP(invoice.total)}</p>}
-                </div>
-                <div>
-                  <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">Observaciones (opcional)</label>
-                  <textarea value={observations} onChange={e => setObservations(e.target.value)}
-                    placeholder="Ej: Se obsequió producto x con autorización del jefe"
-                    rows={2} className="input text-xs resize-none" />
-                </div>
-                <PaymentMethods total={totalToPay} selected={payMethod}
-                  onSelect={selectPayMethod} onConfirm={handlePay} loading={paying}
-                  cashReceived={cashReceived} onCashReceived={setCashReceived}
-                  transferProvider={transferProv} onTransferProvider={setTransferProv} />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-center">
-                <CreditCard className="w-9 h-9 mb-2" />
-                <p className="text-sm">Busca una factura para cobrar</p>
-              </div>
+            {invoice ? renderPayForm('m') : (
+              <EmptyState icon={CreditCard} title="Busca una factura para cobrar" description="Ingresa el código en la pestaña Cobrar." />
             )}
           </div>
         )}
       </div>
 
       {/* Tab bar */}
-      <div className="border-t border-white/5 bg-surface-500 flex shrink-0 safe-area-pb">
-        {CAJA_TABS.map(t => (
-          <button key={t.id} onClick={() => setMobileTab(t.id)}
-            aria-current={mobileTab === t.id ? 'page' : undefined}
-            className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors relative
-              ${mobileTab === t.id ? 'text-brand-400' : 'text-gray-400'}`}>
-            <t.Icon className="w-5 h-5" />
-            <span>{t.label}</span>
-            {t.id === 'pendientes' && pendingInvoices.length > 0 && (
-              <span className="absolute top-1 right-1/4 bg-brand-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {pendingInvoices.length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <nav aria-label="Secciones de caja" className="safe-area-pb flex shrink-0 border-t border-white/5 bg-surface-500">
+        {CAJA_TABS.map(t => {
+          const active = mobileTab === t.id
+          return (
+            <button key={t.id} type="button" onClick={() => setMobileTab(t.id)}
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex min-h-[3.5rem] flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors
+                ${active ? 'text-brand-400' : 'text-gray-400 hover:text-gray-200'}`}>
+              {active && <span className="absolute inset-x-6 top-0 h-0.5 rounded-full bg-brand-500" aria-hidden="true" />}
+              <t.Icon className="h-5 w-5" />
+              <span>{t.label}</span>
+              {t.id === 'pendientes' && pendingInvoices.length > 0 && (
+                <span className="absolute right-1/4 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-2xs font-bold text-surface-700">
+                  {pendingInvoices.length}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </nav>
     </div>
   )
 
   // ==========================================================
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-[#111]">
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
       <Topbar title="Caja" />
       {DesktopLayout}
       {MobileLayout}

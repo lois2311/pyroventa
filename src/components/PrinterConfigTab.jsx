@@ -15,6 +15,7 @@ import {
 import { api } from '../lib/api.js'
 import { useAuthStore } from '../store/authStore.js'
 import { useToast } from './Toast.jsx'
+import PageHeader from './PageHeader.jsx'
 import { formatCOP } from '../lib/format.js'
 import { printBrowserFallback, generatePDF } from '../lib/printService.js'
 
@@ -176,23 +177,16 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
   return (
     <div className="space-y-6">
       {/* Encabezado del tab */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
-        <div>
-          <h2 className="text-lg font-syne font-bold text-white flex items-center gap-2">
-            <Printer className="w-5 h-5 text-brand-400" />
-            Configuración de Impresión Térmica y Logo
-          </h2>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Personaliza el logo, tamaño de papel (80mm / 58mm) y textos que se imprimen en los recibos térmicos.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Impresión térmica y logo"
+        icon={Printer}
+        description="Personaliza el logo, tamaño de papel (80mm / 58mm) y textos que se imprimen en los recibos térmicos."
+        actions={
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || (!selectedLocId && !applyToAll)}
-            className="btn btn-primary inline-flex items-center gap-2 shadow-lg shadow-brand-500/20"
+            className="btn-primary"
           >
             {saving ? (
               <>
@@ -200,12 +194,12 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
               </>
             ) : (
               <>
-                <Check className="w-4 h-4" /> Guardar Configuración
+                <Check className="w-4 h-4" /> Guardar configuración
               </>
             )}
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Selector de sede si es Owner */}
       {isOwner && locations.length > 1 && (
@@ -259,7 +253,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                 </p>
               </div>
               {logoUrl && (
-                <span className="text-[11px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full inline-flex items-center gap-1 font-medium">
+                <span className="text-2xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full inline-flex items-center gap-1 font-medium">
                   <CheckCircle2 className="w-3 h-3" /> Configurado
                 </span>
               )}
@@ -277,7 +271,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                 </div>
                 <div className="flex-1 space-y-2 text-center sm:text-left">
                   <p className="text-xs font-medium text-white">Logo cargado para recibo</p>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-2xs text-gray-400">
                     Se procesa en escala de grises para máxima nitidez en cabezales térmicos.
                   </p>
                   <div className="flex flex-wrap gap-2 pt-1 justify-center sm:justify-start">
@@ -285,7 +279,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploadingLogo}
-                      className="btn btn-ghost btn-sm text-xs inline-flex items-center gap-1.5 border border-white/10"
+                      className="btn-outline btn-sm text-xs inline-flex items-center gap-1.5"
                     >
                       <Upload className="w-3.5 h-3.5" /> Cambiar imagen
                     </button>
@@ -358,7 +352,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                     }`}
                   >
                     <div className="font-bold text-sm">80 mm</div>
-                    <div className="text-[11px] opacity-75">Estándar POS (48 col)</div>
+                    <div className="text-2xs opacity-75">Estándar POS (48 col)</div>
                   </button>
 
                   <button
@@ -371,7 +365,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                     }`}
                   >
                     <div className="font-bold text-sm">58 mm</div>
-                    <div className="text-[11px] opacity-75">Mini térmico (32 col)</div>
+                    <div className="text-2xs opacity-75">Mini térmico (32 col)</div>
                   </button>
                 </div>
               </div>
@@ -388,7 +382,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                   placeholder="ej. POS-80, EPSON TM-T20"
                   className="input text-sm w-full"
                 />
-                <p className="text-[11px] text-gray-500 mt-1">
+                <p className="text-2xs text-gray-400 mt-1">
                   Identificador para integración con software de impresión directa.
                 </p>
               </div>
@@ -407,7 +401,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                   <span className="text-xs font-medium text-white block">
                     Habilitar impresión directa con QZ Tray
                   </span>
-                  <span className="text-[11px] text-gray-400 block">
+                  <span className="text-2xs text-gray-400 block">
                     Permite imprimir directo a la impresora sin mostrar el diálogo del navegador. Si QZ Tray no está corriendo, se usa automáticamente la ventana del navegador.
                   </span>
                 </div>
@@ -459,7 +453,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
               <Eye className="w-4 h-4 text-brand-400" />
               Vista Previa en Vivo ({paperWidth})
             </h3>
-            <span className="text-[11px] text-gray-400">Simulador de papel térmico</span>
+            <span className="text-2xs text-gray-400">Simulador de papel térmico</span>
           </div>
 
           {/* Contenedor del Ticket Térmico con diseño realista */}
@@ -486,7 +480,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                   />
                 </div>
               ) : (
-                <div className="text-center text-[10px] text-gray-400 border border-dashed border-gray-300 py-1.5 mb-2 rounded">
+                <div className="text-center text-2xs text-gray-400 border border-dashed border-gray-300 py-1.5 mb-2 rounded">
                   [ Sin logo configurado ]
                 </div>
               )}
@@ -503,7 +497,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
               <div className="border-t border-dashed border-gray-400 my-2"></div>
 
               {/* Info Factura */}
-              <div className="text-[11px] space-y-0.5 text-gray-700">
+              <div className="text-2xs space-y-0.5 text-gray-700">
                 <div className="flex justify-between">
                   <span>Factura:</span>
                   <span className="font-bold text-black">#TEST-001</span>
@@ -525,7 +519,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                 {sampleInvoice.items.map((item, i) => (
                   <div key={i} className="text-gray-800">
                     <div className="font-medium text-black truncate">{item.productName}</div>
-                    <div className="flex justify-between text-[11px] text-gray-600">
+                    <div className="flex justify-between text-2xs text-gray-600">
                       <span>&nbsp;&nbsp;{item.label}</span>
                       <span>x{item.qty}&nbsp;&nbsp;{formatCOP(item.subtotal)}</span>
                     </div>
@@ -543,14 +537,14 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
 
               <div className="border-t border-dashed border-gray-400 my-2"></div>
 
-              <div className="text-[11px] text-gray-700">
+              <div className="text-2xs text-gray-700">
                 <span>MÉTODO: EFECTIVO</span>
               </div>
 
               <div className="border-t border-dashed border-gray-400 my-2"></div>
 
               {/* Pie de página */}
-              <div className="text-center space-y-0.5 text-[11px] text-gray-700 mt-2">
+              <div className="text-center space-y-0.5 text-2xs text-gray-700 mt-2">
                 {footerLines.filter(Boolean).map((f, i) => (
                   <div key={i}>{f}</div>
                 ))}
@@ -568,7 +562,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
               <button
                 type="button"
                 onClick={handleTestPrintBrowser}
-                className="btn btn-ghost btn-sm text-xs border border-white/10 hover:border-brand-500/30 flex items-center justify-center gap-1.5"
+                className="btn-outline btn-sm text-xs hover:border-brand-500/30 flex items-center justify-center gap-1.5"
               >
                 <Printer className="w-3.5 h-3.5 text-brand-400" />
                 Imprimir Prueba (POS)
@@ -576,7 +570,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
               <button
                 type="button"
                 onClick={handleTestPrintPDF}
-                className="btn btn-ghost btn-sm text-xs border border-white/10 hover:border-brand-500/30 flex items-center justify-center gap-1.5"
+                className="btn-outline btn-sm text-xs hover:border-brand-500/30 flex items-center justify-center gap-1.5"
               >
                 <FileText className="w-3.5 h-3.5 text-cyan-400" />
                 Descargar PDF

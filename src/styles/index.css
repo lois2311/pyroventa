@@ -3,6 +3,27 @@
 @tailwind utilities;
 
 @layer base {
+  /* ---- Tokens de layout ------------------------------------------------
+     --gutter: margen lateral fluido. clamp() evita saltos entre breakpoints:
+       16px en un teléfono de 390px, ~24px en tablet, 32px desde ~1200px.
+     --control-h: altura única para inputs, selects y botones, así una barra
+       de filtros queda alineada. Con puntero grueso (dedo) sube a 44px, el
+       mínimo táctil de Apple HIG / WCAG 2.5.5; con mouse queda en 40px y
+       el escritorio no se ve inflado. */
+  :root {
+    color-scheme: dark; /* íconos de <input type="date">, selects y scrollbars nativos en oscuro */
+    --gutter: clamp(1rem, 0.5rem + 2vw, 2rem);
+    --control-h: 2.5rem;
+    --control-h-sm: 2rem;
+    --topbar-h: 3.5rem;
+  }
+  @media (pointer: coarse) {
+    :root {
+      --control-h: 2.75rem;
+      --control-h-sm: 2.5rem;
+    }
+  }
+
   *, *::before, *::after {
     box-sizing: border-box;
   }
@@ -12,13 +33,22 @@
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    background-color: #111111;
+    @apply bg-surface-500;
     color: #f3f4f6;
     min-height: 100vh;
+    min-height: 100dvh;
     overflow-x: hidden;
+  }
+
+  /* Títulos sin palabras huérfanas en la última línea */
+  h1, h2, h3 {
+    text-wrap: balance;
   }
 
   /* Scrollbar personalizado oscuro */
@@ -41,6 +71,18 @@
     border-radius: 6px;
   }
 
+  /* iOS Safari hace zoom al enfocar un campo con fuente < 16px (p. ej. el
+     buscador del vendedor en iPhone) y la vista queda desencuadrada. En
+     pantallas chicas los campos suben a 16px; input.input tiene más
+     especificidad que text-sm/text-xs, así que no hace falta !important. */
+  @media (max-width: 639px) {
+    input.input:not(.text-lg, .text-xl, .text-2xl),
+    select.input,
+    textarea.input {
+      font-size: 1rem;
+    }
+  }
+
   /* Ninguna animación del proyecto tenía alternativa para movimiento
      reducido: reveals, el glow del código y el checkmark de éxito corrían
      igual sin importar la preferencia del sistema. El contenido sigue
@@ -56,10 +98,57 @@
 }
 
 @layer components {
-  /* Botones base */
+  /* ================================================================
+     LAYOUT
+     ================================================================ */
+
+  /* Contenedor de página: centrado, con tope de ancho y margen lateral
+     fluido. Antes cada vista decidía su ancho (max-w-2xl, 3xl, 5xl o
+     ninguno) y todas quedaban pegadas a la izquierda en monitores anchos. */
+  .page-container {
+    @apply mx-auto w-full max-w-content px-gutter;
+  }
+
+  /* Jerarquía tipográfica: página > sección > panel > eyebrow */
+  .page-title {
+    @apply flex items-center gap-2 font-syne text-xl font-bold tracking-tight text-white sm:text-2xl;
+  }
+  .section-title {
+    @apply flex items-center gap-2 font-syne text-base font-semibold text-white;
+  }
+  .panel-title {
+    @apply text-sm font-semibold text-white;
+  }
+  .eyebrow {
+    @apply text-2xs font-medium uppercase tracking-wider text-gray-400;
+  }
+
+  /* Barra de filtros: los controles se alinean por la base (labels arriba)
+     y bajan de línea en pantallas angostas */
+  .toolbar {
+    @apply flex flex-wrap items-end gap-3;
+  }
+
+  /* Contenedor de listas: una sola superficie con filas divididas, en vez
+     de una card por fila (menos bordes, lectura más rápida) */
+  .panel {
+    @apply rounded-xl border border-white/5 bg-surface-300;
+  }
+  .panel-header {
+    @apply flex items-center justify-between gap-3 px-4 pb-3 pt-4 sm:px-5;
+  }
+  .list-row {
+    @apply flex items-center gap-3 px-4 py-3 sm:px-5;
+  }
+
+  /* ================================================================
+     CONTROLES — todos comparten --control-h (40px mouse / 44px táctil)
+     ================================================================ */
+
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-150 cursor-pointer select-none;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-150 cursor-pointer select-none;
     @apply disabled:opacity-40 disabled:cursor-not-allowed;
+    min-height: var(--control-h);
   }
   /* Texto oscuro sobre naranja: blanco sobre brand-500 da 2.80:1 (falla AA).
      Oscurecer el texto en vez del fondo conserva el naranja de marca a pleno
@@ -70,6 +159,11 @@
   .btn-ghost {
     @apply btn bg-transparent text-gray-300 hover:bg-surface-50 hover:text-white;
   }
+  /* Acción secundaria con borde (antes "btn btn-ghost border border-white/10"
+     repetido en decenas de lugares) */
+  .btn-outline {
+    @apply btn border border-white/10 bg-transparent text-gray-300 hover:border-white/20 hover:bg-surface-50 hover:text-white;
+  }
   .btn-danger {
     @apply btn bg-red-600 text-white hover:bg-red-700 active:scale-[0.98];
   }
@@ -79,19 +173,52 @@
     @apply btn bg-green-700 text-white hover:bg-green-800 active:scale-[0.98];
   }
   .btn-sm {
-    @apply px-3 py-1.5 text-xs rounded-md;
+    @apply px-3 py-1 text-xs rounded-md;
+    min-height: var(--control-h-sm);
   }
   .btn-lg {
-    @apply px-6 py-3.5 text-base rounded-xl;
+    @apply px-6 py-3 text-base rounded-xl;
+    min-height: 3rem;
+  }
+  /* Botón cuadrado de solo ícono; combinar con btn-ghost / btn-outline */
+  .btn-icon {
+    @apply shrink-0 px-0;
+    width: var(--control-h);
+  }
+  .btn-icon.btn-sm {
+    width: var(--control-h-sm);
   }
 
+  /* Área táctil mínima: 40px con mouse, 44px con dedo (vía --control-h) */
   .btn-touch-safe {
-    @apply min-h-[44px] min-w-[44px];
+    min-height: var(--control-h);
+    min-width: var(--control-h);
   }
 
-  /* Cards */
+  /* Control segmentado (rangos rápidos, filtros excluyentes) */
+  .segmented {
+    @apply inline-flex items-stretch gap-0.5 rounded-lg border border-white/10 bg-surface-400 p-0.5;
+    min-height: var(--control-h);
+  }
+  .segmented > button {
+    @apply whitespace-nowrap rounded-md px-3 text-xs font-medium text-gray-300 transition-colors hover:bg-surface-50 hover:text-white;
+  }
+  .segmented > button[aria-pressed="true"] {
+    @apply bg-brand-500/15 text-brand-300;
+  }
+
+  /* Chip de filtro (categorías, estados) */
+  .chip {
+    @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-white/10 bg-surface-300 px-3 text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white;
+    min-height: var(--control-h-sm);
+  }
+  .chip[aria-pressed="true"] {
+    @apply border-brand-500/60 bg-brand-500/15 text-brand-300;
+  }
+
+  /* Cards: el padding crece un paso en pantallas medianas */
   .card {
-    @apply bg-surface-400 border border-white/5 rounded-xl p-4;
+    @apply bg-surface-400 border border-white/5 rounded-xl p-4 sm:p-5;
   }
   .card-hover {
     @apply card transition-all duration-150 hover:border-brand-500/40 hover:bg-surface-300 cursor-pointer;
@@ -100,9 +227,51 @@
   /* Inputs */
   /* placeholder-gray-500 daba 3.60:1 sobre surface-300 (falla AA); gray-400 pasa (6.86:1) */
   .input {
-    @apply w-full bg-surface-300 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm
+    @apply w-full bg-surface-300 border border-white/10 rounded-lg px-3 py-2 text-white text-sm
            placeholder-gray-400 outline-none transition-colors duration-150
-           focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30;
+           focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30
+           disabled:cursor-not-allowed disabled:opacity-60;
+    min-height: var(--control-h);
+  }
+  /* Formularios de acceso (login): un paso más grande y legible */
+  .input-lg {
+    @apply rounded-xl px-4 text-base;
+    min-height: 3rem;
+  }
+  .field-label {
+    @apply mb-1.5 block text-xs font-medium text-gray-400;
+  }
+  .field-hint {
+    @apply mt-1 text-xs text-gray-400;
+  }
+
+  /* ================================================================
+     MODALES — un solo patrón para todos los diálogos
+     Móvil: hoja inferior a todo el ancho. sm+: panel centrado.
+     El overlay es el que hace scroll; mt-auto / my-auto (en vez de
+     items-end / items-center) evita que un formulario más alto que la
+     pantalla quede con la parte superior inalcanzable.
+     ================================================================ */
+  .modal-backdrop {
+    @apply fixed inset-0 z-50 flex flex-col items-center overflow-y-auto overscroll-contain bg-black/70 backdrop-blur-sm animate-fade-in sm:px-6 sm:py-10;
+  }
+  .modal-panel {
+    @apply relative mt-auto w-full rounded-t-2xl border border-white/10 bg-surface-200 shadow-2xl animate-slide-up
+           sm:my-auto sm:rounded-2xl sm:animate-scale-in;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .modal-header {
+    @apply sticky top-0 z-10 flex items-start justify-between gap-3 rounded-t-2xl bg-surface-200 px-5 pb-3 pt-5;
+  }
+  .modal-title {
+    @apply flex items-center gap-2 font-syne text-lg font-semibold text-white;
+  }
+  .modal-body {
+    @apply space-y-4 px-5 pb-5;
+  }
+  .modal-footer {
+    @apply sticky bottom-0 z-10 flex flex-col-reverse gap-2 border-t border-white/5 bg-surface-200 px-5 py-4
+           sm:flex-row sm:items-center sm:justify-end sm:rounded-b-2xl;
   }
 
   /* Badges de estado */

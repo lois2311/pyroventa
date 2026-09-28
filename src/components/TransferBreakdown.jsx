@@ -37,7 +37,7 @@ export default function TransferBreakdown({ data, compact = false }) {
     return (
       <div className="flex flex-wrap gap-1.5 mt-1.5">
         {rows.map(r => (
-          <span key={r.id} className="text-[10px] bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
+          <span key={r.id} className="text-2xs bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full">
             {r.label}: {formatCOP(r.value)}
           </span>
         ))}
@@ -46,18 +46,18 @@ export default function TransferBreakdown({ data, compact = false }) {
   }
 
   return (
-    <div className="mt-2 ml-6 space-y-1.5 border-l border-blue-500/20 pl-3">
+    <div className="mt-3 ml-2 space-y-2 border-l border-blue-500/25 pl-4">
       {rows.map(r => {
         const pct = total > 0 ? (r.value / total) * 100 : 0
         return (
           <div key={r.id}>
-            <div className="flex items-center justify-between text-xs">
+            <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
               <span className={r.id === 'sin_detalle' ? 'text-gray-400 italic' : 'text-gray-400'}>
                 {r.label}
               </span>
-              <span className="font-mono text-blue-300">
+              <span className="whitespace-nowrap font-mono tabular-nums text-gray-300">
                 {formatCOP(r.value)}
-                <span className="text-gray-400 ml-1.5">{pct.toFixed(0)}%</span>
+                <span className="ml-1.5 font-sans text-gray-400">{pct.toFixed(0)}%</span>
               </span>
             </div>
             <ProgressBar pct={pct} color={r.id === 'sin_detalle' ? 'neutral' : 'blue'} height="xs" />

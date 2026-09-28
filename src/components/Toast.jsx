@@ -47,10 +47,16 @@ const STYLES = {
   info:    { bg: 'bg-surface-200 border-white/10',        icon: 'ℹ', text: 'text-gray-300'  },
 }
 
+// El contenedor se monta siempre (aunque esté vacío): una región aria-live
+// que aparece junto con su contenido no se anuncia en los lectores de pantalla.
 function ToastContainer({ toasts, onDismiss }) {
-  if (!toasts.length) return null
   return (
-    <div className="fixed top-4 right-4 z-[9998] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+    <div
+      className="pointer-events-none fixed left-4 right-4 z-[9998] flex flex-col gap-2 sm:left-auto sm:w-full sm:max-w-sm"
+      style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+      role="status"
+      aria-live="polite"
+    >
       {toasts.map(t => {
         const s = STYLES[t.type] || STYLES.info
         return (
@@ -61,8 +67,10 @@ function ToastContainer({ toasts, onDismiss }) {
             <span className={`${s.text} font-bold mt-0.5 shrink-0`}>{s.icon}</span>
             <span className="text-sm text-white/90 flex-1 leading-snug">{t.message}</span>
             <button
+              type="button"
               onClick={() => onDismiss(t.id)}
-              className="text-gray-400 hover:text-white transition-colors shrink-0 text-lg leading-none"
+              aria-label="Cerrar aviso"
+              className="-my-1 -mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-lg leading-none text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
             >
               ×
             </button>

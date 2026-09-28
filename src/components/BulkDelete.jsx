@@ -137,11 +137,11 @@ export default function BulkDelete({ onChanged }) {
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
           <div>
             <h3 className="font-syne font-semibold text-white text-sm">Eliminar productos</h3>
-            <p className="text-[11px] text-gray-400">
+            <p className="text-2xs text-gray-400">
               Borra productos en bloque o vacía el catálogo antes de volver a importarlo.
             </p>
           </div>
-          <button onClick={() => setOpen(true)} className="btn btn-ghost border border-white/10 text-sm shrink-0">
+          <button onClick={() => setOpen(true)} className="btn-outline text-sm shrink-0">
             🗑 Borrado masivo
           </button>
         </div>
@@ -183,7 +183,7 @@ export default function BulkDelete({ onChanged }) {
               />
               <span className="text-sm text-white">{opt.title}</span>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1 ml-6">{opt.hint}</p>
+            <p className="text-2xs text-gray-400 mt-1 ml-6">{opt.hint}</p>
           </label>
         ))}
       </div>
@@ -200,7 +200,7 @@ export default function BulkDelete({ onChanged }) {
         <button
           onClick={toggleFiltered}
           disabled={busy || loading || filtered.length === 0}
-          className="btn btn-ghost border border-white/10 text-xs shrink-0"
+          className="btn-outline text-xs shrink-0"
         >
           {allFilteredSelected ? 'Quitar selección' : `Seleccionar ${query.trim() ? `${filtered.length} filtrado(s)` : 'todos'}`}
         </button>
@@ -237,9 +237,9 @@ export default function BulkDelete({ onChanged }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white truncate">
                   {p.name}
-                  {!p.active && <span className="ml-2 text-[10px] text-yellow-500">inactivo</span>}
+                  {!p.active && <span className="ml-2 text-2xs text-yellow-500">inactivo</span>}
                 </p>
-                <p className="text-[10px] text-gray-400 truncate">
+                <p className="text-2xs text-gray-400 truncate">
                   {p.categories?.name || 'Sin categoría'}
                   {p.presentations?.length ? ` · ${p.presentations.length} presentación(es) desde ${formatCOP(Math.min(...p.presentations.map(pr => pr.price)))}` : ''}
                 </p>
@@ -276,7 +276,7 @@ export default function BulkDelete({ onChanged }) {
               : <>Vas a desactivar <strong>{selected.size} producto(s)</strong>. Podrás reactivarlos después desde la lista de productos.</>}
           </p>
           {isWholeCatalog && (
-            <p className="text-[11px] text-red-400">Es el catálogo completo ({products.length} productos).</p>
+            <p className="text-2xs text-red-400">Es el catálogo completo ({products.length} productos).</p>
           )}
           {mode === 'hard' && (
             <input

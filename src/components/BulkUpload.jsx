@@ -250,8 +250,8 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
           </p>
 
           <div className="bg-surface-300 rounded-lg p-3 mb-4">
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Formato requerido</p>
-            <div className="overflow-x-auto">
+            <p className="text-2xs text-gray-400 uppercase tracking-wider mb-2">Formato requerido</p>
+            <div className="relative overflow-x-auto">
               <table className="text-xs w-full">
                 <thead>
                   <tr className="text-gray-400 border-b border-white/5">
@@ -277,7 +277,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2">
-            <button onClick={downloadTemplate} className="btn btn-ghost border border-white/10 text-sm">
+            <button onClick={downloadTemplate} className="btn-outline text-sm">
               📥 Descargar plantilla Excel
             </button>
 
@@ -294,8 +294,8 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
           </div>
 
           <div className="mt-3 space-y-1">
-            <p className="text-[10px] text-gray-400">Notas:</p>
-            <ul className="text-[10px] text-gray-400 list-disc list-inside space-y-0.5">
+            <p className="text-2xs text-gray-400">Notas:</p>
+            <ul className="text-2xs text-gray-400 list-disc list-inside space-y-0.5">
               <li>Productos con nombre duplicado se omiten (no se sobreescriben), pero si adjuntas foto y el existente no tiene, la foto sí se le agrega</li>
               <li>Categorías nuevas se crean automáticamente</li>
               <li>El precio debe ser numérico (ej: 2500, no $2.500)</li>
@@ -338,19 +338,19 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
         <div className="grid grid-cols-4 gap-3">
           <div className="card bg-surface-400 text-center">
             <p className="font-mono font-bold text-xl text-brand-400">{parsed.length}</p>
-            <p className="text-[10px] text-gray-400">Productos</p>
+            <p className="text-2xs text-gray-400">Productos</p>
           </div>
           <div className="card bg-surface-400 text-center">
             <p className="font-mono font-bold text-xl text-white">{totalPres}</p>
-            <p className="text-[10px] text-gray-400">Presentaciones</p>
+            <p className="text-2xs text-gray-400">Presentaciones</p>
           </div>
           <div className="card bg-surface-400 text-center">
             <p className="font-mono font-bold text-xl text-white">{categories.length}</p>
-            <p className="text-[10px] text-gray-400">Categorías</p>
+            <p className="text-2xs text-gray-400">Categorías</p>
           </div>
           <div className="card bg-surface-400 text-center">
             <p className="font-mono font-bold text-xl text-white">{photoCount}</p>
-            <p className="text-[10px] text-gray-400">Fotos</p>
+            <p className="text-2xs text-gray-400">Fotos</p>
           </div>
         </div>
 
@@ -360,7 +360,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
             <p className="text-xs text-gray-400">
               Adjunta las fotos de los productos: se emparejan por la columna Imagen o por el nombre del producto.
             </p>
-            <label className="btn btn-ghost border border-white/10 text-sm cursor-pointer shrink-0">
+            <label className="btn-outline text-sm cursor-pointer shrink-0">
               📷 Agregar fotos
               <input
                 ref={photosRef}
@@ -374,12 +374,12 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
             </label>
           </div>
           {unmatched.length > 0 && (
-            <p className="text-[10px] text-yellow-400 mt-2">
+            <p className="text-2xs text-yellow-400 mt-2">
               Sin coincidencia: {unmatched.join(', ')} — usa el botón 📷 de cada producto para asignarlas.
             </p>
           )}
           {missingDeclared.length > 0 && (
-            <p className="text-[10px] text-yellow-400 mt-2">
+            <p className="text-2xs text-yellow-400 mt-2">
               El Excel declara fotos que aún no adjuntas: {missingDeclared.map(p => p.image).join(', ')}
             </p>
           )}
@@ -412,7 +412,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white">{product.name}</p>
-                    <div className="flex gap-2 text-[10px] text-gray-400 flex-wrap">
+                    <div className="flex gap-2 text-2xs text-gray-400 flex-wrap">
                       {product.category && <span className="bg-surface-50 px-1.5 py-0.5 rounded">{product.category}</span>}
                       {product.stock !== undefined && (
                         <span className="bg-emerald-500/20 text-emerald-300 font-mono px-1.5 py-0.5 rounded">
@@ -446,7 +446,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
                 </div>
                 <div className="flex flex-wrap gap-1 ml-[50px]">
                   {product.presentations.map((pres, j) => (
-                    <span key={j} className="text-[10px] bg-surface-50 text-gray-400 px-2 py-0.5 rounded-full font-mono">
+                    <span key={j} className="text-2xs bg-surface-50 text-gray-400 px-2 py-0.5 rounded-full font-mono">
                       {pres.label} · {formatCOP(pres.price)}
                     </span>
                   ))}
@@ -458,7 +458,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
 
         {photoErrors.length > 0 && (
           <div className="bg-surface-300 rounded-lg p-3">
-            <p className="text-[10px] text-yellow-400 uppercase tracking-wider mb-1">Fotos que fallaron al subir (reintenta, o quítalas para importar sin foto):</p>
+            <p className="text-2xs text-yellow-400 uppercase tracking-wider mb-1">Fotos que fallaron al subir (reintenta, o quítalas para importar sin foto):</p>
             {photoErrors.map((err, i) => (
               <p key={i} className="text-xs text-yellow-300">{err}</p>
             ))}
@@ -501,21 +501,21 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
           <div className="grid grid-cols-3 gap-3 mt-4 max-w-sm mx-auto">
             <div>
               <p className="font-mono font-bold text-xl text-green-400">{result?.created || 0}</p>
-              <p className="text-[10px] text-gray-400">Creados</p>
+              <p className="text-2xs text-gray-400">Creados</p>
             </div>
             <div>
               <p className="font-mono font-bold text-xl text-yellow-400">{result?.skipped || 0}</p>
-              <p className="text-[10px] text-gray-400">Omitidos</p>
+              <p className="text-2xs text-gray-400">Omitidos</p>
             </div>
             <div>
               <p className="font-mono font-bold text-xl text-red-400">{result?.errors?.length || 0}</p>
-              <p className="text-[10px] text-gray-400">Errores</p>
+              <p className="text-2xs text-gray-400">Errores</p>
             </div>
           </div>
 
           {result?.errors?.length > 0 && (
             <div className="mt-3 text-left bg-surface-300 rounded-lg p-3 max-w-sm mx-auto">
-              <p className="text-[10px] text-red-400 uppercase tracking-wider mb-1">Errores:</p>
+              <p className="text-2xs text-red-400 uppercase tracking-wider mb-1">Errores:</p>
               {result.errors.map((err, i) => (
                 <p key={i} className="text-xs text-red-300">{err}</p>
               ))}
@@ -524,7 +524,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
         </div>
 
         <div className="flex gap-2">
-          <button onClick={handleReset} className="btn btn-ghost border border-white/10">
+          <button onClick={handleReset} className="btn-outline">
             Importar más
           </button>
           <button onClick={onDone} className="btn btn-primary">

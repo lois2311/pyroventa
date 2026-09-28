@@ -175,10 +175,10 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div
         ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-lg my-4 space-y-4 animate-scale-in"
+        className="modal-panel sm:max-w-lg p-5 space-y-4"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -209,15 +209,15 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-white truncate">{item.product_name}</p>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-[10px] text-gray-400">{item.label} · {formatCOP(item.price)} c/u</p>
+                    <p className="text-2xs text-gray-400">{item.label} · {formatCOP(item.price)} c/u</p>
                     {item.is_price_edited && (
-                      <span className="text-[9px] bg-amber-500/20 text-amber-300 font-medium px-1.5 py-0.2 rounded border border-amber-500/30">
+                      <span className="text-2xs bg-amber-500/20 text-amber-300 font-medium px-1.5 py-0.2 rounded border border-amber-500/30">
                         Editado (Base: {formatCOP(item.original_price)})
                       </span>
                     )}
                   </div>
                   {item.is_price_edited && item.price_edit_reason && (
-                    <p className="text-[10px] text-gray-400 italic truncate">
+                    <p className="text-2xs text-gray-400 italic truncate">
                       Motivo: {item.price_edit_reason}
                     </p>
                   )}
@@ -231,7 +231,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
                     title="Editar precio del artículo (Superadmin)"
                     aria-label={`Editar precio de ${item.product_name}`}
                     className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                      editingPriceIdx === idx ? 'bg-brand-500 text-white' : 'text-gray-400 hover:text-brand-400 hover:bg-surface-100'
+                      editingPriceIdx === idx ? 'bg-brand-500 text-surface-700' : 'text-gray-400 hover:text-brand-400 hover:bg-surface-100'
                     }`}
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -285,7 +285,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
         {!showCatalog ? (
           <button
             onClick={() => setShowCatalog(true)}
-            className="btn btn-ghost w-full border border-dashed border-white/10 text-gray-400 hover:text-brand-400 hover:border-brand-500/30"
+            className="btn-outline w-full border-dashed text-gray-400 hover:text-brand-400 hover:border-brand-500/30"
           >
             <Plus className="w-4 h-4" /> Agregar producto
           </button>
@@ -313,7 +313,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
                 <div key={product.id} className="space-y-0.5">
                   <div className="flex items-center gap-1.5 px-1">
                     {product.image_url && <ProductImage src={product.image_url} name={product.name} className="w-6 h-6" />}
-                    <p className="text-[10px] text-gray-400 font-medium">{product.name}</p>
+                    <p className="text-2xs text-gray-400 font-medium">{product.name}</p>
                   </div>
                   {(product.presentations || []).filter(p => p.active !== false).map(pres => (
                     <button
@@ -380,7 +380,7 @@ function InlinePriceEditor({ item, onSave, onReset, onCancel }) {
           <button
             type="button"
             onClick={onReset}
-            className="text-[10px] text-amber-400 hover:text-amber-300 inline-flex items-center gap-1"
+            className="text-2xs text-amber-400 hover:text-amber-300 inline-flex items-center gap-1"
           >
             <RotateCcw className="w-3 h-3" /> Restablecer
           </button>
@@ -389,7 +389,7 @@ function InlinePriceEditor({ item, onSave, onReset, onCancel }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-gray-400 mb-0.5">Nuevo precio unitario</label>
+          <label className="block text-2xs text-gray-400 mb-0.5">Nuevo precio unitario</label>
           <input
             type="number"
             min="0"
@@ -401,7 +401,7 @@ function InlinePriceEditor({ item, onSave, onReset, onCancel }) {
           />
         </div>
         <div>
-          <label className="block text-[10px] text-gray-400 mb-0.5">Motivo del cambio</label>
+          <label className="block text-2xs text-gray-400 mb-0.5">Motivo del cambio</label>
           <input
             type="text"
             placeholder="Ej: Descuento acordado..."
@@ -412,7 +412,7 @@ function InlinePriceEditor({ item, onSave, onReset, onCancel }) {
         </div>
       </div>
 
-      {err && <p className="text-red-400 text-[10px]">{err}</p>}
+      {err && <p className="text-red-400 text-2xs">{err}</p>}
 
       <div className="flex flex-wrap gap-1">
         {COMMON_REASONS.slice(0, 3).map(r => (
@@ -420,7 +420,7 @@ function InlinePriceEditor({ item, onSave, onReset, onCancel }) {
             key={r}
             type="button"
             onClick={() => setReason(r)}
-            className="text-[9px] bg-surface-400 hover:bg-surface-200 text-gray-300 px-1.5 py-0.5 rounded transition-colors"
+            className="text-2xs bg-surface-400 hover:bg-surface-200 text-gray-300 px-1.5 py-0.5 rounded transition-colors"
           >
             {r}
           </button>
@@ -428,10 +428,10 @@ function InlinePriceEditor({ item, onSave, onReset, onCancel }) {
       </div>
 
       <div className="flex justify-end gap-1.5 pt-1">
-        <button type="button" onClick={onCancel} className="btn btn-ghost btn-sm text-[11px] py-1 px-2">
+        <button type="button" onClick={onCancel} className="btn btn-ghost btn-sm text-2xs py-1 px-2">
           Cancelar
         </button>
-        <button type="button" onClick={handleApply} className="btn btn-primary btn-sm text-[11px] py-1 px-2">
+        <button type="button" onClick={handleApply} className="btn btn-primary btn-sm text-2xs py-1 px-2">
           Aplicar precio
         </button>
       </div>

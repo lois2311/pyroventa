@@ -52,13 +52,13 @@ export default function InvoiceDetail({ invoice, productImages = {} }) {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-xs text-gray-400">{item.label} · {formatCOP(item.price)}</p>
                 {item.is_price_edited && (
-                  <span className="text-[9px] bg-amber-500/20 text-amber-300 font-medium px-1.5 py-0.2 rounded border border-amber-500/30">
+                  <span className="text-2xs bg-amber-500/20 text-amber-300 font-medium px-1.5 py-0.2 rounded border border-amber-500/30">
                     Editado (Base: {formatCOP(item.original_price)})
                   </span>
                 )}
               </div>
               {item.is_price_edited && item.price_edit_reason && (
-                <p className="text-[10px] text-gray-400 italic truncate mt-0.5">
+                <p className="text-2xs text-gray-400 italic truncate mt-0.5">
                   Motivo: {item.price_edit_reason}
                 </p>
               )}

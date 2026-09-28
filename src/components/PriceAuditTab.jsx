@@ -4,6 +4,7 @@ import { api } from '../lib/api.js'
 import { formatCOP, formatDate } from '../lib/format.js'
 import { toISO } from './DateRangeBar.jsx'
 import { useToast } from './Toast.jsx'
+import PageHeader from './PageHeader.jsx'
 
 export default function PriceAuditTab({ locations = [], isOwner = false }) {
   const { error: toastError } = useToast()
@@ -53,18 +54,12 @@ export default function PriceAuditTab({ locations = [], isOwner = false }) {
   const totalEditsCount = totalCount
 
   return (
-    <div className="space-y-4 max-w-5xl">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h2 className="font-syne font-semibold text-white flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-brand-400" /> Auditoría de Edición de Precios
-          </h2>
-          <p className="text-xs text-gray-400">
-            Registro de todas las variaciones manuales de precio realizadas en piso (carrito) y en caja.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Auditoría de precios"
+        icon={ShieldCheck}
+        description="Registro de todas las variaciones manuales de precio realizadas en piso (carrito) y en caja."
+      />
 
       {/* Tarjetas de métricas rápidas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -151,10 +146,10 @@ export default function PriceAuditTab({ locations = [], isOwner = false }) {
           <div className="text-center py-12 text-gray-400">
             <ShieldCheck className="w-10 h-10 mx-auto mb-2 text-gray-500 opacity-60" />
             <p className="text-sm">No se encontraron ediciones de precio en este rango</p>
-            <p className="text-xs text-gray-500 mt-1">Todos los artículos se cobraron al precio estricto de catálogo.</p>
+            <p className="text-xs text-gray-400 mt-1">Todos los artículos se cobraron al precio estricto de catálogo.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-surface-400/70 border-b border-white/5 text-gray-400 font-medium">
                 <tr>
@@ -189,7 +184,7 @@ export default function PriceAuditTab({ locations = [], isOwner = false }) {
 
                       <td className="py-2.5 px-3">
                         <div className="text-white font-medium truncate max-w-[140px]">{log.user_name}</div>
-                        <div className="text-[10px] text-gray-400 flex items-center gap-1">
+                        <div className="text-2xs text-gray-400 flex items-center gap-1">
                           <User className="w-2.5 h-2.5" />
                           <span className="capitalize">{log.user_role}</span>
                           {log.location_name && ` · ${log.location_name}`}
@@ -198,7 +193,7 @@ export default function PriceAuditTab({ locations = [], isOwner = false }) {
 
                       <td className="py-2.5 px-3">
                         <div className="text-white font-medium truncate max-w-[180px]">{log.product_name}</div>
-                        <div className="text-[10px] text-gray-400">{log.presentation_label}</div>
+                        <div className="text-2xs text-gray-400">{log.presentation_label}</div>
                       </td>
 
                       <td className="py-2.5 px-3 text-right font-mono text-gray-300">
@@ -221,9 +216,9 @@ export default function PriceAuditTab({ locations = [], isOwner = false }) {
 
                       <td className="py-2.5 px-3 max-w-[200px]">
                         <div className="truncate text-gray-200" title={log.reason}>
-                          {log.reason ? `"${log.reason}"` : <span className="text-gray-500 italic">Sin motivo</span>}
+                          {log.reason ? `"${log.reason}"` : <span className="text-gray-400 italic">Sin motivo</span>}
                         </div>
-                        <div className="text-[9px] mt-0.5">
+                        <div className="text-2xs mt-0.5">
                           {log.stage === 'cart_creation' ? (
                             <span className="text-brand-400">Piso de venta (Carrito)</span>
                           ) : (

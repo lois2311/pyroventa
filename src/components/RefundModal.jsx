@@ -61,9 +61,9 @@ export default function RefundModal({ location, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-md my-4 space-y-4 animate-scale-in" onClick={e => e.stopPropagation()}>
+        className="modal-panel sm:max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <div>
             <h2 id={titleId} className="font-syne font-bold text-lg text-white inline-flex items-center gap-2">
@@ -104,7 +104,7 @@ export default function RefundModal({ location, onClose }) {
                 {searching ? <Loader2 className="animate-spin h-4 w-4" /> : 'Buscar'}
               </button>
             </div>
-            <p className="text-[10px] text-gray-400">
+            <p className="text-2xs text-gray-400">
               Solo se pueden devolver facturas pagadas hoy. Para días anteriores, el administrador puede hacerlo desde el Historial.
             </p>
           </div>

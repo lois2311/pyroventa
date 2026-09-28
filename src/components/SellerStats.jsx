@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { ChevronRight, UserRound } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
+import EmptyState from './EmptyState.jsx'
 import PaymentMethodChips from './PaymentMethodChips.jsx'
 import ProgressBar from './ProgressBar.jsx'
 import RankBadge from './RankBadge.jsx'
@@ -8,62 +10,50 @@ import SellerDetailModal from './SellerDetailModal.jsx'
 export default function SellerStats({ data, loading, from, to, locationId }) {
   const [selectedSeller, setSelectedSeller] = useState(null)
 
-  if (loading) {
-    return (
-      <div className="space-y-2">
-        {[1, 2, 3, 4].map(i => <div key={i} className="skeleton h-20 rounded-xl" />)}
-      </div>
-    )
+  if (loading && !data?.length) {
+    return <div className="skeleton h-80 rounded-xl" />
   }
 
   if (!data?.length) {
-    return <p className="text-gray-400 text-sm">Sin ventas registradas para este período.</p>
+    return <EmptyState compact icon={UserRound} title="Sin ventas en este período" />
   }
 
   const maxRevenue = Math.max(...data.map(s => s.total), 1)
 
   return (
     <>
-      <div className="space-y-2">
-        {data.map((s, idx) => {
-          const pct = (s.total / maxRevenue) * 100
-
-          return (
+      <ol className={`panel divide-y divide-white/5 overflow-hidden transition-opacity ${loading ? 'opacity-60' : ''}`}>
+        {data.map((s, idx) => (
+          <li key={s.seller_id || idx}>
             <button
-              key={s.seller_id || idx}
+              type="button"
               onClick={() => setSelectedSeller(s)}
-              className="card bg-surface-300 w-full text-left hover:bg-surface-200 transition-colors cursor-pointer"
+              title="Ver detalle del vendedor"
+              className="list-row group w-full items-start text-left transition-colors hover:bg-white/[0.03]"
             >
-              <div className="flex items-center gap-3">
-                <RankBadge rank={idx + 1} />
+              <RankBadge rank={idx + 1} />
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-white text-sm">{s.seller_name}</p>
-                  <p className="text-[10px] text-gray-400">
-                    {s.count} factura{s.count !== 1 ? 's' : ''} · Ticket prom: {formatCOP(s.avg_ticket)}
-                  </p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="truncate text-sm font-medium text-white">{s.seller_name}</p>
+                  <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-white">{formatCOP(s.total)}</p>
                 </div>
-
-                {/* Revenue */}
-                <div className="text-right shrink-0">
-                  <p className="font-mono font-semibold text-brand-400 text-sm">{formatCOP(s.total)}</p>
+                <p className="mt-0.5 text-2xs text-gray-400">
+                  {s.count} factura{s.count !== 1 ? 's' : ''} · Ticket prom. {formatCOP(s.avg_ticket)}
+                </p>
+                <div className="mt-2">
+                  <ProgressBar pct={(s.total / maxRevenue) * 100} height="xs" />
+                </div>
+                <div className="mt-2">
+                  <PaymentMethodChips byMethod={s.by_method} />
                 </div>
               </div>
 
-              <div className="mt-2">
-                <ProgressBar pct={pct} height="xs" />
-              </div>
-
-              <div className="mt-2">
-                <PaymentMethodChips byMethod={s.by_method} />
-              </div>
-
-              <p className="text-[10px] text-gray-400 mt-1">Click para ver detalle →</p>
+              <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-gray-500 transition-colors group-hover:text-gray-300" aria-hidden="true" />
             </button>
-          )
-        })}
-      </div>
+          </li>
+        ))}
+      </ol>
 
       {selectedSeller && (
         <SellerDetailModal

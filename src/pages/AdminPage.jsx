@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useId } from 'react'
-import { BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList, ShieldCheck, Sliders, Printer, Tag, Plus, Check, X, Pencil, Loader2, Package } from 'lucide-react'
+import {
+  BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList, ShieldCheck, Sliders, Printer, Tag,
+  Plus, Check, X, Pencil, Loader2, Package, RefreshCw, Download, TrendingUp, Trophy, Upload, Camera,
+  Receipt, StickyNote, Undo2, ChevronDown, UserRound, Store, Trash2,
+} from 'lucide-react'
 import { useAuthStore }    from '../store/authStore.js'
-import { useModalA11y }    from '../hooks/useModalA11y.js'
 import { api, clearProductsCache } from '../lib/api.js'
-import { formatCOP, formatDate, formatDateShort, payMethodLabel } from '../lib/format.js'
+import { formatCOP, formatDate, formatRangeLabel, formatDayShort, payMethodLabel } from '../lib/format.js'
 import Topbar              from '../components/Topbar.jsx'
-import DailyMetrics        from '../components/DailyMetrics.jsx'
+import Modal               from '../components/Modal.jsx'
+import PageHeader, { SectionHeader } from '../components/PageHeader.jsx'
+import EmptyState          from '../components/EmptyState.jsx'
+import { DailyKpis, PaymentBreakdown } from '../components/DailyMetrics.jsx'
 import LocationComparison  from '../components/LocationComparison.jsx'
 import SellerStats         from '../components/SellerStats.jsx'
 import TopProducts         from '../components/TopProducts.jsx'
@@ -43,7 +49,6 @@ export default function AdminPage() {
   const hasInventory = Boolean(tenant?.has_inventory)
   const tabs = TABS.filter(t => can(role, t.action) && (!t.requiresInventory || hasInventory))
   const isOwner = can(role, 'view_consolidated')
-  const { error: toastError, success: toastSuccess } = useToast()
 
   const [tab,         setTab]         = useState('resumen')
   const hoy = toISO(new Date())
@@ -52,7 +57,7 @@ export default function AdminPage() {
   // Admin: fijo en su punto. Owner: el punto elegido en la barra ('' = consolidado).
   const [locationId,  setLocationId]  = useState(authLocation?.id || '')
   const [locations,   setLocations]   = useState([])
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const navRef = useRef(null)
 
   useEffect(() => {
     api.get('/locations').then(d => setLocations(d || [])).catch(() => {})
@@ -60,115 +65,105 @@ export default function AdminPage() {
 
   useEffect(() => { if (isOwner) setLocationId(authLocation?.id || '') }, [authLocation?.id, isOwner])
 
+  // En la barra horizontal (móvil/tablet) la pestaña activa siempre a la vista
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [tab])
+
   const handleTabChange = (id) => {
     setTab(id)
-    setSidebarOpen(false)
+    window.scrollTo({ top: 0 })
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-[#111]">
+    <div className="min-h-[100dvh] flex flex-col">
       <Topbar title="Administración" />
 
-      <div className="flex-1 flex min-h-0 relative">
+      <div className="flex-1 lg:flex">
+        {/* ---- Navegación de secciones ----
+            Móvil/tablet: barra horizontal desplazable, fija bajo la barra
+            superior (antes era un botón flotante que abría un cajón y tapaba
+            el contenido). Desde lg: sidebar fijo a la altura de la ventana. */}
+        <nav
+          ref={navRef}
+          aria-label="Secciones de administración"
+          className="sticky top-14 z-30 border-b border-white/5 bg-surface-500/95 backdrop-blur
+                     lg:h-[calc(100dvh-3.5rem)] lg:w-56 lg:shrink-0 lg:self-start lg:border-b-0 lg:border-r lg:bg-surface-500 lg:backdrop-blur-none"
+        >
+          <ul className="flex gap-1 overflow-x-auto px-gutter py-2 scrollbar-hide
+                         [mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-1rem),transparent)]
+                         lg:h-full lg:flex-col lg:overflow-y-auto lg:px-3 lg:py-4 lg:[mask-image:none]">
+            {tabs.map(t => {
+              const active = tab === t.id
+              return (
+                <li key={t.id} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange(t.id)}
+                    aria-current={active ? 'page' : undefined}
+                    className={`flex min-h-[var(--control-h)] w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors
+                      ${active
+                        ? 'bg-brand-500/15 text-brand-300 ring-1 ring-inset ring-brand-500/30'
+                        : 'text-gray-400 hover:bg-surface-300 hover:text-white'
+                      }`}
+                  >
+                    <t.icon className="h-4 w-4 shrink-0" strokeWidth={2} /> {t.label}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
 
-        {/* ---- Backdrop móvil ---- */}
-        {sidebarOpen && (
-          <button
-            className="fixed inset-0 bg-black/60 z-30 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
+        {/* ---- Contenido: centrado, con tope de ancho y margen fluido ---- */}
+        <main className="min-w-0 flex-1">
+          <div className="page-container py-6 sm:py-8">
+            {tab === 'resumen' && (
+              <ResumenTab
+                from={from}
+                to={to}
+                setRange={(f, t) => { setFrom(f); setTo(t) }}
+                locationId={locationId}
+                setLocationId={setLocationId}
+                locations={locations}
+                isOwner={isOwner}
+              />
+            )}
 
-        {/* ---- Sidebar de tabs ---- */}
-        <div className={`
-          fixed top-14 left-0 h-[calc(100dvh-3.5rem)] w-56 z-40
-          lg:static lg:w-44 lg:z-0
-          border-r border-white/5 flex flex-col bg-surface-500 py-3 gap-1 px-2
-          transition-transform duration-200
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}>
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => handleTabChange(t.id)}
-              aria-current={tab === t.id ? 'page' : undefined}
-              className={`
-                flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-100 text-left
-                ${tab === t.id
-                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
-                  : 'text-gray-400 hover:text-white hover:bg-surface-300 border border-transparent'
-                }
-              `}
-            >
-              <t.icon className="w-4 h-4 shrink-0" strokeWidth={2} /> {t.label}
-            </button>
-          ))}
-        </div>
+            {tab === 'vendedores' && (
+              <VendedoresTab locations={locations} isOwner={isOwner} />
+            )}
 
-        {/* ---- Contenido ---- */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            {tab === 'cajas' && (
+              <CajasTab locations={locations} />
+            )}
 
-          {/* Antes era un botón fixed bottom-left: quedaba flotando sobre
-              cualquier contenido que scrolleara a esa posición, tapando
-              texto (p. ej. el título de "Top Productos"). Al vivir en el
-              flujo normal (sticky, no fixed) reserva su espacio y nunca
-              se monta encima de nada. */}
-          <button
-            onClick={() => setSidebarOpen(o => !o)}
-            className="sticky top-0 z-20 lg:hidden mb-3 bg-brand-500 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg shadow-brand-500/30 active:scale-95 transition-transform"
-            aria-label="Menu admin"
-          >
-            {(() => {
-              const ActiveIcon = tabs.find(t => t.id === tab)?.icon || BarChart3
-              return <ActiveIcon className="w-5 h-5" strokeWidth={2} />
-            })()}
-          </button>
+            {tab === 'locaciones' && (
+              <LocacionesTab locations={locations} setLocations={setLocations} isOwner={isOwner} />
+            )}
 
-          {tab === 'resumen' && (
-            <ResumenTab
-              from={from}
-              to={to}
-              setRange={(f, t) => { setFrom(f); setTo(t) }}
-              locationId={locationId}
-              setLocationId={setLocationId}
-              locations={locations}
-              isOwner={isOwner}
-            />
-          )}
+            {tab === 'productos' && (
+              <ProductosTab hasInventory={hasInventory} />
+            )}
 
-          {tab === 'vendedores' && (
-            <VendedoresTab locations={locations} isOwner={isOwner} />
-          )}
+            {tab === 'inventario' && (
+              <InventarioTab locations={locations} isOwner={isOwner} />
+            )}
 
-          {tab === 'cajas' && (
-            <CajasTab locations={locations} />
-          )}
+            {tab === 'impresion' && (
+              <PrinterConfigTab locations={locations} isOwner={isOwner} />
+            )}
 
-          {tab === 'locaciones' && (
-            <LocacionesTab locations={locations} setLocations={setLocations} isOwner={isOwner} />
-          )}
+            {tab === 'auditoria' && (
+              <PriceAuditTab locations={locations} isOwner={isOwner} />
+            )}
 
-          {tab === 'productos' && (
-            <ProductosTab hasInventory={hasInventory} />
-          )}
-
-          {tab === 'inventario' && (
-            <InventarioTab locations={locations} isOwner={isOwner} />
-          )}
-
-          {tab === 'impresion' && (
-            <PrinterConfigTab locations={locations} isOwner={isOwner} />
-          )}
-
-          {tab === 'auditoria' && (
-            <PriceAuditTab locations={locations} isOwner={isOwner} />
-          )}
-
-          {tab === 'historial' && (
-            <HistorialTab locations={locations} />
-          )}
-
-        </div>
+            {tab === 'historial' && (
+              <HistorialTab locations={locations} />
+            )}
+          </div>
+        </main>
       </div>
     </div>
   )
@@ -263,18 +258,37 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations, 
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
+  const anyLoading = loadDaily || loadSell || loadLoc || loadProds || loadRegs || loadCat
+  const scopeLabel = locationId
+    ? locations.find(l => l.id === locationId)?.name
+    : (isOwner ? 'Todos los puntos' : null)
+
   return (
-    <div className="space-y-6 w-full">
-      {/* Filtros */}
-      <div className="flex items-end gap-3 flex-wrap">
+    <div className="space-y-8">
+      <PageHeader
+        title="Resumen de ventas"
+        description={[formatRangeLabel(from, to), scopeLabel].filter(Boolean).join(' · ')}
+        actions={<>
+          <button type="button" onClick={fetchAll} disabled={anyLoading} className="btn-outline">
+            <RefreshCw className={`h-4 w-4 ${anyLoading ? 'animate-spin' : ''}`} /> Actualizar
+          </button>
+          <button type="button" onClick={handleExport} disabled={!daily} className="btn-outline">
+            <Download className="h-4 w-4" /> Exportar
+          </button>
+        </>}
+      />
+
+      {/* Filtros: una sola fila sobre todo lo que filtran */}
+      <div className="toolbar panel p-3 sm:p-4">
         <DateRangeBar from={from} to={to} onChange={setRange} />
         {isOwner && (
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
+          <div className="w-full sm:w-56">
+            <label htmlFor="resumen-location" className="field-label">Punto de venta</label>
             <select
+              id="resumen-location"
               value={locationId}
               onChange={e => setLocationId(e.target.value)}
-              className="input w-48 text-sm"
+              className="input"
             >
               <option value="">Todos (consolidado)</option>
               {locations.map(l => (
@@ -283,55 +297,47 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations, 
             </select>
           </div>
         )}
-        <button onClick={fetchAll} className="btn btn-ghost border border-white/10">
-          ↻ Actualizar
-        </button>
-        <button onClick={handleExport} className="btn btn-ghost border border-white/10">
-          ⬇ Exportar
-        </button>
       </div>
 
-      <section>
-        <h2 className="font-syne font-semibold text-white mb-4">
-          {from === to ? 'Métricas del día' : `Métricas · ${from} → ${to}`}
-        </h2>
-        <DailyMetrics data={daily} loading={loadDaily} />
-      </section>
+      <DailyKpis data={daily} loading={loadDaily} singleDay={from === to} />
+
+      {/* Desgloses lado a lado: por método de pago y por categoría */}
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+        <PaymentBreakdown data={daily} loading={loadDaily} className="xl:col-span-2" />
+        <CategoryBreakdown data={byCategory} loading={loadCat} className="xl:col-span-3" />
+      </div>
 
       {daily?.by_day?.length > 1 && (
-        <section className="space-y-3">
-          <h2 className="font-syne font-semibold text-white">Ventas por día</h2>
-          <RevenueTrendChart data={daily.by_day} loading={loadDaily} />
-          <DailyTrend data={daily.by_day} loading={loadDaily} />
+        <section>
+          <SectionHeader title="Ventas por día" icon={TrendingUp} description={formatRangeLabel(from, to)} />
+          <div className="space-y-3">
+            <RevenueTrendChart data={daily.by_day} />
+            <DailyTrend data={daily.by_day} />
+          </div>
         </section>
       )}
 
-      <section>
-        <h2 className="font-syne font-semibold text-white mb-4">Ventas por categoría</h2>
-        <CategoryBreakdown data={byCategory} loading={loadCat} />
-      </section>
-
       {/* Rankings lado a lado en desktop, apilados en móvil */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid gap-8 lg:grid-cols-2 lg:gap-6">
         <section>
-          <h2 className="font-syne font-semibold text-white mb-4">🏆 Top Productos</h2>
+          <SectionHeader title="Top productos" icon={Trophy} />
           <TopProducts data={topProds} loading={loadProds} />
         </section>
 
         <section>
-          <h2 className="font-syne font-semibold text-white mb-4">🏆 Top Vendedores</h2>
+          <SectionHeader title="Top vendedores" icon={UserRound} description="Toca un vendedor para ver su detalle" />
           <SellerStats data={sellers} loading={loadSell} from={from} to={to} locationId={locationId} />
         </section>
       </div>
 
       <section>
-        <h2 className="font-syne font-semibold text-white mb-4">🖥 Rendimiento por Caja</h2>
+        <SectionHeader title="Rendimiento por caja" icon={Monitor} />
         <RegisterComparison data={regCompar} loading={loadRegs} from={from} to={to} locationId={locationId} />
       </section>
 
       {isOwner && !locationId && (
         <section>
-          <h2 className="font-syne font-semibold text-white mb-4">Comparativa de puntos de venta</h2>
+          <SectionHeader title="Comparativa de puntos de venta" icon={Store} />
           <LocationComparison data={locCompar} loading={loadLoc} />
         </section>
       )}
@@ -340,10 +346,35 @@ function ResumenTab({ from, to, setRange, locationId, setLocationId, locations, 
 }
 
 // ===========================================================
+// Piezas compartidas por las pestañas de gestión
+// ===========================================================
+
+/** Iniciales en círculo: identifica a la persona sin depender de una foto. */
+function Initials({ name }) {
+  const initials = String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  return (
+    <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-50 text-sm font-semibold text-gray-300">
+      {initials}
+    </span>
+  )
+}
+
+/** Grilla de tarjetas de las pestañas de gestión: 1 → 2 → 3 columnas. */
+const CARD_GRID = 'grid gap-3 sm:grid-cols-2 2xl:grid-cols-3'
+
+function SkeletonGrid({ count = 3, height = 'h-32' }) {
+  return (
+    <div className={CARD_GRID}>
+      {Array.from({ length: count }).map((_, i) => <div key={i} className={`skeleton rounded-xl ${height}`} />)}
+    </div>
+  )
+}
+
+// ===========================================================
 // TAB: Vendedores
 // ===========================================================
 function VendedoresTab({ locations, isOwner }) {
-  const { error: toastError, success: toastSuccess } = useToast()
+  const { error: toastError } = useToast()
   const { seller: me } = useAuthStore()
   const [sellers,   setSellers]   = useState([])
   const [loading,   setLoading]   = useState(true)
@@ -367,40 +398,62 @@ function VendedoresTab({ locations, isOwner }) {
     } catch (err) { toastError(err.message) }
   }
 
+  const activeCount = sellers.filter(s => s.active).length
+  const locNames = (s) => (s.seller_locations || [])
+    .map(sl => locations.find(l => l.id === sl.location_id)?.name).filter(Boolean).join(', ')
+
   return (
-    <div className="max-w-2xl space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <h2 className="font-syne font-semibold text-white">Usuarios</h2>
-        <button onClick={() => { setEditSeller(null); setShowForm(true) }} className="btn btn-primary">
-          + Nuevo
-        </button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Usuarios"
+        description={loading ? 'Cargando…' : `${sellers.length} usuario${sellers.length !== 1 ? 's' : ''} · ${activeCount} activo${activeCount !== 1 ? 's' : ''}`}
+        actions={
+          <button type="button" onClick={() => { setEditSeller(null); setShowForm(true) }} className="btn-primary">
+            <Plus className="h-4 w-4" /> Nuevo usuario
+          </button>
+        }
+      />
 
       {loading ? (
-        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>
+        <SkeletonGrid count={6} height="h-28" />
+      ) : sellers.length === 0 ? (
+        <EmptyState icon={Users} title="Aún no hay usuarios" description="Crea vendedores, cajeros y administradores para empezar a operar." />
       ) : (
-        <div className="space-y-2">
+        <ul className={CARD_GRID}>
           {sellers.map(s => (
-            <div key={s.id} className="card bg-surface-300 flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <p className={`font-medium ${s.active ? 'text-white' : 'text-gray-400 line-through'}`}>{s.name}</p>
-                <p className="text-xs text-gray-400">
-                  {ROLE_LABELS[s.role]}
-                  {s.username && <> · <span className="font-mono">{s.username}</span></>}
-                  {!isOwner || s.role === 'owner' ? null : <> · {(s.seller_locations || []).map(sl => locations.find(l => l.id === sl.location_id)?.name).filter(Boolean).join(', ') || 'Sin punto'}</>}
-                </p>
+            <li key={s.id} className="card flex flex-col gap-3 bg-surface-300">
+              <div className="flex items-start gap-3">
+                <Initials name={s.name} />
+                <div className="min-w-0 flex-1">
+                  <p className={`truncate font-medium ${s.active ? 'text-white' : 'text-gray-400 line-through'}`}>{s.name}</p>
+                  <p className="truncate text-xs text-gray-400">
+                    {ROLE_LABELS[s.role]}
+                    {s.username && <> · <span className="font-mono">{s.username}</span></>}
+                  </p>
+                </div>
+                {!s.active && <span className="badge-cancelled shrink-0">Inactivo</span>}
               </div>
-              <div className="flex gap-2 shrink-0">
-                <button onClick={() => { setEditSeller(s); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe">Editar</button>
+
+              {isOwner && s.role !== 'owner' && (
+                <p className="flex items-start gap-1.5 text-xs text-gray-400">
+                  <MapPin className="mt-px h-3.5 w-3.5 shrink-0" />
+                  <span>{locNames(s) || 'Sin punto'}</span>
+                </p>
+              )}
+
+              <div className="mt-auto flex flex-wrap gap-2 border-t border-white/5 pt-3">
+                <button type="button" onClick={() => { setEditSeller(s); setShowForm(true) }} className="btn-ghost btn-sm btn-touch-safe">
+                  <Pencil className="h-3.5 w-3.5" /> Editar
+                </button>
                 {s.id !== me?.id && (
-                  <button onClick={() => handleToggle(s)} className={`btn btn-sm btn-touch-safe ${s.active ? 'btn-ghost text-yellow-500' : 'btn-ghost text-green-500'}`}>
+                  <button type="button" onClick={() => handleToggle(s)} className={`btn-ghost btn-sm btn-touch-safe ${s.active ? 'text-yellow-500' : 'text-green-500'}`}>
                     {s.active ? 'Desactivar' : 'Activar'}
                   </button>
                 )}
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {showForm && (
@@ -418,8 +471,7 @@ function VendedoresTab({ locations, isOwner }) {
 function SellerForm({ seller, locations, onClose, onSave }) {
   const { error: toastError } = useToast()
   const { seller: me } = useAuthStore()
-  const titleId = useId()
-  const panelRef = useModalA11y(onClose)
+  const fid = useId()
   const roleOptions = [...new Set([...assignableRoles(me?.role), ...(seller?.role ? [seller.role] : [])])]
   const isSelf = seller?.id === me?.id
 
@@ -490,61 +542,74 @@ function SellerForm({ seller, locations, onClose, onSave }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h3 id={titleId} className="font-syne font-semibold text-white">{seller ? 'Editar usuario' : 'Nuevo usuario'}</h3>
-
-        <input placeholder="Nombre" value={name} onChange={e => setName(e.target.value)} className="input" />
-
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Rol</label>
-          <select value={role} onChange={e => handleRoleChange(e.target.value)} className="input" disabled={isSelf}>
-            {roleOptions.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-          </select>
-          {isSelf && <p className="text-xs text-gray-400 mt-1">No puedes cambiar tu propio rol.</p>}
-        </div>
-
-        {usesPassword ? (
-          <>
-            <input placeholder="Usuario (ej: admin.norte)" value={username} autoComplete="off" autoCapitalize="none"
-              onChange={e => setUsername(e.target.value.toLowerCase())} className="input font-mono" />
-            <input type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder={needsNewPass ? 'Contraseña (mínimo 10 caracteres)' : 'Nueva contraseña (dejar vacío para no cambiar)'}
-              className="input" />
-          </>
-        ) : (
-          <input placeholder={needsNewPin ? 'PIN (4 dígitos)' : 'Nuevo PIN (dejar vacío para no cambiar)'} maxLength={4} value={pin}
-            inputMode="numeric" onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} className="input font-mono" />
-        )}
-
-        {showLocations && !isSelf && (
-          <fieldset>
-            <legend className="text-xs text-gray-400 mb-2">{singleLocation ? 'Punto de venta que administra' : 'Puntos de venta asignados'}</legend>
-            <div className="space-y-1">
-              {locations.map(l => (
-                <label key={l.id} className="flex items-center gap-2 cursor-pointer">
-                  <input type={singleLocation ? 'radio' : 'checkbox'} name="seller-locs"
-                    checked={locIds.includes(l.id)} onChange={() => toggleLoc(l.id)} className="accent-brand-500" />
-                  <span className="text-sm text-gray-300">{l.name}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        )}
-
-        {role === 'owner' && (
-          <p className="text-xs text-amber-300">El superadministrador ve y administra todos los puntos de la empresa.</p>
-        )}
-
-        <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="btn btn-ghost">Cancelar</button>
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary">
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-        </div>
+    <Modal
+      title={seller ? 'Editar usuario' : 'Nuevo usuario'}
+      icon={seller ? Pencil : Users}
+      onClose={onClose}
+      onSubmit={handleSave}
+      footer={<>
+        <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary">
+          {saving ? 'Guardando...' : 'Guardar'}
+        </button>
+      </>}
+    >
+      <div>
+        <label htmlFor={`${fid}-name`} className="field-label">Nombre</label>
+        <input id={`${fid}-name`} placeholder="Nombre y apellido" value={name} onChange={e => setName(e.target.value)} className="input" />
       </div>
-    </div>
+
+      <div>
+        <label htmlFor={`${fid}-role`} className="field-label">Rol</label>
+        <select id={`${fid}-role`} value={role} onChange={e => handleRoleChange(e.target.value)} className="input" disabled={isSelf}>
+          {roleOptions.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+        </select>
+        {isSelf && <p className="field-hint">No puedes cambiar tu propio rol.</p>}
+      </div>
+
+      {usesPassword ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor={`${fid}-user`} className="field-label">Usuario</label>
+            <input id={`${fid}-user`} placeholder="ej: admin.norte" value={username} autoComplete="off" autoCapitalize="none"
+              onChange={e => setUsername(e.target.value.toLowerCase())} className="input font-mono" />
+          </div>
+          <div>
+            <label htmlFor={`${fid}-pass`} className="field-label">{needsNewPass ? 'Contraseña' : 'Nueva contraseña'}</label>
+            <input id={`${fid}-pass`} type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)}
+              placeholder={needsNewPass ? 'Mínimo 10 caracteres' : 'Vacío = no cambiar'}
+              className="input" />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label htmlFor={`${fid}-pin`} className="field-label">{needsNewPin ? 'PIN' : 'Nuevo PIN'}</label>
+          <input id={`${fid}-pin`} placeholder={needsNewPin ? '4 dígitos' : 'Vacío = no cambiar'} maxLength={4} value={pin}
+            inputMode="numeric" onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} className="input font-mono sm:w-40" />
+        </div>
+      )}
+
+      {showLocations && !isSelf && (
+        <fieldset>
+          <legend className="field-label">{singleLocation ? 'Punto de venta que administra' : 'Puntos de venta asignados'}</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {locations.map(l => (
+              <label key={l.id} className="flex min-h-[var(--control-h)] cursor-pointer items-center gap-2.5 rounded-lg border border-white/10 bg-surface-300 px-3 has-[:checked]:border-brand-500/50 has-[:checked]:bg-brand-500/10">
+                <input type={singleLocation ? 'radio' : 'checkbox'} name="seller-locs"
+                  checked={locIds.includes(l.id)} onChange={() => toggleLoc(l.id)} className="accent-brand-500" />
+                <span className="text-sm text-gray-300">{l.name}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      {role === 'owner' && (
+        <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+          El superadministrador ve y administra todos los puntos de la empresa.
+        </p>
+      )}
+    </Modal>
   )
 }
 
@@ -552,7 +617,7 @@ function SellerForm({ seller, locations, onClose, onSave }) {
 // TAB: Puntos de venta
 // ===========================================================
 function LocacionesTab({ locations, setLocations, isOwner }) {
-  const { error: toastError, success: toastSuccess } = useToast()
+  const { error: toastError } = useToast()
   const [showForm,   setShowForm]   = useState(false)
   const [editLoc,    setEditLoc]    = useState(null)
   const [catalogLoc, setCatalogLoc] = useState(null)
@@ -568,46 +633,63 @@ function LocacionesTab({ locations, setLocations, isOwner }) {
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <h2 className="font-syne font-semibold text-white">Puntos de venta</h2>
-        {isOwner && (
-          <button onClick={() => { setEditLoc(null); setShowForm(true) }} className="btn btn-primary">+ Nuevo</button>
+    <div className="space-y-6">
+      <PageHeader
+        title="Puntos de venta"
+        description={`${locations.length} punto${locations.length !== 1 ? 's' : ''} de venta`}
+        actions={isOwner && (
+          <button type="button" onClick={() => { setEditLoc(null); setShowForm(true) }} className="btn-primary">
+            <Plus className="h-4 w-4" /> Nuevo punto
+          </button>
         )}
-      </div>
+      />
 
-      <div className="space-y-2">
-        {locations.map(loc => (
-          <div key={loc.id} className="card bg-surface-300 flex flex-col sm:flex-row sm:items-center gap-3">
-            <span className="text-xl hidden sm:block">📍</span>
-            <div className="flex-1 min-w-0">
-              <p className={`font-medium ${loc.active ? 'text-white' : 'text-gray-400 line-through'}`}>{loc.name}</p>
-              {loc.address && <p className="text-xs text-gray-400 truncate">{loc.address}</p>}
-              {loc.printer_config?.paper_width && (
-                <p className="text-xs text-gray-400">Impresora: {loc.printer_config.paper_width}</p>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2 shrink-0">
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => setCatalogLoc(loc)}
-                  className="btn btn-ghost btn-sm btn-touch-safe text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 border border-brand-500/20"
-                  title="Configurar precios diferenciales y productos habilitados (Superadmin)"
-                >
-                  <Sliders className="w-3.5 h-3.5" /> Precios y Catálogo
+      {locations.length === 0 ? (
+        <EmptyState icon={MapPin} title="Sin puntos de venta" description="Crea el primero para que el personal pueda iniciar sesión." />
+      ) : (
+        <ul className={CARD_GRID}>
+          {locations.map(loc => (
+            <li key={loc.id} className="card flex flex-col gap-3 bg-surface-300">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-400">
+                  <MapPin className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className={`truncate font-medium ${loc.active ? 'text-white' : 'text-gray-400 line-through'}`}>{loc.name}</p>
+                  {loc.address && <p className="truncate text-xs text-gray-400">{loc.address}</p>}
+                  {loc.printer_config?.paper_width && (
+                    <p className="mt-1 inline-flex items-center gap-1 text-xs text-gray-400">
+                      <Printer className="h-3 w-3" /> Papel {loc.printer_config.paper_width}
+                    </p>
+                  )}
+                </div>
+                {!loc.active && <span className="badge-cancelled shrink-0">Inactivo</span>}
+              </div>
+
+              <div className="mt-auto flex flex-wrap gap-2 border-t border-white/5 pt-3">
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setCatalogLoc(loc)}
+                    className="btn-ghost btn-sm btn-touch-safe text-brand-400 hover:text-brand-300"
+                    title="Configurar precios diferenciales y productos habilitados (Superadmin)"
+                  >
+                    <Sliders className="h-3.5 w-3.5" /> Precios y catálogo
+                  </button>
+                )}
+                <button type="button" onClick={() => { setEditLoc(loc); setShowForm(true) }} className="btn-ghost btn-sm btn-touch-safe">
+                  <Pencil className="h-3.5 w-3.5" /> Editar
                 </button>
-              )}
-              <button onClick={() => { setEditLoc(loc); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe">Editar</button>
-              {isOwner && (
-                <button onClick={() => handleToggle(loc)} className="btn btn-ghost btn-sm btn-touch-safe text-yellow-500">
-                  {loc.active ? 'Desactivar' : 'Activar'}
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+                {isOwner && (
+                  <button type="button" onClick={() => handleToggle(loc)} className="btn-ghost btn-sm btn-touch-safe text-yellow-500">
+                    {loc.active ? 'Desactivar' : 'Activar'}
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {catalogLoc && (
         <LocationCatalogModal
@@ -631,8 +713,7 @@ function LocacionesTab({ locations, setLocations, isOwner }) {
 
 function LocationForm({ location, onClose, onSave, isOwner }) {
   const { error: toastError } = useToast()
-  const titleId = useId()
-  const panelRef = useModalA11y(onClose)
+  const fid = useId()
   const [name,   setName]   = useState(location?.name || '')
   const [addr,   setAddr]   = useState(location?.address || '')
   const [width,  setWidth]  = useState(location?.printer_config?.paper_width || '80mm')
@@ -661,31 +742,38 @@ function LocationForm({ location, onClose, onSave, isOwner }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-        <h3 id={titleId} className="font-syne font-semibold text-white">{location ? 'Editar punto de venta' : 'Nuevo punto de venta'}</h3>
-        <input placeholder="Nombre del punto de venta" value={name} onChange={e => setName(e.target.value)} className="input" disabled={!isOwner} />
-        <input placeholder="Dirección (opcional)" value={addr} onChange={e => setAddr(e.target.value)} className="input" disabled={!isOwner} />
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Ancho del papel</label>
-          <select value={width} onChange={e => setWidth(e.target.value)} className="input">
-            <option value="80mm">80mm (48 caracteres)</option>
-            <option value="58mm">58mm (32 caracteres)</option>
-          </select>
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={qz} onChange={e => setQz(e.target.checked)} className="accent-brand-500" />
-          <span className="text-sm text-gray-300">Usar QZ Tray para impresión térmica</span>
-        </label>
-        <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="btn btn-ghost">Cancelar</button>
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary">
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-        </div>
+    <Modal
+      title={location ? 'Editar punto de venta' : 'Nuevo punto de venta'}
+      icon={MapPin}
+      onClose={onClose}
+      onSubmit={handleSave}
+      footer={<>
+        <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary">
+          {saving ? 'Guardando...' : 'Guardar'}
+        </button>
+      </>}
+    >
+      <div>
+        <label htmlFor={`${fid}-name`} className="field-label">Nombre</label>
+        <input id={`${fid}-name`} placeholder="Ej: Local Principal, Stand Norte" value={name} onChange={e => setName(e.target.value)} className="input" disabled={!isOwner} />
       </div>
-    </div>
+      <div>
+        <label htmlFor={`${fid}-addr`} className="field-label">Dirección <span className="font-normal">(opcional)</span></label>
+        <input id={`${fid}-addr`} placeholder="Calle, número, barrio" value={addr} onChange={e => setAddr(e.target.value)} className="input" disabled={!isOwner} />
+      </div>
+      <div>
+        <label htmlFor={`${fid}-width`} className="field-label">Ancho del papel</label>
+        <select id={`${fid}-width`} value={width} onChange={e => setWidth(e.target.value)} className="input">
+          <option value="80mm">80mm (48 caracteres)</option>
+          <option value="58mm">58mm (32 caracteres)</option>
+        </select>
+      </div>
+      <label className="flex cursor-pointer items-center gap-2.5">
+        <input type="checkbox" checked={qz} onChange={e => setQz(e.target.checked)} className="h-4 w-4 accent-brand-500" />
+        <span className="text-sm text-gray-300">Usar QZ Tray para impresión térmica</span>
+      </label>
+    </Modal>
   )
 }
 
@@ -734,6 +822,7 @@ function ProductosTab({ hasInventory = false }) {
   }
 
   const inactiveCount = products.filter(p => !p.active).length
+  const openNew = () => { setEditProd(null); setShowForm(true) }
 
   if (showBulk) {
     return (
@@ -744,102 +833,96 @@ function ProductosTab({ hasInventory = false }) {
   }
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h2 className="font-syne font-semibold text-white">Productos</h2>
-          {!loading && products.length > 0 && (
-            <p className="text-xs text-gray-400">
-              {products.length} en el catálogo
-              {inactiveCount > 0 && ` · ${inactiveCount} inactivo(s)`}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowBulk(true)} className="btn btn-ghost border border-white/10 text-sm">
-            📤 Carga y borrado masivo
+    <div className="space-y-6">
+      <PageHeader
+        title="Productos"
+        description={loading ? 'Cargando…' : `${products.length} en el catálogo${inactiveCount > 0 ? ` · ${inactiveCount} inactivo${inactiveCount !== 1 ? 's' : ''}` : ''}`}
+        actions={<>
+          <button type="button" onClick={() => setShowBulk(true)} className="btn-outline">
+            <Upload className="h-4 w-4" /> Carga y borrado masivo
           </button>
-          <button onClick={() => { setEditProd(null); setShowForm(true) }} className="btn btn-primary">+ Nuevo</button>
-        </div>
-      </div>
+          <button type="button" onClick={openNew} className="btn-primary">
+            <Plus className="h-4 w-4" /> Nuevo producto
+          </button>
+        </>}
+      />
 
       {loading ? (
-        <div className="space-y-2">{[1,2,3,4].map(i => <div key={i} className="skeleton h-16 rounded-xl" />)}</div>
+        <SkeletonGrid count={6} height="h-36" />
       ) : products.length === 0 ? (
-        <div className="card bg-surface-400 border-dashed border-white/10 text-center py-8">
-          <div className="text-3xl mb-2">🎆</div>
-          <p className="text-sm text-gray-300">El catálogo está vacío</p>
-          <p className="text-xs text-gray-400 mt-1 mb-4">
-            Crea un producto a mano o impórtalos todos desde un Excel.
-          </p>
-          <div className="flex gap-2 justify-center">
-            <button onClick={() => setShowBulk(true)} className="btn btn-ghost border border-white/10 text-sm">
-              📤 Importar desde Excel
+        <EmptyState
+          icon={PartyPopper}
+          title="El catálogo está vacío"
+          description="Crea un producto a mano o impórtalos todos desde un Excel."
+          action={<>
+            <button type="button" onClick={() => setShowBulk(true)} className="btn-outline">
+              <Upload className="h-4 w-4" /> Importar desde Excel
             </button>
-            <button onClick={() => { setEditProd(null); setShowForm(true) }} className="btn btn-primary">+ Nuevo</button>
-          </div>
-        </div>
+            <button type="button" onClick={openNew} className="btn-primary">
+              <Plus className="h-4 w-4" /> Nuevo producto
+            </button>
+          </>}
+        />
       ) : (
-        <div className="space-y-2">
+        <ul className={CARD_GRID}>
           {products.map(p => (
-            <div key={p.id} className={`card bg-surface-300 ${!p.active ? 'opacity-50' : ''}`}>
-              <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+            <li key={p.id} className={`card flex flex-col gap-3 bg-surface-300 ${!p.active ? 'border-dashed' : ''}`}>
+              <div className={`flex items-start gap-3 ${!p.active ? 'opacity-60' : ''}`}>
                 {p.image_url ? (
-                  <img src={p.image_url} alt={p.name} loading="lazy" className="hidden sm:block w-10 h-10 rounded-lg object-cover border border-white/10 shrink-0" />
+                  <img src={p.image_url} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg border border-white/10 object-cover" />
                 ) : (
-                  <span className="hidden sm:block">{p.categories?.icon || '🎆'}</span>
+                  <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-surface-50 text-xl">
+                    {p.categories?.icon || '🎆'}
+                  </span>
                 )}
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-white">
-                    {p.name}
-                    {!p.active && (
-                      <span className="ml-2 align-middle text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-500">
-                        Inactivo
-                      </span>
-                    )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium leading-snug text-white">{p.name}</p>
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
+                    <Tag className="h-3 w-3 shrink-0 text-gray-500" />
+                    <span className="truncate">{p.categories?.name || 'Sin categoría'}</span>
                   </p>
-                  <p className="text-xs text-gray-400 flex items-center gap-1">
-                    <Tag className="w-3 h-3 text-gray-500 shrink-0" />
-                    <span>{p.categories?.name || 'Sin categoría'}</span>
-                  </p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {hasInventory && p.stock_quantity !== undefined && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-medium ${p.stock_quantity <= 0 ? 'bg-red-500/15 text-red-400' : p.stock_quantity <= 5 ? 'bg-yellow-500/15 text-yellow-400' : 'bg-emerald-500/15 text-emerald-400'}`}>
-                        📦 Stock: {p.stock_quantity}
-                      </span>
-                    )}
-                    {(p.presentations || []).map(pr => (
-                      <span key={pr.id} className="text-xs bg-surface-50 text-gray-400 px-2 py-0.5 rounded-full">
-                        {pr.label} · {formatCOP(pr.price)}
-                      </span>
-                    ))}
-                  </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <button onClick={() => { setEditProd(p); setShowForm(true) }} className="btn btn-ghost btn-sm btn-touch-safe flex items-center gap-1">
-                    <Pencil className="w-3.5 h-3.5" />
-                    <span>Editar</span>
-                  </button>
-                  <button
-                    onClick={() => handleToggle(p)}
-                    className="btn btn-ghost btn-sm btn-touch-safe text-yellow-500"
-                    title={p.active ? 'Se oculta del POS, se puede reactivar' : 'Vuelve a estar disponible en el POS'}
-                  >
-                    {p.active ? 'Desactivar' : 'Activar'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(p)}
-                    className="btn btn-ghost btn-sm btn-touch-safe text-gray-400 hover:text-red-400"
-                    title="Eliminar definitivamente"
-                    aria-label={`Eliminar ${p.name} definitivamente`}
-                  >
-                    Eliminar
-                  </button>
-                </div>
+                {!p.active && <span className="badge-pending shrink-0">Inactivo</span>}
               </div>
-            </div>
+
+              <div className={`flex flex-wrap gap-1 ${!p.active ? 'opacity-60' : ''}`}>
+                {hasInventory && p.stock_quantity !== undefined && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs font-medium ${p.stock_quantity <= 0 ? 'bg-red-500/15 text-red-400' : p.stock_quantity <= 5 ? 'bg-yellow-500/15 text-yellow-400' : 'bg-emerald-500/15 text-emerald-400'}`}>
+                    <Package className="h-3 w-3" /> Stock: {p.stock_quantity}
+                  </span>
+                )}
+                {(p.presentations || []).map(pr => (
+                  <span key={pr.id} className="rounded-full bg-surface-50 px-2 py-0.5 text-xs text-gray-300">
+                    {pr.label} · <span className="font-mono">{formatCOP(pr.price)}</span>
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-auto flex flex-wrap gap-2 border-t border-white/5 pt-3">
+                <button type="button" onClick={() => { setEditProd(p); setShowForm(true) }} className="btn-ghost btn-sm btn-touch-safe">
+                  <Pencil className="h-3.5 w-3.5" /> Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggle(p)}
+                  className="btn-ghost btn-sm btn-touch-safe text-yellow-500"
+                  title={p.active ? 'Se oculta del POS, se puede reactivar' : 'Vuelve a estar disponible en el POS'}
+                >
+                  {p.active ? 'Desactivar' : 'Activar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(p)}
+                  className="btn-ghost btn-sm btn-touch-safe ml-auto text-gray-400 hover:text-red-400"
+                  title="Eliminar definitivamente"
+                  aria-label={`Eliminar ${p.name} definitivamente`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                </button>
+              </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {showForm && (
@@ -856,8 +939,7 @@ function ProductosTab({ hasInventory = false }) {
 
 function ProductForm({ product, onClose, onSave, hasInventory = false }) {
   const { error: toastError, success: toastSuccess } = useToast()
-  const titleId = useId()
-  const panelRef = useModalA11y(onClose)
+  const fid = useId()
   const [name,          setName]          = useState(product?.name || '')
   const [catId,         setCatId]         = useState(product?.category_id || product?.categories?.id || '')
   const [desc,          setDesc]          = useState(product?.description || '')
@@ -969,172 +1051,182 @@ function ProductForm({ product, onClose, onSave, hasInventory = false }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-lg space-y-4 my-4" onClick={e => e.stopPropagation()}>
-        <h3 id={titleId} className="font-syne font-semibold text-white">{product ? 'Editar producto' : 'Nuevo producto'}</h3>
-        
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Nombre</label>
-          <input placeholder="Nombre del producto" value={name} onChange={e => setName(e.target.value)} className="input w-full" />
-        </div>
-
-        {/* Categoría con lucide-react Tag y opción nueva categoría */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label htmlFor="prod-category-select" className="text-xs text-gray-400 flex items-center gap-1.5 font-medium">
-              <Tag className="w-3.5 h-3.5 text-brand-400" />
-              Categoría
-            </label>
-            {!showNewCat && (
-              <button
-                type="button"
-                onClick={() => setShowNewCat(true)}
-                className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Nueva categoría
-              </button>
-            )}
-          </div>
-
-          {showNewCat ? (
-            <div className="flex gap-2 items-center">
-              <input
-                type="text"
-                placeholder="Nombre de la nueva categoría..."
-                value={newCatName}
-                onChange={e => setNewCatName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory() } }}
-                className="input flex-1 text-sm py-1.5"
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={handleCreateCategory}
-                disabled={savingCat || !newCatName.trim()}
-                className="btn btn-primary btn-sm flex items-center gap-1 px-3"
-                title="Crear categoría"
-              >
-                {savingCat ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                <span>Crear</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowNewCat(false); setNewCatName('') }}
-                disabled={savingCat}
-                className="btn btn-ghost btn-sm px-2 text-gray-400 hover:text-white"
-                title="Cancelar"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <div className="relative">
-              <select
-                id="prod-category-select"
-                value={catId}
-                onChange={e => setCatId(e.target.value)}
-                className="input w-full text-sm py-2 pr-8 appearance-none bg-surface-300 cursor-pointer text-white"
-                disabled={loadingCats}
-              >
-                <option value="" className="bg-surface-300 text-gray-300">(Sin categoría)</option>
-                {categories.map(c => (
-                  <option key={c.id} value={c.id} className="bg-surface-300 text-white">
-                    {c.icon ? `${c.icon} ` : ''}{c.name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
-                <Tag className="w-3.5 h-3.5 text-gray-400" />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Descripción (opcional)</label>
-          <input placeholder="Descripción (opcional)" value={desc} onChange={e => setDesc(e.target.value)} className="input w-full" />
-        </div>
-
-        {hasInventory && (
-          <div>
-            <label className="text-xs text-gray-400 flex items-center gap-1.5 mb-1 font-medium">
-              <Package className="w-3.5 h-3.5 text-brand-400" />
-              <span>Stock inicial / disponible {product ? '(actualizar existencias)' : '(inventario inicial)'}</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              placeholder="Ej: 50"
-              value={stock}
-              onChange={e => setStock(e.target.value)}
-              className="input w-full font-mono text-sm py-2"
-            />
-          </div>
-        )}
-
-        {/* Foto del producto */}
-        <div className="flex items-center gap-3">
+    <Modal
+      title={product ? 'Editar producto' : 'Nuevo producto'}
+      icon={product ? Pencil : PartyPopper}
+      size="lg"
+      onClose={onClose}
+      onSubmit={handleSave}
+      footer={<>
+        <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary">
+          {saving ? 'Guardando...' : 'Guardar'}
+        </button>
+      </>}
+    >
+      {/* Foto + nombre: lo primero que identifica al producto */}
+      <div className="flex items-start gap-4">
+        <div className="flex shrink-0 flex-col items-center gap-1.5">
           {photoPreview ? (
-            <img src={photoPreview} alt={`Foto de ${name || 'producto'}`} className="w-14 h-14 rounded-lg object-cover border border-white/10" />
+            <img src={photoPreview} alt={`Foto de ${name || 'producto'}`} className="h-20 w-20 rounded-xl border border-white/10 object-cover" />
           ) : (
-            <span className="w-14 h-14 rounded-lg bg-surface-400 flex items-center justify-center text-xl">🎆</span>
+            <span aria-hidden="true" className="flex h-20 w-20 items-center justify-center rounded-xl border border-dashed border-white/15 bg-surface-400 text-2xl">🎆</span>
           )}
-          <div className="flex flex-col gap-1">
-            <label className="btn btn-ghost btn-sm border border-white/10 cursor-pointer text-xs">
-              📷 {photoPreview ? 'Cambiar foto' : 'Agregar foto'}
-              <input ref={photoRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
+        </div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div>
+            <label htmlFor={`${fid}-name`} className="field-label">Nombre</label>
+            <input id={`${fid}-name`} placeholder="Nombre del producto" value={name} onChange={e => setName(e.target.value)} className="input" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <label className="btn-outline btn-sm cursor-pointer focus-within:ring-2 focus-within:ring-brand-500">
+              <Camera className="h-3.5 w-3.5" /> {photoPreview ? 'Cambiar foto' : 'Agregar foto'}
+              <input ref={photoRef} type="file" accept="image/*" onChange={handlePhoto} className="sr-only" />
             </label>
             {photoPreview && (
-              <button onClick={removePhoto} className="btn btn-ghost btn-sm text-xs text-gray-400 hover:text-red-400">
+              <button type="button" onClick={removePhoto} className="btn-ghost btn-sm text-gray-400 hover:text-red-400">
                 Quitar foto
               </button>
             )}
           </div>
         </div>
+      </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-gray-400">Presentaciones y precios</p>
-            <button onClick={addPres} className="btn btn-ghost btn-sm text-brand-400 flex items-center gap-1">
-              <Plus className="w-3.5 h-3.5" />
-              <span>Agregar</span>
+      {/* Categoría, con opción de crear una nueva sin salir del formulario */}
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label htmlFor={`${fid}-cat`} className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
+            <Tag className="h-3.5 w-3.5 text-brand-400" />
+            Categoría
+          </label>
+          {!showNewCat && (
+            <button
+              type="button"
+              onClick={() => setShowNewCat(true)}
+              className="flex items-center gap-1 text-xs text-brand-400 transition-colors hover:text-brand-300"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Nueva categoría
+            </button>
+          )}
+        </div>
+
+        {showNewCat ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Nombre de la nueva categoría..."
+              value={newCatName}
+              onChange={e => setNewCatName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory() } }}
+              className="input flex-1"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={handleCreateCategory}
+              disabled={savingCat || !newCatName.trim()}
+              className="btn-primary"
+              title="Crear categoría"
+            >
+              {savingCat ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              <span>Crear</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowNewCat(false); setNewCatName('') }}
+              disabled={savingCat}
+              className="btn-ghost btn-icon text-gray-400 hover:text-white"
+              aria-label="Cancelar nueva categoría"
+            >
+              <X className="h-4 w-4" />
             </button>
           </div>
+        ) : (
+          <select
+            id={`${fid}-cat`}
+            value={catId}
+            onChange={e => setCatId(e.target.value)}
+            className="input cursor-pointer"
+            disabled={loadingCats}
+          >
+            <option value="">(Sin categoría)</option>
+            {categories.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.icon ? `${c.icon} ` : ''}{c.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div className={hasInventory ? 'grid gap-4 sm:grid-cols-[1fr_9rem]' : ''}>
+        <div>
+          <label htmlFor={`${fid}-desc`} className="field-label">Descripción <span className="font-normal">(opcional)</span></label>
+          <input id={`${fid}-desc`} placeholder="Detalle corto para el vendedor" value={desc} onChange={e => setDesc(e.target.value)} className="input" />
+        </div>
+
+        {hasInventory && (
+          <div>
+            <label htmlFor={`${fid}-stock`} className="field-label" title={product ? 'Actualizar existencias' : 'Inventario inicial'}>
+              {product ? 'Stock disponible' : 'Stock inicial'}
+            </label>
+            <input
+              id={`${fid}-stock`}
+              type="number"
+              min="0"
+              step="1"
+              inputMode="numeric"
+              placeholder="Ej: 50"
+              value={stock}
+              onChange={e => setStock(e.target.value)}
+              className="input font-mono"
+            />
+          </div>
+        )}
+      </div>
+
+      <fieldset>
+        <div className="mb-2 flex items-center justify-between">
+          <legend className="text-xs font-medium text-gray-400">Presentaciones y precios</legend>
+          <button type="button" onClick={addPres} className="btn-ghost btn-sm text-brand-400">
+            <Plus className="h-3.5 w-3.5" />
+            <span>Agregar</span>
+          </button>
+        </div>
+        {presentations.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-white/10 px-3 py-4 text-center text-xs text-gray-400">
+            Sin presentaciones. Agrega al menos una (Unidad, Pack x12…) con su precio.
+          </p>
+        ) : (
           <div className="space-y-2">
             {presentations.map((pr, i) => (
               <div key={i} className="flex gap-2">
                 <input
                   placeholder="Ej: Unidad, Pack x12"
+                  aria-label={`Presentación ${i + 1}`}
                   value={pr.label}
                   onChange={e => updatePres(i, 'label', e.target.value)}
                   className="input flex-1"
                 />
                 <input
                   type="number"
+                  inputMode="numeric"
                   placeholder="Precio"
+                  aria-label={`Precio de la presentación ${i + 1}`}
                   value={pr.price}
                   onChange={e => updatePres(i, 'price', e.target.value)}
-                  className="input w-28"
+                  className="input w-28 font-mono sm:w-32"
                 />
-                <button onClick={() => removePres(i)} className="text-gray-400 hover:text-red-400 px-2 flex items-center justify-center" title="Eliminar presentación">
-                  <X className="w-4 h-4" />
+                <button type="button" onClick={() => removePres(i)} className="btn-ghost btn-icon text-gray-400 hover:text-red-400" aria-label={`Eliminar presentación ${i + 1}`}>
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="flex gap-2 justify-end pt-2">
-          <button onClick={onClose} className="btn btn-ghost">Cancelar</button>
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary">
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-        </div>
-      </div>
-    </div>
+        )}
+      </fieldset>
+    </Modal>
   )
 }
 
@@ -1176,55 +1268,58 @@ function CajasTab({ locations }) {
   })
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <h2 className="font-syne font-semibold text-white">Cajas registradoras</h2>
-        <button onClick={() => { setEditReg(null); setShowForm(true) }} className="btn btn-primary">
-          + Nueva caja
-        </button>
-      </div>
+    <div className="space-y-8">
+      <div className="space-y-6">
+        <PageHeader
+          title="Cajas registradoras"
+          description="Una caja por cada registradora física. Los cobros y cierres quedan asociados a ella."
+          actions={
+            <button type="button" onClick={() => { setEditReg(null); setShowForm(true) }} className="btn-primary">
+              <Plus className="h-4 w-4" /> Nueva caja
+            </button>
+          }
+        />
 
-      {loading ? (
-        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>
-      ) : registers.length === 0 ? (
-        <div className="card bg-surface-300 text-center py-8 text-gray-400">
-          <span className="text-3xl block mb-2">🖥</span>
-          <p className="text-sm">No hay cajas registradas.</p>
-          <p className="text-xs mt-1">Crea una caja para cada registradora física de tu negocio.</p>
-        </div>
-      ) : (
-        Object.entries(byLocation).map(([locId, group]) => (
-          <div key={locId}>
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              📍 {group.name}
-            </p>
-            <div className="space-y-1.5">
-              {group.regs.map(reg => (
-                <div key={reg.id} className="card bg-surface-300 flex items-center gap-3">
-                  <span className="text-lg">🖥</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-white text-sm">{reg.name}</p>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => { setEditReg(reg); setShowForm(true) }}
-                      className="btn btn-ghost btn-sm btn-touch-safe"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(reg)}
-                      className="btn btn-ghost btn-sm btn-touch-safe text-red-400"
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))
-      )}
+        {loading ? (
+          <SkeletonGrid count={3} height="h-16" />
+        ) : registers.length === 0 ? (
+          <EmptyState icon={Monitor} title="No hay cajas registradas" description="Crea una caja para cada registradora física de tu negocio." />
+        ) : (
+          Object.entries(byLocation).map(([locId, group]) => (
+            <section key={locId} aria-label={group.name}>
+              <p className="eyebrow mb-2 flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" /> {group.name}
+              </p>
+              <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {group.regs.map(reg => (
+                  <li key={reg.id} className="card flex items-center gap-3 bg-surface-300 py-3 sm:py-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-50 text-gray-400">
+                      <Monitor className="h-4 w-4" />
+                    </span>
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">{reg.name}</p>
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => { setEditReg(reg); setShowForm(true) }}
+                        className="btn-ghost btn-sm btn-touch-safe"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(reg)}
+                        className="btn-ghost btn-sm btn-touch-safe text-red-400"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))
+        )}
+      </div>
 
       {showForm && (
         <RegisterForm
@@ -1260,14 +1355,18 @@ function ClosuresSection({ locations }) {
   const locName = (id) => locations.find(l => l.id === id)?.name || ''
 
   return (
-    <div className="pt-6 border-t border-white/5 space-y-3">
-      <h3 className="font-syne font-semibold text-white">🧾 Cierres de caja</h3>
-      <div className="flex items-end gap-2 flex-wrap">
+    <section className="space-y-4 border-t border-white/5 pt-8">
+      <SectionHeader
+        title="Cierres de caja"
+        icon={Receipt}
+        description="Arqueos registrados por las cajeras desde la pantalla de Caja."
+      />
+      <div className="toolbar panel p-3 sm:p-4">
         <DateRangeBar from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
         {locations.length > 1 && (
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
-            <select value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input w-44 text-sm">
+          <div className="w-full sm:w-48">
+            <label htmlFor="closures-location" className="field-label">Punto de venta</label>
+            <select id="closures-location" value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input">
               <option value="">Todos</option>
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
@@ -1278,49 +1377,59 @@ function ClosuresSection({ locations }) {
       {!closures ? (
         <div className="space-y-2">{[1, 2].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>
       ) : closures.length === 0 ? (
-        <p className="text-xs text-gray-400">Sin cierres en el rango. La cajera cierra su caja desde la pantalla de Caja (botón 🧾 Cerrar caja).</p>
+        <EmptyState
+          compact
+          icon={Receipt}
+          title="Sin cierres en el rango"
+          description="La cajera cierra su caja desde la pantalla de Caja (botón Cerrar caja)."
+        />
       ) : (
-        <div className="space-y-1.5">
+        <ul className="panel divide-y divide-white/5 overflow-hidden">
           {closures.map(c => {
             const diff = Number(c.difference)
             return (
-              <div key={c.id} className="card bg-surface-300 py-2.5">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <div className="flex-1 min-w-[140px]">
-                    <p className="text-sm text-white font-medium">🖥 {c.register_name || 'Sin caja'}</p>
-                    <p className="text-[10px] text-gray-400">
-                      {c.business_date} · {locName(c.location_id)} · {c.cashier_name}
+              <li key={c.id} className="px-4 py-3 sm:px-5">
+                <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_7rem_7rem_7.5rem]">
+                  <div className="col-span-3 min-w-0 sm:col-span-1">
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-white">
+                      <Monitor className="h-3.5 w-3.5 shrink-0 text-gray-400" /> {c.register_name || 'Sin caja'}
+                    </p>
+                    <p className="truncate text-2xs text-gray-400">
+                      {formatDayShort(c.business_date, { weekday: true })} · {locName(c.location_id)} · {c.cashier_name}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-gray-400">Esperado</p>
-                    <p className="font-mono text-xs text-gray-300">{formatCOP(c.expected_cash)}</p>
+                  <div className="sm:text-right">
+                    <p className="text-2xs text-gray-400">Esperado</p>
+                    <p className="font-mono text-xs tabular-nums text-gray-300">{formatCOP(c.expected_cash)}</p>
+                  </div>
+                  <div className="sm:text-right">
+                    <p className="text-2xs text-gray-400">Contado</p>
+                    <p className="font-mono text-xs tabular-nums text-white">{formatCOP(c.declared_cash)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-gray-400">Contado</p>
-                    <p className="font-mono text-xs text-white">{formatCOP(c.declared_cash)}</p>
-                  </div>
-                  <div className="text-right w-24">
-                    <p className="text-[10px] text-gray-400">Diferencia</p>
-                    <p className={`font-mono text-sm font-bold ${diff === 0 ? 'text-green-400' : diff > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                    <p className="text-2xs text-gray-400">Diferencia</p>
+                    <p className={`font-mono text-sm font-bold tabular-nums ${diff === 0 ? 'text-green-400' : diff > 0 ? 'text-amber-400' : 'text-red-400'}`}>
                       {diff > 0 ? '+' : ''}{formatCOP(diff)}
                     </p>
                   </div>
                 </div>
-                {c.notes && <p className="text-[10px] text-gray-400 italic mt-1.5">📝 {c.notes}</p>}
-              </div>
+                {c.notes && (
+                  <p className="mt-2 flex items-start gap-1.5 text-xs italic text-gray-400">
+                    <StickyNote className="mt-px h-3.5 w-3.5 shrink-0" /> {c.notes}
+                  </p>
+                )}
+              </li>
             )
           })}
-        </div>
+        </ul>
       )}
-    </div>
+    </section>
   )
 }
 
 function RegisterForm({ register, locations, onClose, onSave }) {
   const { error: toastError } = useToast()
-  const titleId = useId()
-  const panelRef = useModalA11y(onClose)
+  const fid = useId()
   const [name,       setName]       = useState(register?.name || '')
   const [locationId, setLocationId] = useState(register?.location_id || locations[0]?.id || '')
   const [saving,     setSaving]     = useState(false)
@@ -1341,41 +1450,58 @@ function RegisterForm({ register, locations, onClose, onSave }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="card bg-surface-200 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-        <h3 id={titleId} className="font-syne font-semibold text-white">{register ? 'Editar caja' : 'Nueva caja'}</h3>
+    <Modal
+      title={register ? 'Editar caja' : 'Nueva caja'}
+      icon={Monitor}
+      size="sm"
+      onClose={onClose}
+      onSubmit={handleSave}
+      footer={<>
+        <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn-primary">
+          {saving ? 'Guardando...' : 'Guardar'}
+        </button>
+      </>}
+    >
+      <div>
+        <label htmlFor={`${fid}-name`} className="field-label">Nombre</label>
         <input
-          placeholder="Ej: Caja 1, Caja Principal, Caja Norte"
+          id={`${fid}-name`}
+          placeholder="Ej: Caja 1, Caja Principal"
           value={name}
           onChange={e => setName(e.target.value)}
           className="input"
           autoFocus
         />
-        {!register && locations.length > 1 && (
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Punto de venta</label>
-            <select value={locationId} onChange={e => setLocationId(e.target.value)} className="input">
-              {locations.map(l => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="btn btn-ghost">Cancelar</button>
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary">
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-        </div>
       </div>
-    </div>
+      {!register && locations.length > 1 && (
+        <div>
+          <label htmlFor={`${fid}-loc`} className="field-label">Punto de venta</label>
+          <select id={`${fid}-loc`} value={locationId} onChange={e => setLocationId(e.target.value)} className="input">
+            {locations.map(l => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+    </Modal>
   )
 }
 
 // ===========================================================
 // TAB: Historial de facturas
 // ===========================================================
+const STATUS_STYLES = {
+  pending:   'badge-pending',
+  paid:      'badge-paid',
+  cancelled: 'badge-cancelled',
+  refunded:  'badge-cancelled',
+}
+const STATUS_LABEL = { pending: 'Pendiente', paid: 'Pagada', cancelled: 'Cancelada', refunded: 'Devuelta' }
+
+// Columnas de la fila de factura en desktop: todas las filas alinean igual
+const INVOICE_ROW_COLS = 'xl:grid xl:grid-cols-[4.5rem_minmax(0,1fr)_6.5rem_9rem_7.5rem_8.5rem_1rem] xl:items-center xl:gap-4'
+
 function HistorialTab({ locations }) {
   const { error: toastError } = useToast()
   const [invoices,   setInvoices]   = useState([])
@@ -1387,14 +1513,6 @@ function HistorialTab({ locations }) {
   const [locFilter,  setLocFilter]  = useState('')
   const [statusFilt, setStatusFilt] = useState('')
   const [expanded,   setExpanded]   = useState(null)
-
-  const STATUS_STYLES = {
-    pending:   'badge-pending',
-    paid:      'badge-paid',
-    cancelled: 'badge-cancelled',
-    refunded:  'badge-cancelled',
-  }
-  const STATUS_LABEL  = { pending: 'Pendiente', paid: 'Pagada', cancelled: 'Cancelada', refunded: 'Devuelta' }
 
   const handleRefund = async (inv) => {
     const reason = window.prompt(`Motivo de la devolución de la factura #${inv.code} (${formatCOP(inv.total)}):`)
@@ -1425,23 +1543,31 @@ function HistorialTab({ locations }) {
   useEffect(() => { fetchInvoices() }, [fetchInvoices])
 
   return (
-    <div className="w-full space-y-4">
-      <h2 className="font-syne font-semibold text-white">Historial de facturas</h2>
+    <div className="space-y-6">
+      <PageHeader
+        title="Historial de facturas"
+        description={`${formatRangeLabel(from, to)} · ${total} factura${total !== 1 ? 's' : ''}`}
+        actions={
+          <button type="button" onClick={fetchInvoices} disabled={loading} className="btn-outline">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+          </button>
+        }
+      />
 
-      <div className="flex items-end gap-3 flex-wrap">
+      <div className="toolbar panel p-3 sm:p-4">
         <DateRangeBar from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
         {locations.length > 1 && (
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Punto de venta</label>
-            <select value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input w-48 text-sm">
+          <div className="w-full sm:w-48">
+            <label htmlFor="history-location" className="field-label">Punto de venta</label>
+            <select id="history-location" value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input">
               <option value="">Todos</option>
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
         )}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Estado</label>
-          <select value={statusFilt} onChange={e => setStatusFilt(e.target.value)} className="input w-36 text-sm">
+        <div className="w-full sm:w-40">
+          <label htmlFor="history-status" className="field-label">Estado</label>
+          <select id="history-status" value={statusFilt} onChange={e => setStatusFilt(e.target.value)} className="input">
             <option value="">Todos</option>
             <option value="paid">Pagadas</option>
             <option value="pending">Pendientes</option>
@@ -1449,103 +1575,119 @@ function HistorialTab({ locations }) {
             <option value="refunded">Devueltas</option>
           </select>
         </div>
-        <button onClick={fetchInvoices} className="btn btn-ghost border border-white/10">↻</button>
       </div>
 
-      <p className="text-xs text-gray-400">{total} facturas encontradas</p>
-
-      {loading ? (
+      {loading && !invoices.length ? (
         <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}</div>
       ) : invoices.length === 0 ? (
-        <div className="card bg-surface-300 text-center py-12 text-gray-400">
-          <p className="text-sm">Sin facturas para los filtros seleccionados.</p>
-        </div>
+        <EmptyState icon={ClipboardList} title="Sin facturas para los filtros seleccionados" description="Prueba con otro rango de fechas o estado." />
       ) : (
-        <div className="space-y-1.5">
-          {invoices.map(inv => (
-            <div key={inv.id}>
-              <button
-                onClick={() => setExpanded(expanded === inv.id ? null : inv.id)}
-                className="card bg-surface-300 w-full text-left hover:bg-surface-200 transition-colors"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                  <span className="font-mono font-bold text-brand-400 text-lg w-16 shrink-0">#{inv.code}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white truncate">{inv.seller_name}</p>
-                    <p className="text-xs text-gray-400">
-                      {inv.location_name}
-                      {inv.register_name && <span> · 🖥 {inv.register_name}</span>}
-                      {inv.cashier_name && inv.cashier_name !== inv.seller_name && <span> · Cajero: {inv.cashier_name}</span>}
-                    </p>
-                  </div>
-                  <span className={STATUS_STYLES[inv.status]}>
-                    {STATUS_LABEL[inv.status]}
-                  </span>
-                  {inv.pay_method && (
-                    <span className="text-xs text-gray-400">{payMethodLabel(inv.pay_method, inv.transfer_provider)}</span>
-                  )}
-                  <span className="font-mono font-semibold text-white text-sm">{formatCOP(inv.total)}</span>
-                  <span className="text-xs text-gray-400 w-28 text-right shrink-0">
-                    {formatDate(inv.created_at)}
-                  </span>
-                </div>
-              </button>
+        <div className={`panel overflow-hidden transition-opacity ${loading ? 'opacity-60' : ''}`}>
+          {/* Encabezado de columnas (solo pantallas anchas) */}
+          <div className={`hidden border-b border-white/5 px-5 py-2.5 text-2xs font-medium uppercase tracking-wider text-gray-400 ${INVOICE_ROW_COLS}`}>
+            <span>Código</span>
+            <span>Vendedor · punto</span>
+            <span>Estado</span>
+            <span>Método</span>
+            <span className="text-right">Total</span>
+            <span className="text-right">Fecha</span>
+            <span />
+          </div>
 
-              {/* Detalle expandido */}
-              {expanded === inv.id && (
-                <div className="card bg-surface-400 border-brand-500/20 ml-0 sm:ml-4 mt-1 animate-fade-in">
-                  <p className="text-xs text-gray-400 mb-2">Items de la factura:</p>
-                  <div className="space-y-1">
-                    {(Array.isArray(inv.items) ? inv.items : []).map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-sm">
-                        <span className="text-gray-300">
-                          {item.product_name || item.label}
-                          {item.label && item.product_name ? ` (${item.label})` : ''}
-                          <span className="text-gray-400"> x{item.qty}</span>
-                        </span>
-                        <span className="font-mono text-brand-400">{formatCOP(item.subtotal)}</span>
+          <ul className="divide-y divide-white/5">
+            {invoices.map(inv => {
+              const open = expanded === inv.id
+              return (
+                <li key={inv.id}>
+                  <button
+                    type="button"
+                    onClick={() => setExpanded(open ? null : inv.id)}
+                    aria-expanded={open}
+                    className={`w-full px-4 py-3 text-left transition-colors hover:bg-white/[0.03] sm:px-5 ${open ? 'bg-white/[0.03]' : ''}`}
+                  >
+                    <div className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 ${INVOICE_ROW_COLS}`}>
+                      <span className="font-mono text-base font-bold text-brand-400">#{inv.code}</span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-white">{inv.seller_name}</p>
+                        <p className="truncate text-xs text-gray-400">
+                          {inv.location_name}
+                          {inv.register_name && <span> · {inv.register_name}</span>}
+                          {inv.cashier_name && inv.cashier_name !== inv.seller_name && <span> · Cajero: {inv.cashier_name}</span>}
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                  {Number(inv.discount) > 0 && (
-                    <div className="flex justify-between mt-2 text-xs">
-                      <span className="text-amber-400">🏷 Descuento</span>
-                      <span className="font-mono text-amber-400">−{formatCOP(inv.discount)}</span>
+                      <span className="justify-self-end xl:justify-self-start">
+                        <span className={STATUS_STYLES[inv.status]}>{STATUS_LABEL[inv.status]}</span>
+                      </span>
+                      <span className="col-span-2 truncate text-xs text-gray-400 xl:col-span-1">
+                        {inv.pay_method ? payMethodLabel(inv.pay_method, inv.transfer_provider) : '—'}
+                      </span>
+                      <span className="text-right font-mono text-sm font-semibold tabular-nums text-white">{formatCOP(inv.total)}</span>
+                      <span className="col-span-3 text-xs text-gray-400 xl:col-span-1 xl:text-right">
+                        {formatDate(inv.created_at)}
+                      </span>
+                      <ChevronDown className={`hidden h-4 w-4 text-gray-500 transition-transform xl:block ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    </div>
+                  </button>
+
+                  {/* Detalle expandido */}
+                  {open && (
+                    <div className="animate-fade-in border-t border-white/5 bg-surface-400/60 px-4 py-4 sm:px-5">
+                      <div className="max-w-2xl xl:ml-[5.5rem]">
+                        <p className="eyebrow mb-2">Ítems de la factura</p>
+                        <div className="space-y-1">
+                          {(Array.isArray(inv.items) ? inv.items : []).map((item, idx) => (
+                            <div key={idx} className="flex justify-between gap-3 text-sm">
+                              <span className="min-w-0 text-gray-300">
+                                {item.product_name || item.label}
+                                {item.label && item.product_name ? ` (${item.label})` : ''}
+                                <span className="text-gray-400"> ×{item.qty}</span>
+                              </span>
+                              <span className="shrink-0 font-mono tabular-nums text-gray-200">{formatCOP(item.subtotal)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {Number(inv.discount) > 0 && (
+                          <div className="mt-2 flex justify-between text-xs">
+                            <span className="inline-flex items-center gap-1 text-amber-400"><Tag className="h-3 w-3" /> Descuento</span>
+                            <span className="font-mono text-amber-400">−{formatCOP(inv.discount)}</span>
+                          </div>
+                        )}
+                        <div className="mt-3 flex justify-between border-t border-white/5 pt-2">
+                          <span className="text-sm font-semibold text-white">Total</span>
+                          <span className="font-mono font-bold tabular-nums text-brand-400">{formatCOP(inv.total)}</span>
+                        </div>
+                        {inv.paid_at && (
+                          <p className="mt-2 text-xs text-gray-400">Cobrada: {formatDate(inv.paid_at)}</p>
+                        )}
+                        {inv.edited_at && (
+                          <p className="mt-1 inline-flex items-center gap-1 text-2xs text-yellow-500/80"><Pencil className="h-3 w-3" /> Editada: {formatDate(inv.edited_at)}</p>
+                        )}
+                        {inv.status === 'refunded' && (
+                          <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+                            <p className="inline-flex items-center gap-1 text-2xs text-red-400"><Undo2 className="h-3 w-3" /> Devuelta{inv.refunded_at ? `: ${formatDate(inv.refunded_at)}` : ''}</p>
+                            {inv.refund_reason && <p className="text-xs italic text-red-300">"{inv.refund_reason}"</p>}
+                          </div>
+                        )}
+                        {inv.observations && (
+                          <div className="mt-2 rounded-lg border border-white/5 bg-surface-300 px-3 py-2">
+                            <p className="inline-flex items-center gap-1 text-2xs text-gray-400"><StickyNote className="h-3 w-3" /> Observaciones</p>
+                            <p className="text-xs italic text-gray-300">{inv.observations}</p>
+                          </div>
+                        )}
+                        {inv.status === 'paid' && (
+                          <div className="mt-3 flex justify-end border-t border-white/5 pt-3">
+                            <button type="button" onClick={() => handleRefund(inv)} className="btn-outline btn-sm border-red-500/25 text-red-400 hover:border-red-500/40 hover:text-red-300">
+                              <Undo2 className="h-3.5 w-3.5" /> Registrar devolución
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                  <div className="flex justify-between mt-3 pt-2 border-t border-white/5">
-                    <span className="font-semibold text-white text-sm">Total</span>
-                    <span className="font-mono font-bold text-brand-400">{formatCOP(inv.total)}</span>
-                  </div>
-                  {inv.paid_at && (
-                    <p className="text-xs text-gray-400 mt-2">Cobrada: {formatDate(inv.paid_at)}</p>
-                  )}
-                  {inv.edited_at && (
-                    <p className="text-[10px] text-yellow-500/70 mt-1">✏️ Editada: {formatDate(inv.edited_at)}</p>
-                  )}
-                  {inv.status === 'refunded' && (
-                    <div className="mt-2 bg-red-500/10 rounded-lg px-2 py-1.5 border border-red-500/20">
-                      <p className="text-[10px] text-red-400">↩ Devuelta{inv.refunded_at ? `: ${formatDate(inv.refunded_at)}` : ''}</p>
-                      {inv.refund_reason && <p className="text-xs text-red-300 italic">"{inv.refund_reason}"</p>}
-                    </div>
-                  )}
-                  {inv.observations && (
-                    <div className="mt-2 bg-surface-300 rounded-lg px-2 py-1.5 border border-white/5">
-                      <p className="text-[10px] text-gray-400">📝 Observaciones:</p>
-                      <p className="text-xs text-gray-300 italic">{inv.observations}</p>
-                    </div>
-                  )}
-                  {inv.status === 'paid' && (
-                    <div className="mt-3 pt-2 border-t border-white/5 flex justify-end">
-                      <button onClick={() => handleRefund(inv)} className="btn btn-ghost btn-sm text-xs text-red-400 border border-red-500/20">
-                        ↩ Registrar devolución
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+                </li>
+              )
+            })}
+          </ul>
         </div>
       )}
     </div>

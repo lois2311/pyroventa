@@ -1,57 +1,47 @@
+import { PackageSearch } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
+import EmptyState from './EmptyState.jsx'
 import ProgressBar from './ProgressBar.jsx'
 import RankBadge from './RankBadge.jsx'
 
 export default function TopProducts({ data, loading }) {
-  if (loading) {
-    return (
-      <div className="space-y-2">
-        {[1, 2, 3, 4, 5].map(i => <div key={i} className="skeleton h-16 rounded-xl" />)}
-      </div>
-    )
+  if (loading && !data?.length) {
+    return <div className="skeleton h-80 rounded-xl" />
   }
 
   if (!data?.length) {
-    return <p className="text-gray-400 text-sm">Sin ventas registradas para este período.</p>
+    return <EmptyState compact icon={PackageSearch} title="Sin ventas en este período" />
   }
 
   const maxRevenue = Math.max(...data.map(p => p.total_revenue), 1)
 
   return (
-    <div className="space-y-2">
-      {data.map((product, idx) => {
-        const pct = (product.total_revenue / maxRevenue) * 100
+    <ol className={`panel divide-y divide-white/5 overflow-hidden transition-opacity ${loading ? 'opacity-60' : ''}`}>
+      {data.map((product, idx) => (
+        <li key={product.product_id || idx} className="list-row items-start">
+          <RankBadge rank={idx + 1} />
 
-        return (
-          <div key={product.product_id || idx} className="card bg-surface-300">
-            <div className="flex items-center gap-3">
-              <RankBadge rank={idx + 1} />
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-white text-sm truncate">{product.product_name}</p>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {product.presentations?.map((pres, i) => (
-                    <span key={i} className="text-[10px] bg-surface-50 text-gray-400 px-1.5 py-0.5 rounded">
-                      {pres.label} x{pres.qty}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Metrics */}
-              <div className="text-right shrink-0">
-                <p className="font-mono font-semibold text-brand-400 text-sm">{formatCOP(product.total_revenue)}</p>
-                <p className="text-[10px] text-gray-400">{product.total_qty} uds vendidas</p>
-              </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="truncate text-sm font-medium text-white">{product.product_name}</p>
+              <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-white">{formatCOP(product.total_revenue)}</p>
             </div>
-
+            <div className="mt-1 flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap gap-1">
+                {product.presentations?.map((pres, i) => (
+                  <span key={i} className="rounded bg-surface-50 px-1.5 py-0.5 text-2xs text-gray-400">
+                    {pres.label} ×{pres.qty}
+                  </span>
+                ))}
+              </div>
+              <span className="shrink-0 text-2xs text-gray-400">{product.total_qty} uds</span>
+            </div>
             <div className="mt-2">
-              <ProgressBar pct={pct} height="xs" />
+              <ProgressBar pct={(product.total_revenue / maxRevenue) * 100} height="xs" />
             </div>
           </div>
-        )
-      })}
-    </div>
+        </li>
+      ))}
+    </ol>
   )
 }

@@ -18,12 +18,12 @@ export default function HourlyBarChart({ data }) {
           <div key={h.hour} className="group relative flex-1 flex flex-col items-center gap-1">
             <div
               className="absolute bottom-full mb-2 hidden group-hover:flex group-focus-within:flex flex-col items-center
-                         bg-surface-100 border border-white/10 rounded-lg px-2 py-1 text-[10px] whitespace-nowrap z-10 shadow-lg"
+                         bg-surface-100 border border-white/10 rounded-lg px-2 py-1 text-2xs whitespace-nowrap z-10 shadow-lg"
             >
               <span className="text-white font-semibold">{h.count} venta{h.count !== 1 ? 's' : ''}</span>
               <span className="text-brand-400 font-mono">{formatCOP(h.revenue)}</span>
             </div>
-            <span className="text-[9px] text-gray-400 font-mono">{h.count}</span>
+            <span className="text-2xs text-gray-400 font-mono">{h.count}</span>
             <div
               tabIndex={0}
               className="w-full bg-surface-50 rounded-t-sm overflow-hidden focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
@@ -34,7 +34,7 @@ export default function HourlyBarChart({ data }) {
                 style={{ height: `${heightPct}%`, marginTop: `${100 - heightPct}%` }}
               />
             </div>
-            <span className="text-[9px] text-gray-400 font-mono">{h.hour.slice(0, 2)}</span>
+            <span className="text-2xs text-gray-400 font-mono">{h.hour.slice(0, 2)}</span>
           </div>
         )
       })}
