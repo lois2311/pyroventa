@@ -13,14 +13,18 @@ export default function SuccessAnimation({ invoice, onDone }) {
   }, [onDone])
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
-      onClick={onDone}
-    >
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+      {/* Fondo: tocar fuera también continúa (fuera del orden de tabulación) */}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Continuar"
+        onClick={onDone}
+        className="absolute inset-0 h-full w-full cursor-default"
+      />
       <div
         ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="bg-surface-300 border border-green-500/30 rounded-2xl p-8 max-w-xs w-full text-center shadow-2xl animate-scale-in"
-        onClick={e => e.stopPropagation()}
+        className="relative bg-surface-300 border border-green-500/30 rounded-2xl p-8 max-w-xs w-full text-center shadow-2xl animate-scale-in"
       >
         {/* Checkmark SVG animado */}
         <div className="flex justify-center mb-4">
@@ -64,7 +68,16 @@ export default function SuccessAnimation({ invoice, onDone }) {
           <p className="text-white font-semibold text-lg mb-4">{formatCOP(invoice.total)}</p>
         )}
 
-        <p className="text-gray-400 text-xs">Toca para continuar</p>
+        {/* after:inset-0 estira el área del botón a toda la tarjeta: tocar
+            en cualquier parte continúa, y con teclado es un botón normal */}
+        <button
+          type="button"
+          onClick={onDone}
+          data-autofocus
+          className="text-xs text-gray-400 after:absolute after:inset-0 after:rounded-2xl after:content-[''] focus-visible:text-white"
+        >
+          Toca para continuar
+        </button>
       </div>
     </div>
   )

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Sparkles, X } from 'lucide-react'
+import { useModalA11y } from '../hooks/useModalA11y.js'
 
 /**
  * Foto de producto con zoom: miniatura (o placeholder si no hay foto o
@@ -15,13 +17,8 @@ export default function ProductImage({ src, name, className = 'w-9 h-9', fit = '
   // Reintentar si la URL cambia (foto corregida) tras un fallo de carga
   useEffect(() => { setFailed(false) }, [src])
 
-  // Cerrar el zoom con Escape
-  useEffect(() => {
-    if (!zoomed) return
-    const onKey = (e) => { if (e.key === 'Escape') setZoomed(false) }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [zoomed])
+  // Diálogo estándar: Escape cierra, foco atrapado y devuelto a la miniatura
+  const zoomRef = useModalA11y(() => setZoomed(false))
 
   if (!src || failed) {
     return (
@@ -53,28 +50,43 @@ export default function ProductImage({ src, name, className = 'w-9 h-9', fit = '
         />
       </button>
 
-      {zoomed && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 cursor-zoom-out"
-          onClick={(e) => { e.stopPropagation(); setZoomed(false) }}
-          role="dialog"
-          aria-label={`Foto de ${name}`}
-        >
+      {/* Portal: dentro de un modal (Editar factura) un ancestro con
+          transform encerraba el `fixed` en el panel en vez de la pantalla. */}
+      {zoomed && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4 animate-fade-in">
+          {/* Tocar en cualquier parte cierra; con teclado, Escape o la X */}
           <button
             type="button"
-            onClick={() => setZoomed(false)}
+            tabIndex={-1}
             aria-label="Cerrar foto"
-            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-surface-300 text-gray-300 hover:text-white flex items-center justify-center"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <img
-            src={src}
-            alt={name}
-            className="max-w-full max-h-[80dvh] object-contain rounded-xl"
+            onClick={(e) => { e.stopPropagation(); setZoomed(false) }}
+            className="absolute inset-0 h-full w-full cursor-zoom-out"
           />
-          <p className="text-white text-sm font-medium mt-3 text-center">{name}</p>
-        </div>
+          <div
+            ref={zoomRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Foto de ${name}`}
+            tabIndex={-1}
+            className="pointer-events-none relative flex max-h-full flex-col items-center"
+          >
+            <img
+              src={src}
+              alt={name}
+              className="max-h-[80dvh] max-w-full rounded-xl object-contain"
+            />
+            <p className="mt-3 text-center text-sm font-medium text-white">{name}</p>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setZoomed(false) }}
+              aria-label="Cerrar foto"
+              className="pointer-events-auto absolute -right-2 -top-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface-300 text-gray-300 shadow-lg hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>,
+        document.body,
       )}
     </>
   )

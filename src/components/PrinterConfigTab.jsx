@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import {
   Printer,
   Upload,
@@ -40,6 +40,8 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [saving, setSaving] = useState(false)
   const fileInputRef = useRef(null)
+  const fid = useId()
+  const [dragOver, setDragOver] = useState(false)
 
   // Cargar config cuando cambia la sede seleccionada
   useEffect(() => {
@@ -204,10 +206,11 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
       {isOwner && locations.length > 1 && (
         <div className="bg-surface-300 rounded-xl p-4 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex-1">
-            <label className="text-xs font-medium text-gray-300 block mb-1">
+            <label htmlFor={`${fid}-location`} className="text-xs font-medium text-gray-300 block mb-1">
               Punto de venta a configurar:
             </label>
             <select
+              id={`${fid}-location`}
               value={selectedLocId}
               onChange={e => { setSelectedLocId(e.target.value); setApplyToAll(false) }}
               disabled={applyToAll}
@@ -293,9 +296,23 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                 </div>
               </div>
             ) : (
-              <div
+              // Botón real (antes un div con onClick, inalcanzable con teclado);
+              // además acepta soltar el archivo, como promete el texto.
+              <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-white/15 hover:border-brand-500/50 bg-surface-400/50 hover:bg-surface-400 rounded-xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group"
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault()
+                  setDragOver(false)
+                  const file = e.dataTransfer.files?.[0]
+                  if (file) handleFileSelect({ target: { files: [file] } })
+                }}
+                disabled={uploadingLogo}
+                className={`w-full border-2 border-dashed hover:border-brand-500/50 hover:bg-surface-400 rounded-xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group disabled:cursor-wait disabled:opacity-60 ${
+                  dragOver ? 'border-brand-500/70 bg-brand-500/10' : 'border-white/15 bg-surface-400/50'
+                }`}
               >
                 <div className="w-12 h-12 rounded-full bg-brand-500/10 text-brand-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Upload className="w-6 h-6" />
@@ -308,7 +325,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                     Formatos recomendados: PNG o JPG con fondo blanco/transparente (Máx. 2MB)
                   </p>
                 </div>
-              </div>
+              </button>
             )}
 
             <input
@@ -337,13 +354,14 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Tamaño del papel */}
               <div>
-                <label className="text-xs font-medium text-gray-300 block mb-1">
+                <p id={`${fid}-paper`} className="text-xs font-medium text-gray-300 block mb-1">
                   Ancho del papel térmico
-                </label>
-                <div className="grid grid-cols-2 gap-2">
+                </p>
+                <div className="grid grid-cols-2 gap-2" role="group" aria-labelledby={`${fid}-paper`}>
                   <button
                     type="button"
                     onClick={() => setPaperWidth('80mm')}
+                    aria-pressed={paperWidth === '80mm'}
                     className={`p-3 rounded-lg border text-left transition-all ${
                       paperWidth === '80mm'
                         ? 'border-brand-500 bg-brand-500/15 text-white'
@@ -357,6 +375,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                   <button
                     type="button"
                     onClick={() => setPaperWidth('58mm')}
+                    aria-pressed={paperWidth === '58mm'}
                     className={`p-3 rounded-lg border text-left transition-all ${
                       paperWidth === '58mm'
                         ? 'border-brand-500 bg-brand-500/15 text-white'
@@ -371,10 +390,11 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
 
               {/* Nombre de la impresora */}
               <div>
-                <label className="text-xs font-medium text-gray-300 block mb-1">
+                <label htmlFor={`${fid}-printer`} className="text-xs font-medium text-gray-300 block mb-1">
                   Nombre de la impresora (opcional)
                 </label>
                 <input
+                  id={`${fid}-printer`}
                   type="text"
                   value={printerName}
                   onChange={e => setPrinterName(e.target.value)}
@@ -417,10 +437,11 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
 
             {/* Encabezado */}
             <div>
-              <label className="text-xs font-medium text-gray-300 block mb-1">
+              <label htmlFor={`${fid}-header`} className="text-xs font-medium text-gray-300 block mb-1">
                 Líneas de Cabecera (Una por línea: Razón Social, NIT, Dirección, etc.)
               </label>
               <textarea
+                id={`${fid}-header`}
                 rows={3}
                 value={headerLines.join('\n')}
                 onChange={e => setHeaderLines(e.target.value.split('\n'))}
@@ -431,10 +452,11 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
 
             {/* Pie de página */}
             <div>
-              <label className="text-xs font-medium text-gray-300 block mb-1">
+              <label htmlFor={`${fid}-footer`} className="text-xs font-medium text-gray-300 block mb-1">
                 Líneas de Pie de Página (Agradecimiento, advertencias legales)
               </label>
               <textarea
+                id={`${fid}-footer`}
                 rows={3}
                 value={footerLines.join('\n')}
                 onChange={e => setFooterLines(e.target.value.split('\n'))}

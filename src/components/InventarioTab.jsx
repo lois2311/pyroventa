@@ -12,11 +12,13 @@ import {
   Tag,
   Loader2,
   Check,
-  X
 } from 'lucide-react'
 import { api, clearProductsCache } from '../lib/api.js'
 import { exportToExcel } from '../lib/exportExcel.js'
-import { useModalA11y } from '../hooks/useModalA11y.js'
+import { useFieldErrors } from '../hooks/useFieldErrors.js'
+import Modal from './Modal.jsx'
+import FieldError from './FieldError.jsx'
+import FormError from './FormError.jsx'
 import { useToast } from './Toast.jsx'
 import PageHeader from './PageHeader.jsx'
 
@@ -330,21 +332,25 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
 }
 
 function StockAdjustModal({ product, locations = [], defaultLocationId, onClose, onSuccess }) {
-  const { error: toastError, success: toastSuccess } = useToast()
-  const titleId = useId()
-  const panelRef = useModalA11y(onClose)
+  const { success: toastSuccess } = useToast()
+  const fid = useId()
+  const { errors, validate, clear, describe } = useFieldErrors(fid)
 
   const [locationId, setLocationId] = useState(defaultLocationId || locations[0]?.id || '')
   const [newStock, setNewStock] = useState(String(product?.stock_quantity ?? '0'))
   const [reason, setReason] = useState('manual_adjustment')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
-  const handleSave = async (e) => {
-    e?.preventDefault()
-    if (!locationId) return toastError('Selecciona un punto de venta')
-    const qty = parseInt(newStock, 10)
-    if (isNaN(qty) || qty < 0) return toastError('La cantidad debe ser un número entero mayor o igual a 0')
+  const handleSave = async () => {
+    setSaveError('')
+    const qty = Number(newStock)
+    const ok = validate({
+      location: !locationId && 'Selecciona un punto de venta',
+      stock: (newStock === '' || !Number.isInteger(qty) || qty < 0) && 'Debe ser un número entero mayor o igual a 0',
+    })
+    if (!ok) return
 
     setSaving(true)
     try {
@@ -358,114 +364,95 @@ function StockAdjustModal({ product, locations = [], defaultLocationId, onClose,
       toastSuccess(`Stock de "${product.name}" actualizado a ${qty}`)
       onSuccess()
     } catch (err) {
-      toastError(err.message || 'Error al ajustar el inventario')
+      setSaveError(err.message || 'Error al ajustar el inventario')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="modal-panel sm:max-w-md p-5 space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 id={titleId} className="font-syne font-semibold text-white flex items-center gap-2">
-              <Package className="w-4 h-4 text-brand-400" />
-              Ajustar Stock
-            </h3>
-            <p className="text-xs text-gray-400 mt-0.5">{product.name}</p>
-          </div>
-          <button type="button" onClick={onClose} data-modal-close aria-label="Cerrar" className="btn btn-ghost btn-icon -mr-2 -mt-1 text-gray-400">
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      title="Ajustar stock"
+      description={product.name}
+      icon={Package}
+      onClose={onClose}
+      onSubmit={handleSave}
+      footer={<>
+        <button type="button" onClick={onClose} className="btn btn-ghost">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn btn-primary">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          <span>{saving ? 'Guardando...' : 'Guardar ajuste'}</span>
+        </button>
+      </>}
+    >
+      {/* Selector de punto si hay varios */}
+      {locations.length > 0 && (
+        <div>
+          <label htmlFor={`${fid}-location`} className="field-label">Punto de venta</label>
+          <select
+            id={`${fid}-location`}
+            value={locationId}
+            {...describe('location')}
+            onChange={e => { setLocationId(e.target.value); clear('location') }}
+            className="input"
+          >
+            {locations.map(loc => (
+              <option key={loc.id} value={loc.id}>{loc.name}</option>
+            ))}
+          </select>
+          <FieldError id={`${fid}-location-error`}>{errors.location}</FieldError>
         </div>
+      )}
 
-        <form onSubmit={handleSave} className="space-y-3">
-          {/* Selector de punto si hay varios */}
-          {locations.length > 0 && (
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Punto de venta</label>
-              <select
-                value={locationId}
-                onChange={e => setLocationId(e.target.value)}
-                className="input w-full text-xs bg-surface-300 text-white"
-                required
-              >
-                {locations.map(loc => (
-                  <option key={loc.id} value={loc.id}>
-                    📍 {loc.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Cantidad nueva */}
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Nuevo stock disponible</label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={newStock}
-              onChange={e => setNewStock(e.target.value)}
-              className="input w-full font-mono text-base py-2"
-              placeholder="0"
-              required
-              autoFocus
-            />
-          </div>
-
-          {/* Motivo */}
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Motivo del ajuste</label>
-            <select
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              className="input w-full text-xs bg-surface-300 text-white"
-            >
-              <option value="manual_adjustment">📝 Ajuste manual / Conteo físico</option>
-              <option value="initial_load">📥 Carga o reposición de mercancía</option>
-              <option value="damage">⚠️ Merma o producto dañado</option>
-              <option value="transfer">🔄 Traslado entre sedes</option>
-            </select>
-          </div>
-
-          {/* Notas */}
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Notas u observaciones (opcional)</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Ej: Conteo fin de mes, lote nuevo..."
-              className="input w-full text-xs"
-            />
-          </div>
-
-          <div className="flex gap-2 justify-end pt-3 border-t border-white/5">
-            <button type="button" onClick={onClose} className="btn btn-ghost btn-sm text-xs">
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="btn btn-primary btn-sm text-xs flex items-center gap-1.5"
-            >
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              <span>{saving ? 'Guardando...' : 'Guardar ajuste'}</span>
-            </button>
-          </div>
-        </form>
+      {/* Cantidad nueva */}
+      <div>
+        <label htmlFor={`${fid}-stock`} className="field-label">Nuevo stock disponible</label>
+        <input
+          id={`${fid}-stock`}
+          type="number"
+          min="0"
+          step="1"
+          inputMode="numeric"
+          value={newStock}
+          {...describe('stock')}
+          onChange={e => { setNewStock(e.target.value); clear('stock') }}
+          className="input font-mono text-base"
+          placeholder="0"
+          autoFocus
+        />
+        <FieldError id={`${fid}-stock-error`}>{errors.stock}</FieldError>
       </div>
-    </div>
+
+      {/* Motivo */}
+      <div>
+        <label htmlFor={`${fid}-reason`} className="field-label">Motivo del ajuste</label>
+        <select
+          id={`${fid}-reason`}
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          className="input"
+        >
+          <option value="manual_adjustment">Ajuste manual / conteo físico</option>
+          <option value="initial_load">Carga o reposición de mercancía</option>
+          <option value="damage">Merma o producto dañado</option>
+          <option value="transfer">Traslado entre sedes</option>
+        </select>
+      </div>
+
+      {/* Notas */}
+      <div>
+        <label htmlFor={`${fid}-notes`} className="field-label">Notas u observaciones <span className="font-normal">(opcional)</span></label>
+        <input
+          id={`${fid}-notes`}
+          type="text"
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="Ej: Conteo fin de mes, lote nuevo..."
+          className="input"
+        />
+      </div>
+
+      <FormError message={saveError} />
+    </Modal>
   )
 }

@@ -1,9 +1,12 @@
-import { useState, useEffect, useId } from 'react'
-import { AlertTriangle, Banknote, CheckCircle2, FileText, Loader2, Monitor, X } from 'lucide-react'
+import { useState, useId } from 'react'
+import { AlertTriangle, Banknote, CheckCircle2, FileText, Loader2, Receipt } from 'lucide-react'
 import { api } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
+import { useApi } from '../hooks/useApi.js'
 import { useToast } from './Toast.jsx'
-import { useModalA11y } from '../hooks/useModalA11y.js'
+import Modal from './Modal.jsx'
+import ErrorNotice from './ErrorNotice.jsx'
+import FieldError from './FieldError.jsx'
 
 // Diferencia con color: verde = cuadra, ámbar = sobra, rojo = falta
 function DiffAmount({ value, className = '' }) {
@@ -27,38 +30,35 @@ function ExpectedRow({ label, value, strong }) {
 /**
  * Cierre de caja (arqueo): muestra lo esperado según el sistema,
  * la cajera declara el efectivo contado y se registra la diferencia.
+ * Si el resumen no carga, el error queda en el diálogo con "Reintentar"
+ * (antes se cerraba solo con un toast y había que volver a abrirlo).
  */
 export default function CloseRegisterModal({ register, location, onClose }) {
-  const { error: toastError, success: toastSuccess } = useToast()
-  const titleId = useId()
-  const panelRef = useModalA11y(onClose)
-  const [summary,  setSummary]  = useState(null)   // { expected_*, invoice_count, existing }
+  const fid = useId()
+  const { success: toastSuccess } = useToast()
+  const params = new URLSearchParams({ location_id: location.id })
+  if (register?.id) params.set('register_id', register.id)
+  const summaryQ = useApi(`/closures/summary?${params.toString()}`)
+  const summary = summaryQ.data // { expected_*, invoice_count, existing }
+
   const [declared, setDeclared] = useState('')
   const [notes,    setNotes]    = useState('')
-  const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
-  const [closure,  setClosure]  = useState(null)   // cierre recién creado
-
-  useEffect(() => {
-    const params = new URLSearchParams({ location_id: location.id })
-    if (register?.id) params.set('register_id', register.id)
-    api.get(`/closures/summary?${params.toString()}`)
-      .then(d => {
-        setSummary(d)
-        if (d.existing) setClosure(d.existing)
-      })
-      .catch(err => { toastError(err.message); onClose() })
-      .finally(() => setLoading(false))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [created,  setCreated]  = useState(null)   // cierre recién creado
+  const [error,    setError]    = useState('')
+  const closure = created || summary?.existing || null
 
   const declaredNum = declared === '' ? null : Number(declared)
   const difference = declaredNum !== null && summary ? declaredNum - summary.expected_cash : null
 
   const handleClose = async () => {
     if (declaredNum === null || isNaN(declaredNum) || declaredNum < 0) {
-      return toastError('Ingresa el efectivo contado')
+      setError('Ingresa el efectivo contado')
+      document.getElementById(`${fid}-declared`)?.focus()
+      return
     }
     setSaving(true)
+    setError('')
     try {
       const data = await api.post('/closures', {
         register_id:   register?.id || undefined,
@@ -67,115 +67,114 @@ export default function CloseRegisterModal({ register, location, onClose }) {
         declared_cash: declaredNum,
         notes:         notes.trim() || undefined,
       })
-      setClosure(data)
+      setCreated(data)
       toastSuccess('Cierre de caja registrado')
     } catch (err) {
-      toastError(err.message || 'Error al cerrar la caja')
+      setError(err.message || 'Error al cerrar la caja')
     } finally {
       setSaving(false)
     }
   }
 
+  const showForm = summary && !closure
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="modal-panel sm:max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 id={titleId} className="font-syne font-bold text-lg text-white">Cierre de caja</h2>
-            <p className="text-xs text-gray-400 inline-flex items-center gap-1.5">
-              <Monitor className="w-3.5 h-3.5" /> {register?.name || 'Sin caja'} · {location?.name} · {summary?.date || 'hoy'}
+    <Modal
+      title="Cierre de caja"
+      description={`${register?.name || 'Sin caja'} · ${location?.name} · ${summary?.date || 'hoy'}`}
+      icon={Receipt}
+      onClose={onClose}
+      onSubmit={showForm ? handleClose : undefined}
+      closeOnBackdrop={!showForm || declared === ''}
+      footer={showForm ? <>
+        <button type="button" onClick={onClose} className="btn btn-ghost">Cancelar</button>
+        <button type="submit" disabled={saving} className="btn btn-primary">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Registrar cierre'}
+        </button>
+      </> : closure ? (
+        <button type="button" onClick={onClose} className="btn btn-primary" data-autofocus>Listo</button>
+      ) : null}
+    >
+      {summaryQ.loading && !summary ? (
+        <div className="space-y-2" role="status" aria-label="Cargando resumen">{[1, 2, 3].map(i => <div key={i} className="skeleton h-10 rounded-lg" />)}</div>
+      ) : summaryQ.error ? (
+        <ErrorNotice error={summaryQ.error} title="No se pudo cargar el resumen del día" onRetry={summaryQ.refetch} />
+      ) : closure ? (
+        /* ---- Resultado del cierre (o cierre ya existente) ---- */
+        <>
+          <div role="status" className={`card py-5 text-center ${Number(closure.difference) === 0 ? 'border-green-500/30 bg-green-500/10' : 'border-amber-500/30 bg-surface-400'}`}>
+            {Number(closure.difference) === 0
+              ? <CheckCircle2 className="mx-auto mb-2 h-10 w-10 text-green-400" />
+              : <AlertTriangle className="mx-auto mb-2 h-10 w-10 text-amber-400" />}
+            <p className="mb-1 font-syne text-lg font-bold text-white">
+              {Number(closure.difference) === 0 ? '¡Caja cuadrada!' : Number(closure.difference) > 0 ? 'Sobra efectivo' : 'Falta efectivo'}
+            </p>
+            <DiffAmount value={Number(closure.difference)} className="text-2xl" />
+          </div>
+          <div className="space-y-1.5 rounded-xl bg-surface-400 p-3">
+            <ExpectedRow label={`Facturas cobradas (${closure.invoice_count})`} value="" />
+            <ExpectedRow label="Efectivo esperado" value={formatCOP(closure.expected_cash)} />
+            <ExpectedRow label="Efectivo contado" value={formatCOP(closure.declared_cash)} strong />
+            <ExpectedRow label="Transferencias" value={formatCOP(closure.expected_transfer)} />
+            <ExpectedRow label="Datáfono" value={formatCOP(closure.expected_card)} />
+            {closure.notes && (
+              <p className="flex items-start gap-1.5 border-t border-white/5 pt-1 text-xs italic text-gray-400">
+                <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {closure.notes}
+              </p>
+            )}
+            <p className="pt-1 text-2xs text-gray-400">
+              Cerrada por {closure.cashier_name} · {new Date(closure.closed_at).toLocaleString('es-CO')}
             </p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar"
-            className="btn-touch-safe inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-surface-50 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="skeleton h-10 rounded-lg" />)}</div>
-        ) : closure ? (
-          /* ---- Resultado del cierre (o cierre ya existente) ---- */
-          <div className="space-y-4">
-            <div className={`card text-center py-5 ${Number(closure.difference) === 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-surface-400 border-amber-500/30'}`}>
-              {Number(closure.difference) === 0
-                ? <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-2" />
-                : <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-2" />}
-              <p className="font-syne font-bold text-lg text-white mb-1">
-                {Number(closure.difference) === 0 ? '¡Caja cuadrada!' : Number(closure.difference) > 0 ? 'Sobra efectivo' : 'Falta efectivo'}
-              </p>
-              <DiffAmount value={Number(closure.difference)} className="text-2xl" />
-            </div>
-            <div className="bg-surface-400 rounded-xl p-3 space-y-1.5">
-              <ExpectedRow label={`Facturas cobradas (${closure.invoice_count})`} value="" />
-              <ExpectedRow label="Efectivo esperado" value={formatCOP(closure.expected_cash)} />
-              <ExpectedRow label="Efectivo contado" value={formatCOP(closure.declared_cash)} strong />
-              <ExpectedRow label="Transferencias" value={formatCOP(closure.expected_transfer)} />
-              <ExpectedRow label="Datáfono" value={formatCOP(closure.expected_card)} />
-              {closure.notes && (
-                <p className="text-xs text-gray-400 italic pt-1 border-t border-white/5 flex items-start gap-1.5">
-                  <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {closure.notes}
-                </p>
-              )}
-              <p className="text-2xs text-gray-400 pt-1">
-                Cerrada por {closure.cashier_name} · {new Date(closure.closed_at).toLocaleString('es-CO')}
-              </p>
-            </div>
-            <button onClick={onClose} className="btn btn-primary w-full">Listo</button>
+        </>
+      ) : summary && (
+        /* ---- Formulario de cierre ---- */
+        <>
+          <div className="space-y-1.5 rounded-xl bg-surface-400 p-3">
+            <p className="mb-1 text-2xs uppercase tracking-wider text-gray-400">Según el sistema (hoy)</p>
+            <ExpectedRow label="Facturas cobradas" value={String(summary.invoice_count)} />
+            <ExpectedRow label="Efectivo esperado" value={formatCOP(summary.expected_cash)} strong />
+            <ExpectedRow label="Transferencias" value={formatCOP(summary.expected_transfer)} />
+            <ExpectedRow label="Datáfono" value={formatCOP(summary.expected_card)} />
           </div>
-        ) : (
-          /* ---- Formulario de cierre ---- */
-          <div className="space-y-4">
-            <div className="bg-surface-400 rounded-xl p-3 space-y-1.5">
-              <p className="text-2xs text-gray-400 uppercase tracking-wider mb-1">Según el sistema (hoy)</p>
-              <ExpectedRow label="Facturas cobradas" value={String(summary.invoice_count)} />
-              <ExpectedRow label="Efectivo esperado" value={formatCOP(summary.expected_cash)} strong />
-              <ExpectedRow label="Transferencias" value={formatCOP(summary.expected_transfer)} />
-              <ExpectedRow label="Datáfono" value={formatCOP(summary.expected_card)} />
-            </div>
 
-            <div>
-              <label className="block text-xs text-gray-400 mb-1 inline-flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5" /> Efectivo contado en caja
-              </label>
-              <input
-                type="number"
-                inputMode="numeric"
-                min="0"
-                value={declared}
-                onChange={e => setDeclared(e.target.value)}
-                placeholder="0"
-                autoFocus
-                className="input font-mono text-lg"
-              />
-              {difference !== null && !isNaN(difference) && (
-                <p className="text-xs mt-1.5 flex items-center gap-1.5">
-                  <span className="text-gray-400">Diferencia:</span>
-                  <DiffAmount value={difference} />
-                  {difference !== 0 && (
-                    <span className="text-gray-400">({difference > 0 ? 'sobra' : 'falta'})</span>
-                  )}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Notas (opcional)</label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-                placeholder="Ej: se pagó domicilio $10.000 en efectivo"
-                className="input text-xs resize-none" />
-            </div>
-
-            <div className="flex gap-2">
-              <button onClick={onClose} className="btn btn-ghost flex-1">Cancelar</button>
-              <button onClick={handleClose} disabled={saving || declared === ''} className="btn btn-primary flex-1">
-                {saving ? <Loader2 className="animate-spin h-4 w-4" /> : 'Registrar cierre'}
-              </button>
-            </div>
+          <div>
+            <label htmlFor={`${fid}-declared`} className="field-label inline-flex items-center gap-1.5">
+              <Banknote className="h-3.5 w-3.5" /> Efectivo contado en caja
+            </label>
+            <input
+              id={`${fid}-declared`}
+              type="number"
+              inputMode="numeric"
+              min="0"
+              value={declared}
+              onChange={e => { setDeclared(e.target.value); setError('') }}
+              placeholder="0"
+              autoFocus
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? `${fid}-error` : undefined}
+              className="input font-mono text-lg"
+            />
+            <FieldError id={`${fid}-error`}>{error}</FieldError>
+            {difference !== null && !isNaN(difference) && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs" aria-live="polite">
+                <span className="text-gray-400">Diferencia:</span>
+                <DiffAmount value={difference} />
+                {difference !== 0 && (
+                  <span className="text-gray-400">({difference > 0 ? 'sobra' : 'falta'})</span>
+                )}
+              </p>
+            )}
           </div>
-        )}
-      </div>
-    </div>
+
+          <div>
+            <label htmlFor={`${fid}-notes`} className="field-label">Notas <span className="font-normal">(opcional)</span></label>
+            <textarea id={`${fid}-notes`} value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+              placeholder="Ej: se pagó domicilio $10.000 en efectivo"
+              className="input resize-none text-sm" />
+          </div>
+        </>
+      )}
+    </Modal>
   )
 }

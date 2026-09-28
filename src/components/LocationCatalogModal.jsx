@@ -1,18 +1,21 @@
-import { useState, useEffect, useMemo, useId } from 'react'
-import { X, Search, RotateCcw, Sliders, DollarSign, Package } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Search, RotateCcw, Sliders, DollarSign, Package } from 'lucide-react'
 import { api, clearProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useToast } from './Toast.jsx'
-import { useModalA11y } from '../hooks/useModalA11y.js'
+import Modal from './Modal.jsx'
+import ErrorNotice from './ErrorNotice.jsx'
+import FormError from './FormError.jsx'
 
 export default function LocationCatalogModal({ location, onClose, onSaved }) {
-  const titleId = useId()
-  const panelRef = useModalA11y(onClose)
-  const { error: toastError, success: toastSuccess } = useToast()
+  const { success: toastSuccess } = useToast()
 
   const [activeSubTab, setActiveSubTab] = useState('precios') // 'precios' | 'productos'
   const [loading,      setLoading]      = useState(true)
+  const [loadError,    setLoadError]    = useState(null)
+  const [reloadKey,    setReloadKey]    = useState(0)
   const [saving,       setSaving]       = useState(false)
+  const [saveError,    setSaveError]    = useState('')
   const [products,     setProducts]     = useState([])
   const [query,        setQuery]        = useState('')
 
@@ -23,11 +26,14 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
 
   useEffect(() => {
     if (!location?.id) return
+    const controller = new AbortController()
+    const { signal } = controller
     setLoading(true)
+    setLoadError(null)
 
     Promise.all([
-      api.get('/products?include_inactive=1'),
-      api.get(`/locations/${location.id}/catalog-config`),
+      api.get('/products?include_inactive=1', { signal }),
+      api.get(`/locations/${location.id}/catalog-config`, { signal }),
     ])
       .then(([allProducts, config]) => {
         setProducts(allProducts || [])
@@ -50,9 +56,10 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
         })
         setDisabledProds(dp)
       })
-      .catch(err => toastError(err.message || 'Error cargando configuración del punto'))
-      .finally(() => setLoading(false))
-  }, [location?.id, toastError])
+      .catch(err => { if (!err.canceled) setLoadError(err) })
+      .finally(() => { if (!signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [location?.id, reloadKey])
 
   // Filtrar productos por búsqueda
   const filteredProducts = useMemo(() => {
@@ -107,6 +114,7 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
   // Guardar
   const handleSave = async () => {
     setSaving(true)
+    setSaveError('')
     try {
       const pricesPayload = []
       for (const [presId, val] of Object.entries(priceOverrides)) {
@@ -132,245 +140,199 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
       if (onSaved) onSaved()
       onClose()
     } catch (err) {
-      toastError(err.message || 'Error al guardar la configuración')
+      setSaveError(err.message || 'Error al guardar la configuración')
     } finally {
       setSaving(false)
     }
   }
 
+  const subTabClass = (active) => `flex items-center gap-1.5 border-b-2 px-3 pb-2 text-xs font-semibold transition-colors ${
+    active ? 'border-brand-500 text-white' : 'border-transparent text-gray-400 hover:text-gray-200'
+  }`
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="modal-panel sm:max-w-2xl p-5 space-y-4 flex flex-col max-h-[90dvh]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-3 shrink-0">
-          <div>
-            <h2 id={titleId} className="font-syne font-bold text-lg text-white flex items-center gap-2">
-              <Sliders className="w-5 h-5 text-brand-400" />
-              Precios y Catálogo · <span className="text-brand-400">{location.name}</span>
-            </h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Personaliza precios o productos específicos para este punto. Los que no modifiques usarán el valor general de la empresa.
-            </p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-1" aria-label="Cerrar">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Selector de pestañas internas */}
-        <div className="flex border-b border-white/5 gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('precios')}
-            className={`pb-2 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
-              activeSubTab === 'precios'
-                ? 'border-brand-500 text-white'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            <DollarSign className="w-3.5 h-3.5" />
-            Precios Diferenciales
-            {differentialCount > 0 && (
-              <span className="bg-brand-500/20 text-brand-300 px-1.5 py-0.2 rounded-full text-2xs border border-brand-500/30">
-                {differentialCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('productos')}
-            className={`pb-2 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
-              activeSubTab === 'productos'
-                ? 'border-brand-500 text-white'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            <Package className="w-3.5 h-3.5" />
-            Disponibilidad de Productos
-            {disabledCount > 0 && (
-              <span className="bg-red-500/20 text-red-300 px-1.5 py-0.2 rounded-full text-2xs border border-red-500/30">
-                {disabledCount} deshabilitado(s)
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Buscador y herramientas */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="relative flex-1">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="search"
-              placeholder="Buscar producto o categoría..."
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              className="input pl-8 text-xs w-full py-1.5"
-            />
-          </div>
-          {activeSubTab === 'productos' && (
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={enableAll}
-                className="btn btn-ghost btn-sm text-2xs py-1 text-gray-300"
-              >
-                Habilitar todos
-              </button>
-              <button
-                type="button"
-                onClick={disableAll}
-                className="btn btn-ghost btn-sm text-2xs py-1 text-gray-400 hover:text-red-300"
-              >
-                Deshabilitar todos
-              </button>
-            </div>
+    <Modal
+      title={<>Precios y catálogo · <span className="text-brand-400">{location.name}</span></>}
+      description="Personaliza precios o productos para este punto. Lo que no modifiques usa el valor general de la empresa."
+      icon={Sliders}
+      size="xl"
+      onClose={onClose}
+      onSubmit={handleSave}
+      // Son muchos campos: un toque fuera no descarta lo editado
+      closeOnBackdrop={false}
+      footer={<>
+        <button type="button" onClick={onClose} className="btn btn-ghost">Cancelar</button>
+        <button type="submit" disabled={saving || loading || Boolean(loadError)} className="btn btn-primary">
+          {saving ? 'Guardando...' : 'Guardar configuración'}
+        </button>
+      </>}
+    >
+      {/* Selector de pestañas internas */}
+      <div className="flex gap-2 border-b border-white/5" role="group" aria-label="Qué configurar">
+        <button type="button" onClick={() => setActiveSubTab('precios')} aria-pressed={activeSubTab === 'precios'} className={subTabClass(activeSubTab === 'precios')}>
+          <DollarSign className="h-3.5 w-3.5" />
+          Precios diferenciales
+          {differentialCount > 0 && (
+            <span className="whitespace-nowrap rounded-full border border-brand-500/30 bg-brand-500/20 px-1.5 text-2xs text-brand-300">
+              {differentialCount}
+            </span>
           )}
-        </div>
+        </button>
 
-        {/* Contenido scrolleable */}
-        <div className="flex-1 overflow-y-auto space-y-3 min-h-[300px]">
-          {loading ? (
-            <div className="space-y-2 py-4">
-              {[1, 2, 3, 4].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <p className="text-gray-400 text-xs text-center py-10">No se encontraron productos</p>
-          ) : (
-            filteredProducts.map(prod => {
-              const isDisabled = disabledProds.has(prod.id)
-
-              if (activeSubTab === 'productos') {
-                return (
-                  <div
-                    key={prod.id}
-                    onClick={() => toggleProduct(prod.id)}
-                    className={`card p-3 flex items-center justify-between cursor-pointer transition-colors border ${
-                      !isDisabled
-                        ? 'bg-surface-300 border-white/5 hover:border-white/10'
-                        : 'bg-surface-500/50 border-red-500/20 opacity-60 hover:opacity-80'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-xs font-semibold text-white">{prod.name}</p>
-                      <p className="text-2xs text-gray-400">{prod.categories?.name || 'Sin categoría'}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className={`text-2xs font-medium px-2 py-0.5 rounded-full ${
-                        !isDisabled
-                          ? 'bg-green-500/15 text-green-400 border border-green-500/30'
-                          : 'bg-red-500/15 text-red-400 border border-red-500/30'
-                      }`}>
-                        {!isDisabled ? 'Habilitado en este punto' : 'Oculto en este punto'}
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={!isDisabled}
-                        onChange={() => {}} // controlado por onClick del contenedor
-                        className="accent-brand-500 w-4 h-4 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                )
-              }
-
-              // Pestaña Precios
-              return (
-                <div key={prod.id} className="card bg-surface-300 border border-white/5 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold text-white">{prod.name}</p>
-                      <p className="text-2xs text-gray-400">{prod.categories?.name || 'Sin categoría'}</p>
-                    </div>
-                    {isDisabled && (
-                      <span className="text-2xs bg-red-500/15 text-red-400 border border-red-500/30 px-1.5 py-0.2 rounded">
-                        Oculto en este punto
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5 pt-1 border-t border-white/5">
-                    {(prod.presentations || []).filter(pr => pr.active !== false).map(pres => {
-                      const overrideVal = priceOverrides[pres.id]
-                      const hasOverride = overrideVal !== undefined && overrideVal !== '' && Number(overrideVal) !== Number(pres.price)
-
-                      return (
-                        <div key={pres.id} className="flex items-center justify-between gap-3 bg-surface-400/70 rounded-lg px-2.5 py-1.5">
-                          <div className="flex-1 min-w-0">
-                            <span className="text-xs text-gray-200 font-medium">{pres.label}</span>
-                            <span className="text-2xs text-gray-400 block">
-                              Base: {formatCOP(pres.price)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="relative">
-                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="100"
-                                placeholder={String(pres.price)}
-                                value={overrideVal !== undefined ? overrideVal : ''}
-                                onChange={e => setOverride(pres.id, e.target.value)}
-                                className={`input text-xs font-mono font-bold w-28 pl-6 py-1 ${
-                                  hasOverride ? 'border-brand-500 text-brand-300 bg-brand-500/10' : ''
-                                }`}
-                              />
-                            </div>
-
-                            {hasOverride && (
-                              <button
-                                type="button"
-                                onClick={() => resetOverride(pres.id)}
-                                title="Restablecer a precio base"
-                                aria-label={`Restablecer ${pres.label} a precio base`}
-                                className="text-gray-400 hover:text-amber-400 p-1"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })
+        <button type="button" onClick={() => setActiveSubTab('productos')} aria-pressed={activeSubTab === 'productos'} className={subTabClass(activeSubTab === 'productos')}>
+          <Package className="h-3.5 w-3.5" />
+          Disponibilidad
+          {disabledCount > 0 && (
+            <span className="whitespace-nowrap rounded-full border border-red-500/30 bg-red-500/20 px-1.5 text-2xs text-red-300">
+              {disabledCount} oculto{disabledCount !== 1 ? 's' : ''}
+            </span>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-white/5 pt-3 shrink-0">
-          <div className="text-xs text-gray-400">
-            {differentialCount > 0 && <span className="text-brand-300 font-medium mr-2">{differentialCount} precios diferenciales</span>}
-            {disabledCount > 0 && <span className="text-red-300 font-medium">{disabledCount} productos ocultos</span>}
-          </div>
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="btn btn-ghost text-xs">
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="btn btn-primary text-xs"
-            >
-              {saving ? 'Guardando...' : 'Guardar configuración'}
-            </button>
-          </div>
-        </div>
+        </button>
       </div>
-    </div>
+
+      {/* Buscador y herramientas */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[12rem] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Buscar producto o categoría..."
+            aria-label="Buscar producto o categoría"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
+            className="input w-full pl-8 text-xs"
+          />
+        </div>
+        {activeSubTab === 'productos' && (
+          <div className="flex gap-1">
+            <button type="button" onClick={enableAll} className="btn btn-ghost btn-sm text-2xs text-gray-300">
+              Habilitar todos
+            </button>
+            <button type="button" onClick={disableAll} className="btn btn-ghost btn-sm text-2xs text-gray-400 hover:text-red-300">
+              Deshabilitar todos
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Lista con su propio scroll: pestañas y buscador quedan a la vista */}
+      <div className="max-h-[55dvh] min-h-[300px] space-y-3 overflow-y-auto">
+        {loading ? (
+          <div className="space-y-2 py-4" role="status" aria-label="Cargando catálogo">
+            {[1, 2, 3, 4].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}
+          </div>
+        ) : loadError ? (
+          <ErrorNotice error={loadError} title="No se pudo cargar la configuración del punto" onRetry={() => setReloadKey(k => k + 1)} />
+        ) : filteredProducts.length === 0 ? (
+          <p className="py-10 text-center text-xs text-gray-400">No se encontraron productos</p>
+        ) : (
+          filteredProducts.map(prod => {
+            const isDisabled = disabledProds.has(prod.id)
+
+            if (activeSubTab === 'productos') {
+              return (
+                <label
+                  key={prod.id}
+                  className={`card flex cursor-pointer items-center justify-between gap-3 border p-3 transition-colors sm:p-3 ${
+                    !isDisabled
+                      ? 'border-white/5 bg-surface-300 hover:border-white/10'
+                      : 'border-red-500/20 bg-surface-500/50 opacity-60 hover:opacity-80'
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-xs font-semibold text-white">{prod.name}</span>
+                    <span className="block text-2xs text-gray-400">{prod.categories?.name || 'Sin categoría'}</span>
+                  </span>
+
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-2xs font-medium ${
+                      !isDisabled
+                        ? 'border border-green-500/30 bg-green-500/15 text-green-400'
+                        : 'border border-red-500/30 bg-red-500/15 text-red-400'
+                    }`}>
+                      {!isDisabled ? 'Habilitado en este punto' : 'Oculto en este punto'}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={!isDisabled}
+                      onChange={() => toggleProduct(prod.id)}
+                      className="h-4 w-4 cursor-pointer accent-brand-500"
+                    />
+                  </span>
+                </label>
+              )
+            }
+
+            // Pestaña Precios
+            return (
+              <div key={prod.id} className="card space-y-2 border border-white/5 bg-surface-300 p-3 sm:p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-white">{prod.name}</p>
+                    <p className="text-2xs text-gray-400">{prod.categories?.name || 'Sin categoría'}</p>
+                  </div>
+                  {isDisabled && (
+                    <span className="rounded border border-red-500/30 bg-red-500/15 px-1.5 text-2xs text-red-400">
+                      Oculto en este punto
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 border-t border-white/5 pt-1">
+                  {(prod.presentations || []).filter(pr => pr.active !== false).map(pres => {
+                    const overrideVal = priceOverrides[pres.id]
+                    const hasOverride = overrideVal !== undefined && overrideVal !== '' && Number(overrideVal) !== Number(pres.price)
+
+                    return (
+                      <div key={pres.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-400/70 px-2.5 py-1.5">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs font-medium text-gray-200">{pres.label}</span>
+                          <span className="block text-2xs text-gray-400">
+                            Base: {formatCOP(pres.price)}
+                          </span>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-2">
+                          <div className="relative">
+                            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400" aria-hidden="true">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="100"
+                              aria-label={`Precio de ${prod.name}, ${pres.label} en este punto`}
+                              placeholder={String(pres.price)}
+                              value={overrideVal !== undefined ? overrideVal : ''}
+                              onChange={e => setOverride(pres.id, e.target.value)}
+                              className={`input w-28 pl-6 font-mono text-xs font-bold ${
+                                hasOverride ? 'border-brand-500 bg-brand-500/10 text-brand-300' : ''
+                              }`}
+                            />
+                          </div>
+
+                          {hasOverride && (
+                            <button
+                              type="button"
+                              onClick={() => resetOverride(pres.id)}
+                              title="Restablecer a precio base"
+                              aria-label={`Restablecer ${pres.label} a precio base`}
+                              className="p-1 text-gray-400 hover:text-amber-400"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      <FormError message={saveError} />
+    </Modal>
   )
 }

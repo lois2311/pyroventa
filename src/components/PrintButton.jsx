@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { ChevronDown, FileDown, Globe, Loader2, Printer } from 'lucide-react'
 import { useAuthStore } from '../store/authStore.js'
 import { printReceipt, printBrowserFallback, generatePDF } from '../lib/printService.js'
 import { useToast } from './Toast.jsx'
@@ -22,8 +23,16 @@ export default function PrintButton({ invoice }) {
         setOpen(false)
       }
     }
+    // Escape cierra el menú sin cerrar el diálogo que lo contiene
+    const handleKey = (e) => {
+      if (e.key === 'Escape') { e.stopImmediatePropagation(); setOpen(false) }
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKey, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKey, true)
+    }
   }, [open])
 
   const doPrint = async (method) => {
@@ -50,41 +59,40 @@ export default function PrintButton({ invoice }) {
   return (
     <div className="relative inline-block" ref={menuRef}>
       <button
+        type="button"
         onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
         disabled={loading}
+        aria-expanded={open}
+        aria-haspopup="true"
         className="btn-outline gap-2"
       >
-        {loading ? (
-          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-          </svg>
-        ) : (
-          <span>🖨</span>
-        )}
+        {loading
+          ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          : <Printer className="h-4 w-4" aria-hidden="true" />}
         Imprimir recibo
-        <span className="text-gray-400">▾</span>
+        <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
 
       {open && (
         <div
+          role="group"
+          aria-label="Opciones de impresión"
           className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 bg-surface-200 border border-white/10 rounded-xl shadow-2xl overflow-hidden z-[60] animate-slide-up"
-          onClick={e => e.stopPropagation()}
         >
           <PrintOption
-            icon="🖨"
+            Icon={Printer}
             label="Impresora térmica"
-            desc="Via QZ Tray"
+            desc="Vía QZ Tray"
             onClick={() => doPrint('auto')}
           />
           <PrintOption
-            icon="🌐"
+            Icon={Globe}
             label="Imprimir en navegador"
             desc="Ventana del sistema"
             onClick={() => doPrint('browser')}
           />
           <PrintOption
-            icon="📄"
+            Icon={FileDown}
             label="Descargar PDF"
             desc="Guardar como archivo"
             onClick={() => doPrint('pdf')}
@@ -95,13 +103,14 @@ export default function PrintButton({ invoice }) {
   )
 }
 
-function PrintOption({ icon, label, desc, onClick }) {
+function PrintOption({ Icon, label, desc, onClick }) {
   return (
     <button
+      type="button"
       onClick={(e) => { e.stopPropagation(); onClick() }}
-      className="w-full flex items-start gap-3 px-4 py-3 hover:bg-surface-50 transition-colors text-left"
+      className="w-full flex items-start gap-3 px-4 py-3 hover:bg-surface-50 focus-visible:bg-surface-50 transition-colors text-left"
     >
-      <span className="text-lg mt-0.5">{icon}</span>
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
       <div>
         <p className="text-sm text-white font-medium">{label}</p>
         <p className="text-xs text-gray-400">{desc}</p>
