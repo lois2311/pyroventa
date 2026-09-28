@@ -6,6 +6,7 @@ import { useInvoiceStore }  from '../store/invoiceStore.js'
 import { api, getProductsCache, setProductsCache } from '../lib/api.js'
 import { enqueue, generateOfflineCode, saveOfflineInvoice, newOpId } from '../lib/offlineQueue.js'
 import { formatCOP }   from '../lib/format.js'
+import { matchesQuery } from '../lib/search.js'
 import Topbar          from '../components/Topbar.jsx'
 import ProductCard     from '../components/ProductCard.jsx'
 import CartPanel       from '../components/CartPanel.jsx'
@@ -13,6 +14,7 @@ import CodeDisplay     from '../components/CodeDisplay.jsx'
 import SuccessAnimation from '../components/SuccessAnimation.jsx'
 import { useToast }    from '../components/Toast.jsx'
 import { useModalA11y } from '../hooks/useModalA11y.js'
+import { useSlashFocus } from '../hooks/useSlashFocus.js'
 import EmptyState      from '../components/EmptyState.jsx'
 import ErrorNotice     from '../components/ErrorNotice.jsx'
 import Kbd             from '../components/Kbd.jsx'
@@ -87,16 +89,7 @@ export default function VendedorPage() {
   }, [products, hasInventory, syncStock])
 
   // "/" enfoca el buscador (como en la mayoría de apps con teclado)
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
-      if (e.target.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return
-      e.preventDefault()
-      searchRef.current?.focus()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  useSlashFocus(searchRef)
 
   // ---- Categorías únicas ---------------------------------
   const categories = useMemo(() => {
@@ -111,10 +104,8 @@ export default function VendedorPage() {
   const filtered = useMemo(() => {
     let list = products
     if (catFilter !== 'all') list = list.filter(p => p.categories?.id === catFilter)
-    if (query.trim()) {
-      const q = query.toLowerCase().trim()
-      list = list.filter(p => p.name.toLowerCase().includes(q))
-    }
+    // Sin tildes ni mayúsculas y por palabras: "volcan mag" encuentra "Volcán mágico"
+    if (query.trim()) list = list.filter(p => matchesQuery([p.name], query))
     // Con inventario, los agotados van al final (orden estable para el resto)
     if (hasInventory) {
       list = [...list].sort((a, b) =>

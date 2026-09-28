@@ -1,18 +1,40 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Camera, Check, Loader2, Package, PartyPopper, Pencil, Plus, Tag, Trash2, Upload, X } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import {
+  AlertTriangle, Camera, Check, LayoutGrid, List, Loader2, Package, PartyPopper, Pencil, Plus, Power,
+  Search, SearchX, Tag, Trash2, Upload, X,
+} from 'lucide-react'
 import { api, clearProductsCache } from '../../lib/api.js'
 import { formatCOP } from '../../lib/format.js'
 import { useApi } from '../../hooks/useApi.js'
 import { useFieldErrors } from '../../hooks/useFieldErrors.js'
+import { useSlashFocus } from '../../hooks/useSlashFocus.js'
 import Modal from '../../components/Modal.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
 import EmptyState from '../../components/EmptyState.jsx'
 import ErrorNotice from '../../components/ErrorNotice.jsx'
 import FieldError from '../../components/FieldError.jsx'
+import Kbd from '../../components/Kbd.jsx'
 import BulkUpload from '../../components/BulkUpload.jsx'
 import { useConfirm } from '../../components/ConfirmDialog.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { CARD_GRID, FormError, SkeletonGrid } from './shared.jsx'
+import {
+  DEFAULT_FILTERS, LOW_STOCK, SORTS, filterProducts, hasActiveFilters, isIncomplete, productFacets,
+} from './productFilters.js'
+
+// Filtros en la URL (?q=&cat=&estado=&stock=&orden=): recargar o compartir el
+// enlace conserva la búsqueda. Nombres en español, como el resto de la URL.
+const URL_KEYS = { q: 'q', cat: 'cat', status: 'estado', stock: 'stock', sort: 'orden' }
+const VIEW_KEY = 'pv_products_view'
+
+function readView() {
+  try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid' } catch { return 'grid' }
+}
+
+const stockClass = (qty) => (qty <= 0
+  ? 'bg-red-500/15 text-red-400'
+  : qty <= LOW_STOCK ? 'bg-yellow-500/15 text-yellow-400' : 'bg-emerald-500/15 text-emerald-400')
 
 // ===========================================================
 // TAB: Productos
@@ -23,11 +45,63 @@ export default function ProductosTab({ hasInventory = false }) {
   // include_inactive: sin esto, desactivar un producto lo hacía desaparecer de
   // esta lista y el botón "Activar" quedaba inalcanzable.
   const productsQ = useApi('/products?include_inactive=1', { initialData: [] })
-  const products = productsQ.data || []
+  const products = useMemo(() => productsQ.data || [], [productsQ.data])
   const [showForm,  setShowForm]  = useState(false)
   const [editProd,  setEditProd]  = useState(null)
   const [showBulk,  setShowBulk]  = useState(false)
+  const [view, setView] = useState(readView)
 
+  // ---- Filtros ----------------------------------------------------------
+  const [params, setParams] = useSearchParams()
+  const filters = {
+    ...DEFAULT_FILTERS,
+    ...Object.fromEntries(Object.entries(URL_KEYS).map(([k, key]) => [k, params.get(key) ?? DEFAULT_FILTERS[k]])),
+  }
+  // El texto vive en estado local y pasa a la URL con una pausa: escribir no
+  // depende de una navegación (que va en una transición y se atrasaría).
+  const [query, setQuery] = useState(filters.q)
+  const searchRef = useRef(null)
+  useSlashFocus(searchRef)
+
+  const setFilter = (key, value) => setParams(prev => {
+    const next = new URLSearchParams(prev)
+    if (!value || value === DEFAULT_FILTERS[key]) next.delete(URL_KEYS[key])
+    else next.set(URL_KEYS[key], value)
+    return next
+  }, { replace: true })
+
+  useEffect(() => {
+    if (query === filters.q) return undefined
+    const t = setTimeout(() => setFilter('q', query.trim()), 250)
+    return () => clearTimeout(t)
+  }, [query]) // eslint-disable-line react-hooks/exhaustive-deps -- solo cuando cambia el texto
+
+  const clearFilters = () => {
+    setQuery('')
+    setParams(prev => {
+      const next = new URLSearchParams(prev)
+      ;['q', 'cat', 'status', 'stock'].forEach(k => next.delete(URL_KEYS[k]))
+      return next
+    }, { replace: true })
+  }
+
+  const changeView = (v) => {
+    setView(v)
+    try { localStorage.setItem(VIEW_KEY, v) } catch { /* sin almacenamiento: solo esta sesión */ }
+  }
+
+  // La búsqueda filtra en vivo con el texto local (sin esperar la URL)
+  const active = { ...filters, q: query }
+  const { categories, counts } = useMemo(() => productFacets(products), [products])
+  const visible = useMemo(
+    () => filterProducts(products, active),
+    [products, active.q, active.cat, active.status, active.stock, active.sort], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  const filtering = hasActiveFilters(active)
+  // Si la categoría de la URL ya no existe (se borró), no dejar la lista vacía sin explicación
+  const catExists = !filters.cat || categories.some(c => c.id === filters.cat)
+
+  // ---- Acciones -------------------------------------------------------
   const handleToggle = async (p) => {
     try {
       await api.put(`/products/${p.id}`, { active: !p.active })
@@ -52,9 +126,10 @@ export default function ProductosTab({ hasInventory = false }) {
     } catch (err) { toastError(err.message) }
   }
 
-  const inactiveCount = products.filter(p => !p.active).length
   const openNew = () => { setEditProd(null); setShowForm(true) }
+  const openEdit = (p) => { setEditProd(p); setShowForm(true) }
   const firstLoad = productsQ.loading && !products.length
+  const itemProps = { hasInventory, onEdit: openEdit, onToggle: handleToggle, onDelete: handleDelete }
 
   if (showBulk) {
     return (
@@ -68,7 +143,11 @@ export default function ProductosTab({ hasInventory = false }) {
     <div className="space-y-6">
       <PageHeader
         title="Productos"
-        description={firstLoad ? 'Cargando…' : `${products.length} en el catálogo${inactiveCount > 0 ? ` · ${inactiveCount} inactivo${inactiveCount !== 1 ? 's' : ''}` : ''}`}
+        description={firstLoad ? 'Cargando…' : [
+          `${counts.all} en el catálogo`,
+          counts.inactive > 0 && `${counts.inactive} inactivo${counts.inactive !== 1 ? 's' : ''}`,
+          hasInventory && counts.out > 0 && `${counts.out} agotado${counts.out !== 1 ? 's' : ''}`,
+        ].filter(Boolean).join(' · ')}
         actions={<>
           <button type="button" onClick={() => setShowBulk(true)} className="btn-outline">
             <Upload className="h-4 w-4" /> Carga y borrado masivo
@@ -80,6 +159,95 @@ export default function ProductosTab({ hasInventory = false }) {
       />
 
       <ErrorNotice error={productsQ.error} title="No se pudo cargar el catálogo" onRetry={productsQ.refetch} />
+
+      {/* ---- Filtros ---- */}
+      {counts.all > 0 && (
+        <div className="panel space-y-3 p-3 sm:p-4" role="search" aria-label="Buscar y filtrar productos">
+          {/* Móvil: buscador arriba, categoría y orden lado a lado */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-[minmax(0,1fr)_14rem_12rem]">
+            <div className="col-span-2 md:col-span-1">
+              <label htmlFor="products-search" className="field-label">Buscar</label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                <input
+                  ref={searchRef}
+                  id="products-search"
+                  type="search"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape' && query) { e.preventDefault(); setQuery('') } }}
+                  placeholder="Nombre, categoría o presentación"
+                  aria-keyshortcuts="/"
+                  autoComplete="off"
+                  className="input pl-9 pr-10"
+                />
+                {!query && <Kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">/</Kbd>}
+              </div>
+            </div>
+            <div>
+              <label htmlFor="products-category" className="field-label">Categoría</label>
+              <select id="products-category" value={filters.cat} onChange={e => setFilter('cat', e.target.value)} className="input">
+                <option value="">Todas ({counts.all})</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.icon ? `${c.icon} ` : ''}{c.name} ({c.count})</option>
+                ))}
+                {!catExists && <option value={filters.cat}>Categoría eliminada</option>}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="products-sort" className="field-label">Ordenar por</label>
+              <select id="products-sort" value={filters.sort} onChange={e => setFilter('sort', e.target.value)} className="input">
+                {SORTS.filter(o => !o.inventoryOnly || hasInventory).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="segmented max-w-full overflow-x-auto scrollbar-hide" role="group" aria-label="Estado">
+              <FilterButton pressed={filters.status === 'all'} onClick={() => setFilter('status', 'all')}>Todos</FilterButton>
+              <FilterButton pressed={filters.status === 'active'} onClick={() => setFilter('status', 'active')} count={counts.active}>Activos</FilterButton>
+              <FilterButton pressed={filters.status === 'inactive'} onClick={() => setFilter('status', 'inactive')} count={counts.inactive}>Inactivos</FilterButton>
+              {(counts.incomplete > 0 || filters.status === 'incomplete') && (
+                <FilterButton pressed={filters.status === 'incomplete'} onClick={() => setFilter('status', 'incomplete')} count={counts.incomplete}
+                  title="Sin presentaciones con precio: no aparecen en el POS">
+                  Sin precio
+                </FilterButton>
+              )}
+            </div>
+            {hasInventory && (
+              <div className="segmented max-w-full overflow-x-auto scrollbar-hide" role="group" aria-label="Stock">
+                <FilterButton pressed={filters.stock === 'all'} onClick={() => setFilter('stock', 'all')}>Todo el stock</FilterButton>
+                <FilterButton pressed={filters.stock === 'low'} onClick={() => setFilter('stock', 'low')} count={counts.low}
+                  title={`Entre 1 y ${LOW_STOCK} unidades`}>
+                  Stock bajo
+                </FilterButton>
+                <FilterButton pressed={filters.stock === 'out'} onClick={() => setFilter('stock', 'out')} count={counts.out}>Agotados</FilterButton>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-3 text-xs text-gray-400">
+            <p aria-live="polite" className="mr-auto">
+              {filtering
+                ? <>Mostrando <strong className="text-white">{visible.length}</strong> de {counts.all} productos</>
+                : <>{counts.all} productos</>}
+            </p>
+            {filtering && (
+              <button type="button" onClick={clearFilters} className="btn-ghost btn-sm text-brand-400">
+                <X className="h-3.5 w-3.5" /> Limpiar filtros
+              </button>
+            )}
+            <div className="segmented" role="group" aria-label="Vista">
+              <button type="button" onClick={() => changeView('grid')} aria-pressed={view === 'grid'} aria-label="Vista en tarjetas" title="Tarjetas">
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => changeView('list')} aria-pressed={view === 'list'} aria-label="Vista en lista" title="Lista compacta">
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {firstLoad ? (
         <SkeletonGrid count={6} height="h-36" />
@@ -99,65 +267,20 @@ export default function ProductosTab({ hasInventory = false }) {
             </>}
           />
         )
+      ) : visible.length === 0 ? (
+        <EmptyState
+          icon={SearchX}
+          title={query.trim() ? `Ningún producto coincide con "${query.trim()}"` : 'Ningún producto coincide con los filtros'}
+          description="Prueba con otra palabra o quita algún filtro."
+          action={<button type="button" onClick={clearFilters} className="btn-outline"><X className="h-4 w-4" /> Limpiar filtros</button>}
+        />
+      ) : view === 'list' ? (
+        <ul className={`panel divide-y divide-white/5 overflow-hidden transition-opacity ${productsQ.loading ? 'opacity-60' : ''}`}>
+          {visible.map(p => <ProductRow key={p.id} product={p} {...itemProps} />)}
+        </ul>
       ) : (
         <ul className={`${CARD_GRID} transition-opacity ${productsQ.loading ? 'opacity-60' : ''}`}>
-          {products.map(p => (
-            <li key={p.id} className={`card flex flex-col gap-3 bg-surface-300 ${!p.active ? 'border-dashed' : ''}`}>
-              <div className={`flex items-start gap-3 ${!p.active ? 'opacity-60' : ''}`}>
-                {p.image_url ? (
-                  <img src={p.image_url} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg border border-white/10 object-cover" />
-                ) : (
-                  <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-surface-50 text-xl">
-                    {p.categories?.icon || '🎆'}
-                  </span>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium leading-snug text-white">{p.name}</p>
-                  <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
-                    <Tag className="h-3 w-3 shrink-0 text-gray-500" />
-                    <span className="truncate">{p.categories?.name || 'Sin categoría'}</span>
-                  </p>
-                </div>
-                {!p.active && <span className="badge-pending shrink-0">Inactivo</span>}
-              </div>
-
-              <div className={`flex flex-wrap gap-1 ${!p.active ? 'opacity-60' : ''}`}>
-                {hasInventory && p.stock_quantity !== undefined && (
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs font-medium ${p.stock_quantity <= 0 ? 'bg-red-500/15 text-red-400' : p.stock_quantity <= 5 ? 'bg-yellow-500/15 text-yellow-400' : 'bg-emerald-500/15 text-emerald-400'}`}>
-                    <Package className="h-3 w-3" /> Stock: {p.stock_quantity}
-                  </span>
-                )}
-                {(p.presentations || []).map(pr => (
-                  <span key={pr.id} className="rounded-full bg-surface-50 px-2 py-0.5 text-xs text-gray-300">
-                    {pr.label} · <span className="font-mono">{formatCOP(pr.price)}</span>
-                  </span>
-                ))}
-              </div>
-
-              <div className="mt-auto flex flex-wrap gap-2 border-t border-white/5 pt-3">
-                <button type="button" onClick={() => { setEditProd(p); setShowForm(true) }} className="btn-ghost btn-sm btn-touch-safe">
-                  <Pencil className="h-3.5 w-3.5" /> Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleToggle(p)}
-                  className="btn-ghost btn-sm btn-touch-safe text-yellow-400"
-                  title={p.active ? 'Se oculta del POS, se puede reactivar' : 'Vuelve a estar disponible en el POS'}
-                >
-                  {p.active ? 'Desactivar' : 'Activar'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(p)}
-                  className="btn-ghost btn-sm btn-touch-safe ml-auto text-gray-400 hover:text-red-400"
-                  title="Eliminar definitivamente"
-                  aria-label={`Eliminar ${p.name} definitivamente`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Eliminar
-                </button>
-              </div>
-            </li>
-          ))}
+          {visible.map(p => <ProductCardItem key={p.id} product={p} {...itemProps} />)}
         </ul>
       )}
 
@@ -170,6 +293,154 @@ export default function ProductosTab({ hasInventory = false }) {
         />
       )}
     </div>
+  )
+}
+
+function FilterButton({ pressed, onClick, count, title, children }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={pressed} title={title} className="inline-flex items-center gap-1.5">
+      {children}
+      {count !== undefined && <span className="font-mono tabular-nums opacity-70">{count}</span>}
+    </button>
+  )
+}
+
+function ProductThumb({ product, size = 'h-12 w-12 text-xl' }) {
+  return product.image_url ? (
+    <img src={product.image_url} alt="" loading="lazy" className={`${size} shrink-0 rounded-lg border border-white/10 object-cover`} />
+  ) : (
+    <span aria-hidden="true" className={`${size} flex shrink-0 items-center justify-center rounded-lg bg-surface-50`}>
+      {product.categories?.icon || '🎆'}
+    </span>
+  )
+}
+
+function StockBadge({ product }) {
+  const qty = Number(product.stock_quantity ?? 0)
+  return (
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 font-mono text-xs font-medium ${stockClass(qty)}`}>
+      <Package className="h-3 w-3" aria-hidden="true" /> {qty <= 0 ? 'Agotado' : `Stock: ${qty}`}
+    </span>
+  )
+}
+
+/**
+ * Sin presentaciones con precio el POS no muestra el producto: se avisa.
+ * `short` (lista compacta): "Sin precio" visible y el resto en el tooltip y
+ * para lectores de pantalla.
+ */
+function IncompleteBadge({ short = false }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-300"
+      title="No aparece en el POS: agrega al menos una presentación con precio para venderlo">
+      <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
+      {short
+        ? <>Sin precio<span className="sr-only">: no aparece en el POS</span></>
+        : 'Sin precio: no aparece en el POS'}
+    </span>
+  )
+}
+
+function Presentations({ product }) {
+  return (product.presentations || []).map((pr, i) => (
+    <span key={pr.id || i} className="whitespace-nowrap rounded-full bg-surface-50 px-2 py-0.5 text-xs text-gray-300">
+      {pr.label} · <span className="font-mono">{formatCOP(pr.price)}</span>
+    </span>
+  ))
+}
+
+function ProductCardItem({ product: p, hasInventory, onEdit, onToggle, onDelete }) {
+  return (
+    <li className={`card flex flex-col gap-3 bg-surface-300 ${!p.active ? 'border-dashed' : ''}`}>
+      <div className={`flex items-start gap-3 ${!p.active ? 'opacity-60' : ''}`}>
+        <ProductThumb product={p} />
+        <div className="min-w-0 flex-1">
+          <p className="font-medium leading-snug text-white">{p.name}</p>
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
+            <Tag className="h-3 w-3 shrink-0 text-gray-500" />
+            <span className="truncate">{p.categories?.name || 'Sin categoría'}</span>
+          </p>
+        </div>
+        {!p.active && <span className="badge-pending shrink-0">Inactivo</span>}
+      </div>
+
+      <div className={`flex flex-wrap gap-1 ${!p.active ? 'opacity-60' : ''}`}>
+        {hasInventory && p.stock_quantity !== undefined && <StockBadge product={p} />}
+        {isIncomplete(p) ? <IncompleteBadge /> : <Presentations product={p} />}
+      </div>
+
+      <div className="mt-auto flex flex-wrap gap-2 border-t border-white/5 pt-3">
+        <button type="button" onClick={() => onEdit(p)} className="btn-ghost btn-sm btn-touch-safe" aria-label={`Editar ${p.name}`}>
+          <Pencil className="h-3.5 w-3.5" /> Editar
+        </button>
+        <button
+          type="button"
+          onClick={() => onToggle(p)}
+          className="btn-ghost btn-sm btn-touch-safe text-yellow-400"
+          title={p.active ? 'Se oculta del POS, se puede reactivar' : 'Vuelve a estar disponible en el POS'}
+          aria-label={`${p.active ? 'Desactivar' : 'Activar'} ${p.name}`}
+        >
+          {p.active ? 'Desactivar' : 'Activar'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(p)}
+          className="btn-ghost btn-sm btn-touch-safe ml-auto text-gray-400 hover:text-red-400"
+          title="Eliminar definitivamente"
+          aria-label={`Eliminar ${p.name} definitivamente`}
+        >
+          <Trash2 className="h-3.5 w-3.5" /> Eliminar
+        </button>
+      </div>
+    </li>
+  )
+}
+
+/**
+ * Fila de la vista compacta: ~3 veces más productos por pantalla que las
+ * tarjetas. Móvil: nombre + acciones arriba, presentaciones y stock abajo.
+ * md+: una sola línea [nombre | presentaciones … stock | acciones].
+ */
+function ProductRow({ product: p, hasInventory, onEdit, onToggle, onDelete }) {
+  return (
+    <li className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5 md:flex-nowrap ${!p.active ? 'bg-surface-400/60' : ''}`}>
+      <div className={`flex min-w-0 flex-1 items-center gap-3 md:flex-none md:basis-72 lg:basis-80 ${!p.active ? 'opacity-60' : ''}`}>
+        <ProductThumb product={p} size="h-9 w-9 text-base" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-white">{p.name}</p>
+          <p className="truncate text-xs text-gray-400">
+            {p.categories?.name || 'Sin categoría'}
+            {!p.active && <> · <span className="text-yellow-400">Inactivo</span></>}
+          </p>
+        </div>
+      </div>
+
+      <div className={`order-3 flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1 md:order-none md:basis-auto md:flex-1 md:flex-nowrap ${!p.active ? 'opacity-60' : ''}`}>
+        <div className="flex min-w-0 flex-wrap gap-1 md:flex-1">
+          {isIncomplete(p) ? <IncompleteBadge short /> : <Presentations product={p} />}
+        </div>
+        {/* Columna fija en md+: los stocks quedan alineados entre filas */}
+        {hasInventory && p.stock_quantity !== undefined && (
+          <div className="shrink-0 md:w-28 md:text-right"><StockBadge product={p} /></div>
+        )}
+      </div>
+
+      <div className="-mr-2 flex shrink-0 items-center">
+        <button type="button" onClick={() => onEdit(p)} className="btn btn-ghost btn-icon text-gray-400 hover:text-white"
+          aria-label={`Editar ${p.name}`} title="Editar">
+          <Pencil className="h-4 w-4" />
+        </button>
+        <button type="button" onClick={() => onToggle(p)} className={`btn btn-ghost btn-icon ${p.active ? 'text-gray-400 hover:text-yellow-400' : 'text-yellow-400'}`}
+          aria-label={`${p.active ? 'Desactivar' : 'Activar'} ${p.name}`}
+          title={p.active ? 'Desactivar: se oculta del POS' : 'Activar: vuelve al POS'}>
+          <Power className="h-4 w-4" />
+        </button>
+        <button type="button" onClick={() => onDelete(p)} className="btn btn-ghost btn-icon text-gray-400 hover:text-red-400"
+          aria-label={`Eliminar ${p.name} definitivamente`} title="Eliminar definitivamente">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </li>
   )
 }
 

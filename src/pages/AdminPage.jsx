@@ -77,12 +77,10 @@ export default function AdminPage() {
       ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
   }, [tab])
 
+  // Cambiar de pestaña deja solo ?tab=: los filtros de una pestaña (p. ej. la
+  // búsqueda de Productos) no deben quedar colgados en la URL de otra.
   const handleTabChange = (id) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      next.set('tab', id)
-      return next
-    }, { replace: true })
+    setSearchParams({ tab: id }, { replace: true })
     window.scrollTo({ top: 0 })
   }
 
