@@ -50,4 +50,12 @@ export default [
       'no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_', ignoreRestSiblings: true }],
     },
   },
+
+  // ---- E2E: el código de page.evaluate() corre en el navegador -------------
+  {
+    files: ['e2e/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
 ]

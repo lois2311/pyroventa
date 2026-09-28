@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
@@ -93,6 +94,10 @@ export default defineConfig({
       },
     }),
   ],
+  test: {
+    // e2e/ es de Playwright (npm run test:e2e), no de Vitest
+    exclude: [...configDefaults.exclude, 'e2e/**'],
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
