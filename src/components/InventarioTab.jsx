@@ -21,7 +21,7 @@ import { useToast } from './Toast.jsx'
 import PageHeader from './PageHeader.jsx'
 
 export default function InventarioTab({ locations = [], isOwner = false }) {
-  const { error: toastError, success: toastSuccess } = useToast()
+  const { error: toastError } = useToast()
 
   const [locationId, setLocationId] = useState('')
   const [query, setQuery] = useState('')
@@ -39,7 +39,7 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
       .then(res => setInventory(res || []))
       .catch(err => toastError(err.message || 'Error cargando inventario'))
       .finally(() => setLoading(false))
-  }, [locationId])
+  }, [locationId, toastError])
 
   useEffect(() => {
     fetchInventory()

@@ -5,7 +5,6 @@
 // =====================================================
 
 const QUEUE_KEY = 'pv_offline_queue'
-const SYNCED_KEY = 'pv_offline_synced' // facturas creadas offline ya sincronizadas
 
 // ---- Leer/escribir cola --------------------------------
 function getQueue() {

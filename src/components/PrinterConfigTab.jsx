@@ -172,7 +172,6 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
     }
   }
 
-  const selectedLocation = locations.find(l => l.id === selectedLocId)
 
   return (
     <div className="space-y-6">

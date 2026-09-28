@@ -65,7 +65,7 @@ export default function VendedorPage() {
         })
         .finally(() => setLoading(false))
     }
-  }, [location?.id])
+  }, [location?.id, toastError])
 
   // ---- Categorías únicas ---------------------------------
   const categories = useMemo(() => {

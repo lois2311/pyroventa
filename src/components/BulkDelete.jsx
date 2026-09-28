@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { api, clearProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useToast } from './Toast.jsx'
@@ -34,7 +34,7 @@ export default function BulkDelete({ onChanged }) {
 
   const confirmInputRef = useRef(null)
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
     // include_inactive: sin esto los ya desactivados quedarían invisibles pero
     // seguirían bloqueando la re-importación por nombre duplicado.
@@ -45,9 +45,9 @@ export default function BulkDelete({ onChanged }) {
       })
       .catch(err => toastError(err.message))
       .finally(() => setLoading(false))
-  }
+  }, [toastError])
 
-  useEffect(() => { if (open) load() }, [open])
+  useEffect(() => { if (open) load() }, [open, load])
   useEffect(() => { if (confirming) confirmInputRef.current?.focus() }, [confirming])
 
   const filtered = useMemo(() => {

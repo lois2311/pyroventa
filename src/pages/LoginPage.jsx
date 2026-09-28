@@ -134,7 +134,6 @@ export default function LoginPage() {
   const [location,     setLocation]     = useState(null)
   const [pin,          setPin]          = useState('')
   const [loading,      setLoading]      = useState(false)
-  const [loginData,    setLoginData]    = useState(null)
   const [selectedReg,  setSelectedReg]  = useState(null)
   const [adminUser,    setAdminUser]    = useState('')
   const [adminPass,    setAdminPass]    = useState('')
@@ -197,7 +196,6 @@ export default function LoginPage() {
 
       // Si es cajero o admin yendo a caja → pedir selección de caja
       if (data.seller.role === 'cashier') {
-        setLoginData(data)
         setStep('register')
         setLoading(false)
         return

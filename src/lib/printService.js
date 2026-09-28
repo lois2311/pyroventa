@@ -60,7 +60,6 @@ export async function generatePDF(invoice, config) {
   const doc = new jsPDF({ unit: 'mm', format: [pageWidth, 220], orientation: 'portrait' })
 
   const margin = 3
-  const width  = pageWidth - margin * 2
   let y = margin + 4
 
   const addLine = (text, opts = {}) => {
@@ -346,7 +345,7 @@ export function buildHTMLReceipt(invoice, config) {
   window.onload = function() {
     setTimeout(function() { window.print(); }, 300);
   };
-<\/script>
+</script>
 </body>
 </html>`
 }

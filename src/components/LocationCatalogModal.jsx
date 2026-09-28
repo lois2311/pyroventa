@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useId } from 'react'
-import { X, Search, RotateCcw, Check, CheckCircle2, Sliders, DollarSign, Package } from 'lucide-react'
+import { X, Search, RotateCcw, Sliders, DollarSign, Package } from 'lucide-react'
 import { api, clearProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useToast } from './Toast.jsx'
@@ -52,7 +52,7 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
       })
       .catch(err => toastError(err.message || 'Error cargando configuración del punto'))
       .finally(() => setLoading(false))
-  }, [location?.id])
+  }, [location?.id, toastError])
 
   // Filtrar productos por búsqueda
   const filteredProducts = useMemo(() => {

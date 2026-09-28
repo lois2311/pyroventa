@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ShieldCheck, Search, Filter, Calendar, TrendingDown, TrendingUp, AlertCircle, Clock, User, Tag } from 'lucide-react'
+import { ShieldCheck, Search, Filter, Calendar, TrendingDown, TrendingUp, Clock, User, Tag } from 'lucide-react'
 import { api } from '../lib/api.js'
 import { formatCOP, formatDate } from '../lib/format.js'
 import { toISO } from './DateRangeBar.jsx'
@@ -33,7 +33,7 @@ export default function PriceAuditTab({ locations = [], isOwner = false }) {
       })
       .catch(err => toastError(err.message || 'Error cargando auditoría de precios'))
       .finally(() => setLoading(false))
-  }, [from, to, locationId])
+  }, [from, to, locationId, toastError])
 
   useEffect(() => { fetchLogs() }, [fetchLogs])
 
