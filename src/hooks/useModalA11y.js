@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+// Diálogos abiertos, el último arriba. Con dos apilados (p. ej. una
+// confirmación sobre la hoja del carrito) todos escuchan el mismo keydown del
+// documento: sin esta pila, Escape cerraba también el de abajo y su trampa de
+// Tab se llevaba el foco fuera de la confirmación.
+const openPanels = []
+
 /**
  * Comportamiento estándar de diálogo modal: atrapa el foco dentro del panel,
  * cierra con Escape y devuelve el foco a quien lo abrió al cerrarse.
@@ -27,6 +33,7 @@ export function useModalA11y(onClose) {
   useEffect(() => {
     if (!panel) return
     const previouslyFocused = document.activeElement
+    openPanels.push(panel)
 
     const focusables = () => Array.from(panel.querySelectorAll(FOCUSABLE))
       .filter(el => el.offsetParent !== null) // solo los visibles
@@ -45,6 +52,7 @@ export function useModalA11y(onClose) {
     }
 
     const handleKeyDown = (e) => {
+      if (openPanels[openPanels.length - 1] !== panel) return
       if (e.key === 'Escape') {
         e.stopPropagation()
         onCloseRef.current?.()
@@ -64,6 +72,8 @@ export function useModalA11y(onClose) {
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+      const idx = openPanels.lastIndexOf(panel)
+      if (idx !== -1) openPanels.splice(idx, 1)
       if (previouslyFocused instanceof HTMLElement && document.contains(previouslyFocused)) {
         previouslyFocused.focus()
       }

@@ -244,6 +244,13 @@
   .field-hint {
     @apply mt-1 text-xs text-gray-400;
   }
+  /* Validación junto al campo (useFieldErrors + FieldError), no en un toast */
+  .field-error {
+    @apply mt-1.5 flex items-start gap-1.5 text-xs text-red-400;
+  }
+  .input[aria-invalid="true"] {
+    @apply border-red-500/70 focus:border-red-500 focus:ring-red-500/30;
+  }
 
   /* ================================================================
      MODALES — un solo patrón para todos los diálogos

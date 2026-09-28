@@ -9,6 +9,7 @@ import VendedorPage from './pages/VendedorPage.jsx'
 import CajaPage     from './pages/CajaPage.jsx'
 import SuperLoginPage from './pages/SuperLoginPage.jsx'
 import { ToastProvider } from './components/Toast.jsx'
+import { ConfirmProvider } from './components/ConfirmDialog.jsx'
 import NetworkBanner from './components/NetworkBanner.jsx'
 import LicenseBlock from './components/LicenseBlock.jsx'
 
@@ -59,6 +60,7 @@ function PageLoader() {
 export default function App() {
   return (
     <ToastProvider>
+      <ConfirmProvider>
       <CompactViewportHint />
       <NetworkBanner />
       <LicenseBlock />
@@ -92,6 +94,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
       </Suspense>
+      </ConfirmProvider>
     </ToastProvider>
   )
 }
