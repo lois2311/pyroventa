@@ -4,7 +4,9 @@ import { ArrowLeft, ArrowRight, Delete, Flame, KeyRound, Loader2, Monitor, Shiel
 import { useAuthStore } from '../store/authStore.js'
 import { api } from '../lib/api.js'
 import { classifyBootstrapError } from '../lib/bootstrapError.js'
+import { useApi } from '../hooks/useApi.js'
 import LocationSelector from '../components/LocationSelector.jsx'
+import ErrorNotice from '../components/ErrorNotice.jsx'
 import { useToast } from '../components/Toast.jsx'
 
 // ---- Teclado numérico virtual ---------------------------
@@ -65,24 +67,20 @@ function NumPad({ value, onChange, onSubmit, loading }) {
 
 // ---- Selector de caja -----------------------------------
 function RegisterSelector({ locationId, value, onChange }) {
-  const [registers, setRegisters] = useState([])
-  const [loading,   setLoading]   = useState(true)
+  const registersQ = useApi(locationId ? `/registers?location_id=${locationId}` : null, { initialData: [] })
+  const registers = registersQ.data || []
 
-  useEffect(() => {
-    if (!locationId) return
-    setLoading(true)
-    api.get(`/registers?location_id=${locationId}`)
-      .then(d => setRegisters(d || []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [locationId])
-
-  if (loading) {
+  if (registersQ.loading) {
     return (
       <div className="space-y-2">
         {[1,2].map(i => <div key={i} className="skeleton h-14 rounded-xl" />)}
       </div>
     )
+  }
+
+  // Un fallo de red no es "no hay cajas": se dice y se puede reintentar
+  if (registersQ.error) {
+    return <ErrorNotice error={registersQ.error} title="No se pudieron cargar las cajas" onRetry={registersQ.refetch} />
   }
 
   if (registers.length === 0) {
@@ -102,7 +100,9 @@ function RegisterSelector({ locationId, value, onChange }) {
         return (
           <button
             key={reg.id}
+            type="button"
             onClick={() => onChange(reg)}
+            aria-pressed={selected}
             className={`
               p-3 rounded-xl border-2 text-center transition-all duration-150
               ${selected

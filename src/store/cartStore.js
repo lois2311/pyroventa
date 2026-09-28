@@ -4,25 +4,58 @@ import { persist } from 'zustand/middleware'
 // Cart ahora persiste en localStorage para sobrevivir recargas y pérdidas
 // de conexión. Se limpia explícitamente al generar la factura.
 
+/**
+ * Unidades de un producto en el carrito sumando todas sus presentaciones: el
+ * inventario se descuenta por producto (un "Paquete x12" resta 1, igual que
+ * una "Unidad"; ver groupItemsByProduct en api/_lib/services/stockService.js).
+ */
+export function productQtyInCart(items, productId) {
+  return items.reduce((n, i) => (i.productId === productId ? n + i.qty : n), 0)
+}
+
+/** Productos del carrito con más unidades que stock: [{ productId, productName, qty, stock }]. */
+export function overStockItems(items) {
+  const byProduct = new Map()
+  for (const i of items) {
+    if (i.stock === null || i.stock === undefined) continue
+    const prev = byProduct.get(i.productId)
+    byProduct.set(i.productId, {
+      productId: i.productId, productName: i.productName, stock: i.stock,
+      qty: (prev?.qty || 0) + i.qty,
+    })
+  }
+  return [...byProduct.values()].filter(p => p.qty > p.stock)
+}
+
+// `stock` en cada item: null/undefined = el negocio no controla inventario
+// (sin tope). Con número, agregar o subir cantidad no puede pasar de ahí;
+// addItem/updateQty devuelven false cuando lo impiden, para avisar al usuario.
 export const useCartStore = create(
   persist(
     (set, get) => ({
       items: [],
 
-      addItem: (item) => set(state => {
-        const existing = state.items.find(i => i.presentationId === item.presentationId)
+      addItem: (item) => {
+        const { items } = get()
+        const stock = item.stock ?? null
+        if (stock !== null && productQtyInCart(items, item.productId) + 1 > stock) return false
+        // El stock más reciente vale para todas las presentaciones del producto
+        const withStock = (i) => (stock !== null && i.productId === item.productId ? { ...i, stock } : i)
+
+        const existing = items.find(i => i.presentationId === item.presentationId)
         if (existing) {
-          return {
-            items: state.items.map(i =>
+          set({
+            items: items.map(i =>
               i.presentationId === item.presentationId
-                ? { ...i, qty: i.qty + 1, subtotal: (i.qty + 1) * i.price }
-                : i
+                ? withStock({ ...i, qty: i.qty + 1, subtotal: (i.qty + 1) * i.price })
+                : withStock(i)
             )
-          }
+          })
+          return true
         }
         const basePrice = Number(item.price) || 0
-        return {
-          items: [...state.items, {
+        set({
+          items: [...items.map(withStock), {
             presentationId:    item.presentationId,
             productId:         item.productId,
             productName:       item.productName,
@@ -37,27 +70,52 @@ export const useCartStore = create(
             // manual del cajero): viene ya calculado del backend en `price`.
             is_location_price: !!item.isLocationPrice,
             company_price:     item.isLocationPrice ? Number(item.companyPrice) || basePrice : null,
+            stock,
             qty:               1,
             subtotal:          basePrice,
           }]
-        }
-      }),
+        })
+        return true
+      },
 
       removeItem: (presentationId) => set(state => ({
         items: state.items.filter(i => i.presentationId !== presentationId)
       })),
 
-      updateQty: (presentationId, qty) => set(state => {
+      updateQty: (presentationId, qty) => {
+        const { items } = get()
         if (qty <= 0) {
-          return { items: state.items.filter(i => i.presentationId !== presentationId) }
+          set({ items: items.filter(i => i.presentationId !== presentationId) })
+          return true
         }
-        return {
-          items: state.items.map(i =>
+        const item = items.find(i => i.presentationId === presentationId)
+        if (!item) return false
+        // Bajar siempre se puede; subir, solo dentro del stock del producto
+        if (qty > item.qty && item.stock !== null && item.stock !== undefined) {
+          const others = productQtyInCart(items, item.productId) - item.qty
+          if (others + qty > item.stock) return false
+        }
+        set({
+          items: items.map(i =>
             i.presentationId === presentationId
               ? { ...i, qty, subtotal: qty * i.price }
               : i
           )
-        }
+        })
+        return true
+      },
+
+      /** Refresca el stock de los items con el catálogo recién cargado. */
+      syncStock: (stockByProduct) => set(state => {
+        let changed = false
+        const items = state.items.map(i => {
+          if (!stockByProduct.has(i.productId)) return i
+          const stock = stockByProduct.get(i.productId)
+          if (stock === i.stock) return i
+          changed = true
+          return { ...i, stock }
+        })
+        return changed ? { items } : state
       }),
 
       updatePrice: (presentationId, newPrice, reason = '') => set(state => {

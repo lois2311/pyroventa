@@ -32,6 +32,8 @@ export default [
       // El POS enfoca el primer campo a propósito (código de factura, PIN,
       // formularios de alta) para operar sin tocar el mouse.
       'jsx-a11y/no-autofocus': 'off',
+      // Etiquetas con ícono + título + descripción anidan el texto 3 niveles
+      'jsx-a11y/label-has-associated-control': ['error', { depth: 3 }],
       'no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_', ignoreRestSiblings: true }],
     },
   },

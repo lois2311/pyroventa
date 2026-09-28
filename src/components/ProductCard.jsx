@@ -1,21 +1,30 @@
 import { Sparkles, MapPin, Package } from 'lucide-react'
-import { useCartStore } from '../store/cartStore.js'
+import { useCartStore, productQtyInCart } from '../store/cartStore.js'
 import { useAuthStore } from '../store/authStore.js'
 import { formatCOP }    from '../lib/format.js'
+import { useToast }     from './Toast.jsx'
 import ProductImage     from './ProductImage.jsx'
 
 export default function ProductCard({ product }) {
   const addItem = useCartStore(s => s.addItem)
   const items   = useCartStore(s => s.items)
   const tenant  = useAuthStore(s => s.tenant)
+  const { warn } = useToast()
   const hasInventory = Boolean(tenant?.has_inventory)
   const stockQty = Number(product.stock_quantity ?? 0)
+
+  // Con inventario activo no se vende lo que no hay: agotado = botones
+  // deshabilitados; con todo el stock ya en el carrito, tocar avisa por qué
+  // no suma. (El tope es por producto: todas las presentaciones cuentan.)
+  const inCart     = productQtyInCart(items, product.id)
+  const outOfStock = hasInventory && stockQty <= 0
+  const atCap      = hasInventory && !outOfStock && inCart >= stockQty
 
   const presentations = (product.presentations || []).filter(p => p.active !== false)
   if (!presentations.length) return null
 
   const handleAdd = (pres) => {
-    addItem({
+    const added = addItem({
       presentationId:   pres.id,
       productId:        product.id,
       productName:      product.name,
@@ -23,7 +32,13 @@ export default function ProductCard({ product }) {
       price:            pres.price,
       isLocationPrice:  !!pres.is_differential,
       companyPrice:     pres.is_differential ? pres.base_price : undefined,
+      stock:            hasInventory ? stockQty : null,
     })
+    if (!added) {
+      warn(stockQty <= 0
+        ? `${product.name} está agotado`
+        : `Solo hay ${stockQty} de ${product.name} y ya están en el carrito`)
+    }
   }
 
   // Cantidad real en el carrito, no solo si está o no — un cajero agregando
@@ -80,14 +95,20 @@ export default function ProductCard({ product }) {
           return (
             <button
               key={pres.id}
+              type="button"
               onClick={() => handleAdd(pres)}
+              disabled={outOfStock}
+              aria-disabled={atCap || undefined}
               className={`
                 w-full min-h-[var(--control-h)] flex items-center justify-between px-3 py-1.5 rounded-lg text-sm
-                border transition-all duration-100 cursor-pointer active:scale-[0.99]
-                ${active
-                  ? 'bg-brand-500/20 border-brand-500/60 text-brand-300'
-                  : 'bg-surface-400 border-white/5 text-gray-300 hover:bg-surface-200 hover:border-white/10 hover:text-white'
+                border transition-all duration-100
+                ${outOfStock
+                  ? 'cursor-not-allowed border-white/5 bg-surface-400/60 text-gray-500'
+                  : active
+                  ? 'cursor-pointer active:scale-[0.99] bg-brand-500/20 border-brand-500/60 text-brand-300'
+                  : 'cursor-pointer active:scale-[0.99] bg-surface-400 border-white/5 text-gray-300 hover:bg-surface-200 hover:border-white/10 hover:text-white'
                 }
+                ${atCap ? 'opacity-70' : ''}
               `}
             >
               <span className="truncate mr-2 inline-flex items-center gap-1">
@@ -112,13 +133,19 @@ export default function ProductCard({ product }) {
                   min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-xs font-bold font-mono
                   ${active ? 'bg-brand-500 text-surface-700' : 'bg-surface-50 text-gray-400'}
                 `}>
-                  {active ? `×${qty}` : '+'}
+                  {active ? `×${qty}` : outOfStock ? '–' : '+'}
                 </span>
               </div>
             </button>
           )
         })}
       </div>
+
+      {atCap && (
+        <p className="mt-2 text-2xs text-amber-300">
+          Todo el stock ({stockQty}) ya está en el carrito
+        </p>
+      )}
     </div>
   )
 }

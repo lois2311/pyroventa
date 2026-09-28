@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BarChart3, Building2, CalendarClock, CheckCircle2, Copy, Flame, Loader2, LogOut, MapPin, Package,
@@ -87,7 +87,8 @@ function NewTenantModal({ onClose, onCreated }) {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState(null)
   const [created, setCreated] = useState(null) // { tenant, link }
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState(null) // null | 'ok' | 'fail'
+  const linkRef = useRef(null)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -119,15 +120,30 @@ function NewTenantModal({ onClose, onCreated }) {
         footer={<button type="button" onClick={onClose} className="btn-primary">Listo</button>}
       >
         <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-surface-400 p-3">
-          <code className="flex-1 break-all text-left text-sm text-brand-400">{fullLink}</code>
-          <button type="button" onClick={() => {
-            navigator.clipboard.writeText(fullLink)
-              .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
-              .catch(() => {})
+          <code ref={linkRef} className="flex-1 break-all text-left text-sm text-brand-400">{fullLink}</code>
+          <button type="button" onClick={async () => {
+            try {
+              // Sin HTTPS navigator.clipboard no existe: también cae al catch
+              await navigator.clipboard.writeText(fullLink)
+              setCopied('ok')
+              setTimeout(() => setCopied(null), 2000)
+            } catch {
+              // Deja el link seleccionado para copiarlo a mano
+              const range = document.createRange()
+              range.selectNodeContents(linkRef.current)
+              window.getSelection()?.removeAllRanges()
+              window.getSelection()?.addRange(range)
+              setCopied('fail')
+            }
           }} className="btn-outline btn-sm shrink-0" aria-label="Copiar link">
-            {copied ? <span className="text-xs text-green-400">Copiado ✓</span> : <><Copy className="h-4 w-4" /> Copiar</>}
+            {copied === 'ok' ? <span className="text-xs text-green-400">Copiado ✓</span> : <><Copy className="h-4 w-4" /> Copiar</>}
           </button>
         </div>
+        {copied === 'fail' && (
+          <p role="status" className="mt-2 text-xs text-amber-300">
+            No se pudo copiar automáticamente: el link quedó seleccionado, cópialo con Ctrl+C (o mantén presionado en el celular).
+          </p>
+        )}
       </Modal>
     )
   }

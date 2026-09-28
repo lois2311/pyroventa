@@ -1,8 +1,9 @@
 import { useState, useId } from 'react'
-import { ShoppingCart, Ticket, X, Pencil, RotateCcw, MapPin } from 'lucide-react'
-import { useCartStore }    from '../store/cartStore.js'
+import { AlertTriangle, ShoppingCart, Ticket, X, Pencil, RotateCcw, MapPin } from 'lucide-react'
+import { useCartStore, productQtyInCart, overStockItems } from '../store/cartStore.js'
 import { useAuthStore }    from '../store/authStore.js'
 import { formatCOP }       from '../lib/format.js'
+import { useConfirm }      from './ConfirmDialog.jsx'
 import Modal               from './Modal.jsx'
 
 export default function CartPanel({ onCheckout, loading }) {
@@ -10,6 +11,23 @@ export default function CartPanel({ onCheckout, loading }) {
   const cartTotal = total()
   const [editingItem, setEditingItem] = useState(null)
   const isOwner = useAuthStore(s => s.seller?.role === 'owner')
+  const confirm = useConfirm()
+  // El stock pudo bajar después de agregar (otro vendedor cobró y el
+  // catálogo se refrescó): no se factura más de lo que hay.
+  const overStock = overStockItems(items)
+
+  const handleClear = async () => {
+    if (items.length > 1) {
+      const ok = await confirm({
+        title: '¿Vaciar el carrito?',
+        description: `Se quitan los ${items.length} ítems de esta venta.`,
+        confirmLabel: 'Vaciar',
+        tone: 'danger',
+      })
+      if (!ok) return
+    }
+    clear()
+  }
 
   if (!items.length) {
     return (
@@ -32,7 +50,7 @@ export default function CartPanel({ onCheckout, loading }) {
         </h2>
         <button
           type="button"
-          onClick={clear}
+          onClick={handleClear}
           className="btn-ghost btn-sm -mr-2 text-gray-400 hover:text-red-400"
         >
           Limpiar
@@ -45,6 +63,7 @@ export default function CartPanel({ onCheckout, loading }) {
           <CartItem
             key={item.presentationId}
             item={item}
+            productQty={productQtyInCart(items, item.productId)}
             canEditPrice={isOwner}
             onUpdateQty={(qty) => updateQty(item.presentationId, qty)}
             onEditPrice={() => setEditingItem(item)}
@@ -55,6 +74,14 @@ export default function CartPanel({ onCheckout, loading }) {
 
       {/* Total + botón */}
       <div className="flex flex-col gap-3 border-t border-white/5 bg-surface-500 p-4">
+        {overStock.length > 0 && (
+          <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <p>
+              Ajusta las cantidades: {overStock.map(p => `${p.productName} (quedan ${p.stock})`).join(', ')}.
+            </p>
+          </div>
+        )}
         <div className="flex items-baseline justify-between">
           <span className="text-sm text-gray-400">Total</span>
           <span className="font-mono text-2xl font-bold tabular-nums text-white">
@@ -64,7 +91,7 @@ export default function CartPanel({ onCheckout, loading }) {
         <button
           type="button"
           onClick={onCheckout}
-          disabled={loading || !items.length}
+          disabled={loading || !items.length || overStock.length > 0}
           className="btn-primary btn-lg w-full"
         >
           {loading ? (
@@ -106,7 +133,9 @@ export default function CartPanel({ onCheckout, loading }) {
 // Dos filas: nombre + subtotal arriba (el nombre ya no se corta a 12
 // caracteres), detalle + controles abajo. Los botones de cantidad miden
 // 32px (antes 24px), cómodos para el dedo en tablet.
-function CartItem({ item, onUpdateQty, onEditPrice, canEditPrice, onRemove }) {
+function CartItem({ item, productQty, onUpdateQty, onEditPrice, canEditPrice, onRemove }) {
+  const hasStock = item.stock !== null && item.stock !== undefined
+  const atCap = hasStock && productQty >= item.stock
   return (
     <div className="rounded-lg border border-white/5 bg-surface-400 px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
@@ -155,12 +184,19 @@ function CartItem({ item, onUpdateQty, onEditPrice, canEditPrice, onRemove }) {
           <button
             type="button"
             onClick={() => onUpdateQty(item.qty + 1)}
+            disabled={atCap}
             aria-label={`Agregar una unidad de ${item.productName}`}
-            className="flex h-8 w-8 items-center justify-center rounded-r-lg text-lg text-gray-300 transition-colors hover:bg-brand-500/20 hover:text-brand-300"
+            className="flex h-8 w-8 items-center justify-center rounded-r-lg text-lg text-gray-300 transition-colors hover:bg-brand-500/20 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-300"
           >
             +
           </button>
         </div>
+
+        {atCap && (
+          <span className={`ml-2 text-2xs ${productQty > item.stock ? 'text-red-400' : 'text-amber-300'}`}>
+            {item.stock <= 0 ? 'Agotado' : `Solo quedan ${item.stock}`}
+          </span>
+        )}
 
         <div className="flex-1" />
 

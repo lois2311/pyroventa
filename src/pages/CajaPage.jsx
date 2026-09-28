@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useId } from 'react'
 import {
   CheckCircle2, Clock, CreditCard, FileText, Hash, Loader2, Monitor,
-  Pencil, Receipt, Search, Tag, Undo2, X,
+  Pencil, Receipt, Search, Tag, Undo2, WifiOff, X,
 } from 'lucide-react'
 import { useAuthStore }    from '../store/authStore.js'
 import { useModalA11y }    from '../hooks/useModalA11y.js'
+import { useApi }          from '../hooks/useApi.js'
 import { useInvoiceStore } from '../store/invoiceStore.js'
 import { supabase }        from '../lib/supabase.js'
 import { api, getProductsCache, setProductsCache } from '../lib/api.js'
@@ -12,14 +13,24 @@ import { can } from '../../api/_lib/roles.js'
 import Topbar          from '../components/Topbar.jsx'
 import PendingList     from '../components/PendingList.jsx'
 import InvoiceDetail   from '../components/InvoiceDetail.jsx'
-import PaymentMethods  from '../components/PaymentMethods.jsx'
+import PaymentMethods, { METHODS, PROVIDER_KEYS } from '../components/PaymentMethods.jsx'
 import PrintButton     from '../components/PrintButton.jsx'
 import EditInvoiceModal from '../components/EditInvoiceModal.jsx'
 import CloseRegisterModal from '../components/CloseRegisterModal.jsx'
 import RefundModal     from '../components/RefundModal.jsx'
 import { useToast }    from '../components/Toast.jsx'
+import { useConfirm }  from '../components/ConfirmDialog.jsx'
 import { formatCOP }   from '../lib/format.js'
 import EmptyState      from '../components/EmptyState.jsx'
+import ErrorNotice     from '../components/ErrorNotice.jsx'
+import Kbd             from '../components/Kbd.jsx'
+
+// Enfoca el campo de código visible (desktop y móvil tienen el suyo)
+function focusCodeInput() {
+  const el = [...document.querySelectorAll('[data-code-input]')].find(x => x.offsetParent !== null)
+  el?.focus()
+  el?.select?.()
+}
 
 // ---- Campo de código ------------------------------------
 function CodeInput({ id, value, onChange, onSearch, loading }) {
@@ -33,6 +44,8 @@ function CodeInput({ id, value, onChange, onSearch, loading }) {
       <input
         id={id}
         ref={inputRef}
+        data-code-input
+        aria-keyshortcuts="/"
         type="text"
         inputMode="numeric"
         autoComplete="off"
@@ -93,7 +106,8 @@ function PaidOverlay({ invoice, onDone }) {
           <PrintButton invoice={invoice} />
         </div>
 
-        <button onClick={onDone} className="btn-outline w-full">
+        {/* data-autofocus: Enter tras cobrar continúa (no reimprime) */}
+        <button type="button" onClick={onDone} data-autofocus className="btn-outline w-full">
           Continuar →
         </button>
       </div>
@@ -103,22 +117,29 @@ function PaidOverlay({ invoice, onDone }) {
 
 // ---- Selector de caja (pantalla completa) ---------------
 function RegisterGate({ locationId, onSelect }) {
-  const [registers, setRegisters] = useState([])
-  const [loading,   setLoading]   = useState(true)
+  const registersQ = useApi(locationId ? `/registers?location_id=${locationId}` : null, { initialData: [] })
+  const registers = registersQ.data || []
 
-  useEffect(() => {
-    if (!locationId) return
-    api.get(`/registers?location_id=${locationId}`)
-      .then(d => setRegisters(d || []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [locationId])
-
-  if (loading) {
+  if (registersQ.loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="space-y-3 w-64">
           {[1, 2, 3].map(i => <div key={i} className="skeleton h-16 rounded-xl" />)}
+        </div>
+      </div>
+    )
+  }
+
+  // Antes un fallo de red caía en "No hay cajas registradas" y mandaba a
+  // pedirle al administrador que las creara.
+  if (registersQ.error) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm space-y-4 text-center">
+          <ErrorNotice error={registersQ.error} title="No se pudieron cargar las cajas" onRetry={registersQ.refetch} className="text-left" />
+          <button type="button" onClick={() => onSelect(null)} className="btn-ghost btn-sm text-gray-400">
+            Continuar sin caja asignada
+          </button>
         </div>
       </div>
     )
@@ -187,6 +208,7 @@ export default function CajaPage() {
   const { location, seller, register, setRegister } = useAuthStore()
   const { pendingInvoices, setPending, addPending, removePending, updatePending } = useInvoiceStore()
   const { error: toastError, success: toastSuccess } = useToast()
+  const confirm = useConfirm()
 
   const [code,         setCode]         = useState('')
   const [searching,    setSearching]    = useState(false)
@@ -216,6 +238,8 @@ export default function CajaPage() {
   const needsRegister = !register && !changingReg
 
   const pollRef = useRef(null)
+  const payingRef = useRef(false) // Enter repetido no cobra dos veces
+  const [pendingError, setPendingError] = useState(null)
 
   // ---- Fotos de productos (productId → image_url) --------
   // Los items de la factura son snapshots sin foto; el catálogo la aporta.
@@ -243,12 +267,17 @@ export default function CajaPage() {
   }
 
   // ---- Cargar pendientes al montar ----------------------
+  // Se consulta cada 30 s: un fallo no merece un toast por intento, pero sí
+  // quedar a la vista (antes la lista vacía parecía "no hay pendientes").
   const fetchPending = useCallback(async () => {
     if (!location?.id) return
     try {
       const data = await api.get(`/invoices/pending?location_id=${location.id}`)
       setPending(data || [])
-    } catch { /* silencioso */ }
+      setPendingError(null)
+    } catch (err) {
+      setPendingError(err)
+    }
   }, [location?.id, setPending])
 
   useEffect(() => { fetchPending() }, [fetchPending])
@@ -314,10 +343,18 @@ export default function CajaPage() {
     setInvoice(updatedInvoice); updatePending(updatedInvoice.id, updatedInvoice); setEditing(false)
   }
 
+  // Mismas reglas que deshabilitan el botón Cobrar (PaymentMethods), para
+  // que el atajo Enter no cobre lo que el botón no permitiría.
+  const receivedNum = cashReceived === '' ? null : Number(cashReceived)
+  const insufficientCash = payMethod === 'cash' && receivedNum !== null && !isNaN(receivedNum) && receivedNum < totalToPay
+  const missingProvider = payMethod === 'transfer' && !transferProv
+  const payBlocked = !invoice || !payMethod || paying || insufficientCash || missingProvider
+
   // ---- Cobrar --------------------------------------------
   const handlePay = async () => {
-    if (!invoice || !payMethod) return
+    if (!invoice || !payMethod || payingRef.current) return
     if (invalidDiscount) return toastError('El descuento no puede superar el total')
+    payingRef.current = true
     setPaying(true)
     try {
       const paid = await api.post(`/invoices/${invoice.code}/pay`, {
@@ -336,13 +373,20 @@ export default function CajaPage() {
       toastSuccess(`Factura #${paid.code} cobrada · ${register?.name || 'Sin caja'}`)
     } catch (err) {
       toastError(err.message || 'Error al cobrar la factura')
-    } finally { setPaying(false) }
+    } finally { setPaying(false); payingRef.current = false }
   }
 
   // ---- Cancelar ------------------------------------------
   const handleCancel = async () => {
     if (!invoice) return
-    if (!window.confirm(`¿Cancelar la factura #${invoice.code}?`)) return
+    const ok = await confirm({
+      title: `¿Cancelar la factura #${invoice.code}?`,
+      description: `Sale de pendientes y ya no se podrá cobrar (${formatCOP(invoice.total)}). Para venderla de nuevo, el vendedor genera otra factura.`,
+      confirmLabel: 'Cancelar factura',
+      cancelLabel: 'Volver',
+      tone: 'danger',
+    })
+    if (!ok) return
     try {
       await api.post(`/invoices/${invoice.code}/cancel`, { location_id: location.id })
       removePending(invoice.id)
@@ -350,6 +394,50 @@ export default function CajaPage() {
       toastSuccess('Factura cancelada')
     } catch (err) { toastError(err.message || 'Error al cancelar') }
   }
+
+  // ---- Atajos de teclado (cajeros con teclado físico) ----
+  //   /        enfoca el código de factura
+  //   1 2 3    Efectivo / Transferencia / Datáfono
+  //   N D B    Nequi / Daviplata / Bancolombia (con Transferencia)
+  //   Enter    cobra (desde cualquier lugar salvo botones, enlaces y el código)
+  // Los números no actúan mientras se escribe en un campo (descuento, efectivo)
+  // ni con un diálogo abierto. El listener lee el estado por ref para no
+  // re-suscribirse en cada render.
+  const shortcuts = useRef(null)
+  shortcuts.current = {
+    invoice, payMethod, payBlocked, handlePay, selectPayMethod, setTransferProv,
+    busy: editing || closingReg || refunding || Boolean(paidInv),
+  }
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return
+      const st = shortcuts.current
+      if (st.busy || document.querySelector('[role="dialog"]')) return
+      const target = e.target instanceof Element ? e.target : null
+      const typing = Boolean(target?.closest('input, textarea, select, [contenteditable="true"]'))
+
+      if (e.key === '/' && !typing) { e.preventDefault(); focusCodeInput(); return }
+      if (!st.invoice) return
+
+      if (e.key === 'Enter') {
+        if (e.repeat || target?.closest('button, a, textarea, select, [data-code-input]')) return
+        if (st.payBlocked) return
+        e.preventDefault()
+        st.handlePay()
+        return
+      }
+      if (typing) return
+
+      const method = METHODS.find(m => m.key === e.key)
+      if (method) { e.preventDefault(); st.selectPayMethod(method.id); return }
+      if (st.payMethod === 'transfer') {
+        const provider = Object.keys(PROVIDER_KEYS).find(id => PROVIDER_KEYS[id] === e.key.toUpperCase())
+        if (provider) { e.preventDefault(); st.setTransferProv(provider) }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // ==========================================================
   // RENDER — si no hay caja seleccionada, mostrar selector
@@ -366,9 +454,23 @@ export default function CajaPage() {
     )
   }
 
-  const pendingBadge = pendingInvoices.length > 0 && (
-    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs font-bold text-surface-700">
-      {pendingInvoices.length}
+  const pendingBadge = (
+    <span className="flex items-center gap-2">
+      {pendingError && (
+        <button
+          type="button"
+          onClick={fetchPending}
+          title={pendingError.offline ? 'Sin conexión. Toca para reintentar.' : `${pendingError.message} Toca para reintentar.`}
+          className="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-2xs font-medium text-red-300"
+        >
+          <WifiOff className="h-3 w-3" aria-hidden="true" /> Sin actualizar
+        </button>
+      )}
+      {pendingInvoices.length > 0 && (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs font-bold text-surface-700">
+          {pendingInvoices.length}
+        </span>
+      )}
     </span>
   )
 
@@ -397,7 +499,9 @@ export default function CajaPage() {
       </div>
 
       <div>
-        <label htmlFor={`${prefix}-code`} className="eyebrow mb-2 block">Código de factura</label>
+        <label htmlFor={`${prefix}-code`} className="eyebrow mb-2 flex items-center gap-2">
+          Código de factura <Kbd>/</Kbd>
+        </label>
         <CodeInput id={`${prefix}-code`} value={code} onChange={setCode} onSearch={handleSearch} loading={searching} />
         {notFound && !invoice && (
           <p className="mt-2 text-sm text-red-400" role="alert">
@@ -592,7 +696,13 @@ export default function CajaPage() {
       {editing && invoice && (
         <EditInvoiceModal invoice={invoice} productImages={productImages} onClose={() => setEditing(false)} onSaved={handleInvoiceSaved} />
       )}
-      {paidInv && <PaidOverlay invoice={paidInv} onDone={() => setPaidInv(null)} />}
+      {paidInv && (
+        <PaidOverlay
+          invoice={paidInv}
+          // Listo para la siguiente factura sin tocar el mouse
+          onDone={() => { setPaidInv(null); requestAnimationFrame(focusCodeInput) }}
+        />
+      )}
       {closingReg && (
         <CloseRegisterModal register={register} location={location} onClose={() => setClosingReg(false)} />
       )}

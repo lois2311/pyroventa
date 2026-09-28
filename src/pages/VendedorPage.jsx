@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Search, ShoppingCart, Sparkles } from 'lucide-react'
 import { useAuthStore }     from '../store/authStore.js'
 import { useCartStore }     from '../store/cartStore.js'
@@ -14,6 +14,8 @@ import SuccessAnimation from '../components/SuccessAnimation.jsx'
 import { useToast }    from '../components/Toast.jsx'
 import { useModalA11y } from '../hooks/useModalA11y.js'
 import EmptyState      from '../components/EmptyState.jsx'
+import ErrorNotice     from '../components/ErrorNotice.jsx'
+import Kbd             from '../components/Kbd.jsx'
 
 // Grilla fluida: tantas columnas de ≥16rem como quepan junto al carrito
 // (1 en teléfono, 2 en tablet, 3 en laptop, 4–5 en monitores anchos).
@@ -21,13 +23,17 @@ import EmptyState      from '../components/EmptyState.jsx'
 const PRODUCT_GRID = 'grid gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,16rem),1fr))]'
 
 export default function VendedorPage() {
-  const { seller, location } = useAuthStore()
-  const { items, clear, total, count } = useCartStore()
+  const { seller, location, tenant } = useAuthStore()
+  const hasInventory = Boolean(tenant?.has_inventory)
+  const { items, clear, total, count, syncStock } = useCartStore()
   const { setLastCreated, lastCreated, clearLastCreated } = useInvoiceStore()
   const { error: toastError } = useToast()
 
   const [products,    setProducts]    = useState([])
   const [loading,     setLoading]     = useState(true)
+  const [loadError,   setLoadError]   = useState(null)
+  const [reloadKey,   setReloadKey]   = useState(0)
+  const searchRef = useRef(null)
   const [submitting,  setSubmitting]  = useState(false)
   const [query,       setQuery]       = useState('')
   const [catFilter,   setCatFilter]   = useState('all')
@@ -52,7 +58,10 @@ export default function VendedorPage() {
     // …y revalidar SIEMPRE en background: los cambios de catálogo (fotos,
     // precios, productos nuevos) llegan al vendedor sin esperar el TTL
     if (!cached || navigator.onLine) {
-      api.get(`/products?location_id=${location.id}`)
+      const controller = new AbortController()
+      if (!cached) setLoading(true)
+      setLoadError(null)
+      api.get(`/products?location_id=${location.id}`, { signal: controller.signal })
         .then(data => {
           if (data?.length) {
             setProducts(data)
@@ -60,12 +69,34 @@ export default function VendedorPage() {
           }
         })
         .catch(err => {
-          if (!cached) toastError(`Error cargando catálogo: ${err.message}`)
-          // con cache ya en pantalla, el fallo de red es silencioso
+          if (err.canceled) return
+          // Con cache en pantalla el fallo de red no interrumpe la venta; sin
+          // cache, el vendedor necesita saberlo y poder reintentar (antes veía
+          // "No hay productos" como si el catálogo estuviera vacío).
+          if (!cached) setLoadError(err)
         })
-        .finally(() => setLoading(false))
+        .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+      return () => controller.abort()
     }
-  }, [location?.id, toastError])
+  }, [location?.id, reloadKey])
+
+  // El stock del carrito se refresca con cada catálogo nuevo
+  useEffect(() => {
+    if (!hasInventory || !products.length) return
+    syncStock(new Map(products.map(p => [p.id, Number(p.stock_quantity ?? 0)])))
+  }, [products, hasInventory, syncStock])
+
+  // "/" enfoca el buscador (como en la mayoría de apps con teclado)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.target.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return
+      e.preventDefault()
+      searchRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // ---- Categorías únicas ---------------------------------
   const categories = useMemo(() => {
@@ -84,8 +115,13 @@ export default function VendedorPage() {
       const q = query.toLowerCase().trim()
       list = list.filter(p => p.name.toLowerCase().includes(q))
     }
+    // Con inventario, los agotados van al final (orden estable para el resto)
+    if (hasInventory) {
+      list = [...list].sort((a, b) =>
+        (Number(a.stock_quantity ?? 0) <= 0) - (Number(b.stock_quantity ?? 0) <= 0))
+    }
     return list
-  }, [products, catFilter, query])
+  }, [products, catFilter, query, hasInventory])
 
   // ---- Generar factura (con fallback offline) ------------
   const handleCheckout = async () => {
@@ -185,13 +221,18 @@ export default function VendedorPage() {
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
               <input
+                ref={searchRef}
                 type="search"
                 placeholder="Buscar producto..."
                 aria-label="Buscar producto"
+                aria-keyshortcuts="/"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                className="input pl-9"
+                className="input pl-9 pr-10"
               />
+              {!query && (
+                <Kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">/</Kbd>
+              )}
             </div>
             <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 scrollbar-hide sm:-mx-4 sm:px-4 lg:-mx-5 lg:px-5">
               <CatChip
@@ -214,7 +255,14 @@ export default function VendedorPage() {
 
           {/* Grid de productos */}
           <div className="flex-1 overflow-y-auto p-3 pb-28 sm:p-4 sm:pb-28 md:pb-4 lg:p-5">
-            {loading ? (
+            {loadError ? (
+              <ErrorNotice
+                error={loadError}
+                title="No se pudo cargar el catálogo"
+                onRetry={() => setReloadKey(k => k + 1)}
+                className="mx-auto max-w-xl"
+              />
+            ) : loading ? (
               <div className={PRODUCT_GRID}>
                 {Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="skeleton h-40 rounded-xl" />
@@ -281,15 +329,21 @@ export default function VendedorPage() {
 
       {/* ---- MOBILE: Bottom sheet del carrito ---- */}
       {cartOpen && (
-        <div className="fixed inset-0 z-50 md:hidden" onClick={() => setCartOpen(false)}>
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/60" />
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop: tocar fuera cierra. Fuera del orden de tabulación: con
+              teclado se cierra con Escape (useModalA11y). */}
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label="Cerrar carrito"
+            onClick={() => setCartOpen(false)}
+            className="absolute inset-0 h-full w-full cursor-default bg-black/60"
+          />
 
           {/* Sheet */}
           <div
             ref={cartPanelRef} role="dialog" aria-modal="true" aria-label="Carrito de compra" tabIndex={-1}
             className="safe-area-pb absolute bottom-0 left-0 right-0 bg-surface-500 border-t border-white/10 rounded-t-2xl max-h-[85dvh] flex flex-col animate-slide-up"
-            onClick={e => e.stopPropagation()}
           >
             {/* Handle */}
             <div className="flex justify-center py-2">

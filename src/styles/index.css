@@ -252,6 +252,14 @@
     @apply border-red-500/70 focus:border-red-500 focus:ring-red-500/30;
   }
 
+  /* Tecla de atajo (<Kbd>): solo con puntero fino, donde hay teclado físico */
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-white/15 bg-surface-500/60 px-1 font-mono text-2xs font-medium leading-none text-gray-400;
+  }
+  @media (pointer: coarse) {
+    .kbd { display: none; }
+  }
+
   /* ================================================================
      MODALES — un solo patrón para todos los diálogos
      Móvil: hoja inferior a todo el ancho. sm+: panel centrado.
@@ -306,6 +314,24 @@
 @container (min-width: 26rem) {
   .cq-row {
     flex-direction: row;
+  }
+}
+
+/* Montos rápidos de efectivo (PaymentMethods): en una fila si la columna de
+   cobro tiene ≥20rem; si no, de a dos. Depende del ancho de la columna, no
+   de la pantalla: en lg la columna mide 20rem aunque el monitor sea ancho. */
+.quick-cash {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.quick-cash > * {
+  flex: 1 1 calc(50% - 0.375rem);
+  min-width: 0;
+}
+@container (min-width: 20rem) {
+  .quick-cash > * {
+    flex-basis: 0;
   }
 }
 
