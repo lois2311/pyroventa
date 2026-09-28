@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Flame, LogOut, MapPin, Menu, ShoppingCart, Shield, X } from 'lucide-react'
+import ThemeToggle from './ThemeToggle.jsx'
 import { useAuthStore } from '../store/authStore.js'
 import { useCartStore }  from '../store/cartStore.js'
 import { can, ROLE_LABELS } from '../../api/_lib/roles.js'
@@ -118,6 +119,8 @@ export default function Topbar({ title }) {
             </span>
           </div>
         )}
+
+        <ThemeToggle />
 
         {seller && (
           <div className="hidden md:flex items-center gap-2 text-xs text-gray-400">

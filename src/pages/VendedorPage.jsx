@@ -306,7 +306,7 @@ export default function VendedorPage() {
         >
           <ShoppingCart className="w-5 h-5" />
           {cartCount > 0 && (
-            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-surface-700 px-1.5 text-xs font-bold text-brand-300">
+            <span data-theme="dark" className="flex h-6 min-w-6 items-center justify-center rounded-full bg-surface-700 px-1.5 text-xs font-bold text-brand-300">
               {cartCount}
             </span>
           )}
@@ -319,7 +319,7 @@ export default function VendedorPage() {
 
       {/* ---- MOBILE: Código flotante post-venta ---- */}
       {showCode && lastCreated && (
-        <div className="fixed inset-0 z-50 bg-black/90 md:hidden flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-surface-500/95 backdrop-blur-sm md:hidden flex items-center justify-center p-4">
           <div ref={codePanelRef} role="dialog" aria-modal="true" aria-label="Código de factura generado" tabIndex={-1}
             className="w-full max-w-sm">
             <CodeDisplay invoice={lastCreated} onNewSale={handleNewSale} />

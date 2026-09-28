@@ -237,7 +237,7 @@ export default function BulkDelete({ onChanged }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white truncate">
                   {p.name}
-                  {!p.active && <span className="ml-2 text-2xs text-yellow-500">inactivo</span>}
+                  {!p.active && <span className="ml-2 text-2xs text-yellow-400">inactivo</span>}
                 </p>
                 <p className="text-2xs text-gray-400 truncate">
                   {p.categories?.name || 'Sin categoría'}

@@ -1,7 +1,7 @@
 import { Tags } from 'lucide-react'
 import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatCOP, formatCOPShort } from '../lib/format.js'
-import { CHART } from '../lib/chartTheme.js'
+import { useChartTheme } from '../hooks/useChartTheme.js'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js'
 import ChartTooltip from './charts/ChartTooltip.jsx'
 import EmptyState from './EmptyState.jsx'
@@ -23,6 +23,7 @@ const truncate = (s, n = 18) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
  */
 export default function CategoryBreakdown({ data, loading, className = '' }) {
   const reducedMotion = usePrefersReducedMotion()
+  const { C: CHART } = useChartTheme()
 
   if (loading && !data?.length) return <div className={`skeleton h-72 rounded-xl ${className}`} />
 
@@ -44,7 +45,7 @@ export default function CategoryBreakdown({ data, loading, className = '' }) {
     if (!r) return null
     return (
       <text x={x + width + 8} y={y + height / 2} dy="0.35em" fontSize={11} fontFamily='"DM Mono", ui-monospace, monospace'>
-        <tspan fill="#e5e7eb" fontWeight={600}>{formatCOPShort(r.total_revenue)}</tspan>
+        <tspan fill={CHART.label} fontWeight={600}>{formatCOPShort(r.total_revenue)}</tspan>
         <tspan fill={CHART.axis} dx={6}>{share(r.total_revenue).toFixed(0)}%</tspan>
       </text>
     )
@@ -76,7 +77,7 @@ export default function CategoryBreakdown({ data, loading, className = '' }) {
                   dataKey="label"
                   width={128}
                   tickFormatter={(s) => truncate(String(s))}
-                  tick={{ fill: '#d1d5db', fontSize: 12 }}
+                  tick={{ fill: CHART.labelStrong, fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
                 />

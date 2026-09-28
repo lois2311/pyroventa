@@ -1,4 +1,96 @@
+import defaultColors from 'tailwindcss/colors.js'
+import plugin from 'tailwindcss/plugin.js'
 import { PAY_COLORS } from './src/lib/chartTheme.js'
+
+// =====================================================================
+// Temas: oscuro (por defecto) y claro de alto contraste
+// ---------------------------------------------------------------------
+// Las clases siguen siendo las de siempre (text-white, bg-surface-300,
+// text-red-400…), pero los tokens que cambian de un tema a otro apuntan a
+// variables CSS (--pv-*). En :root valen lo mismo que antes (el tema oscuro
+// no cambia); con <html data-theme="light"> se remapean:
+//   - superficies: fondo gris claro, tarjetas y diálogos blancos;
+//   - "white" (texto principal, bordes y velos con opacidad) → casi negro;
+//   - grises de texto invertidos y un paso más oscuros (≥7:1 sobre blanco);
+//   - tonos 300/400 de estado, pensados para leerse sobre negro → 900/950;
+//   - tonos 900 usados como fondo tintado oscuro → 100.
+// Un subárbol con data-theme="dark" vuelve a los valores oscuros (p. ej. la
+// vista previa del recibo, que es papel blanco con tinta gris a propósito).
+// =====================================================================
+const SURFACE_DARK = {
+  50:  '#2a2a2a',
+  100: '#222222',
+  200: '#1e1e1e',
+  300: '#1a1a1a',
+  400: '#161616',
+  500: '#111111',
+  600: '#0d0d0d',
+}
+const SURFACE_LIGHT = {
+  50:  '#e4e4e7', // chips, pistas de barras, skeleton, hover sobre tarjetas
+  100: '#efeff1',
+  200: '#ffffff', // diálogos, menús, toasts
+  300: '#ffffff', // tarjetas, paneles, campos
+  400: '#f4f4f5', // pozos dentro de tarjetas (filas, controles segmentados)
+  500: '#e9e9ec', // fondo de página
+  600: '#e2e2e6',
+}
+const BRAND = {
+  50:  '#fff7ed',
+  100: '#ffedd5',
+  200: '#fed7aa',
+  300: '#fdba74',
+  400: '#fb923c',
+  500: '#f97316',
+  600: '#ea580c',
+  700: '#c2410c',
+  800: '#9a3412',
+  900: '#7c2d12',
+}
+const c = defaultColors
+// token → [valor oscuro, valor claro]
+const THEMED = {
+  white: ['#ffffff', c.gray[900]],
+  ...Object.fromEntries(Object.keys(SURFACE_LIGHT).map(k => [`surface-${k}`, [SURFACE_DARK[k], SURFACE_LIGHT[k]]])),
+  'gray-100': [c.gray[100], c.gray[950]],
+  'gray-200': [c.gray[200], c.gray[900]],
+  'gray-300': [c.gray[300], c.gray[800]],
+  'gray-400': [c.gray[400], c.gray[700]],
+  'gray-500': [c.gray[500], c.gray[600]],
+  'gray-600': [c.gray[600], c.gray[400]],
+  'gray-700': [c.gray[700], c.gray[300]],
+  'gray-800': [c.gray[800], c.gray[200]],
+  'gray-900': [c.gray[900], c.gray[100]],
+  'brand-200': [BRAND[200], BRAND[900]],
+  'brand-300': [BRAND[300], BRAND[900]],
+  'brand-400': [BRAND[400], BRAND[900]], // 7.7:1 sobre el fondo de página
+}
+const STATUS_HUES = ['red', 'green', 'yellow', 'amber', 'emerald', 'blue', 'pink', 'cyan', 'orange']
+for (const hue of STATUS_HUES) {
+  THEMED[`${hue}-200`] = [c[hue][200], c[hue][950]]
+  THEMED[`${hue}-300`] = [c[hue][300], c[hue][950]]
+  THEMED[`${hue}-400`] = [c[hue][400], c[hue][900]]
+  THEMED[`${hue}-900`] = [c[hue][900], c[hue][100]]
+}
+
+const rgb = (hex) => {
+  const n = parseInt(hex.slice(1), 16)
+  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`
+}
+const themed = (token) => `rgb(var(--pv-${token}) / <alpha-value>)`
+const shades = (hue, list) => Object.fromEntries(list.map(s => [s, themed(`${hue}-${s}`)]))
+
+const themeVars = plugin(({ addBase }) => {
+  const dark = {}, light = {}
+  for (const [token, [d, l]] of Object.entries(THEMED)) {
+    dark[`--pv-${token}`] = rgb(d)
+    light[`--pv-${token}`] = rgb(l)
+  }
+  addBase({
+    ':root, [data-theme="dark"]': dark,
+    '[data-theme="light"]': light,
+  })
+})
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -32,28 +124,16 @@ export default {
       colors: {
         // Métodos de pago: mismos valores que usan los gráficos (chartTheme.js)
         pay: PAY_COLORS,
-        brand: {
-          50:  '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',
-          600: '#ea580c',
-          700: '#c2410c',
-          800: '#9a3412',
-          900: '#7c2d12',
-        },
+        white: themed('white'),
+        gray: shades('gray', [100, 200, 300, 400, 500, 600, 700, 800, 900]),
+        brand: { ...BRAND, ...shades('brand', [200, 300, 400]) },
         surface: {
-          50:  '#2a2a2a',
-          100: '#222222',
-          200: '#1e1e1e',
-          300: '#1a1a1a',
-          400: '#161616',
-          500: '#111111',
-          600: '#0d0d0d',
+          ...shades('surface', [50, 100, 200, 300, 400, 500, 600]),
+          // Tinta sobre naranja (text-surface-700 en botones y badges de marca):
+          // igual en los dos temas.
           700: '#0a0a0a',
-        }
+        },
+        ...Object.fromEntries(STATUS_HUES.map(hue => [hue, shades(hue, [200, 300, 400, 900])])),
       },
       fontFamily: {
         syne: ['Syne', 'sans-serif'],
@@ -82,5 +162,5 @@ export default {
       }
     }
   },
-  plugins: []
+  plugins: [themeVars]
 }

@@ -2,7 +2,8 @@ import { ArrowRightLeft, Banknote, CheckCircle2, Clock, CreditCard, Wallet } fro
 import { useState } from 'react'
 import { Cell, Pie, PieChart } from 'recharts'
 import { formatCOP } from '../lib/format.js'
-import { CHART, PAY_COLORS, PAY_KEYS, PAY_LABELS } from '../lib/chartTheme.js'
+import { PAY_COLORS, PAY_KEYS, PAY_LABELS } from '../lib/chartTheme.js'
+import { useChartTheme } from '../hooks/useChartTheme.js'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js'
 import MetricTile from './MetricTile.jsx'
 import TransferBreakdown from './TransferBreakdown.jsx'
@@ -95,6 +96,7 @@ const DONUT = 176 // px; el anillo mide 24px (radio 64 → 88)
  */
 export function PaymentBreakdown({ data, loading, className = '' }) {
   const reducedMotion = usePrefersReducedMotion()
+  const { C: CHART } = useChartTheme()
   const [activeKey, setActiveKey] = useState(null)
 
   if (loading && !data) return <div className={`skeleton h-72 rounded-xl ${className}`} />

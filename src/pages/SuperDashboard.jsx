@@ -9,6 +9,7 @@ import { formatCOP, formatRangeLabel } from '../lib/format.js'
 import DateRangeBar, { toISO } from '../components/DateRangeBar.jsx'
 import Modal from '../components/Modal.jsx'
 import PageHeader, { SectionHeader } from '../components/PageHeader.jsx'
+import ThemeToggle from '../components/ThemeToggle.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import MetricTile from '../components/MetricTile.jsx'
 
@@ -546,6 +547,7 @@ export default function SuperDashboard() {
               <button type="button" onClick={() => setShowNew(true)} className="btn-primary">
                 <Plus className="h-4 w-4" /> Nuevo cliente
               </button>
+              <ThemeToggle />
               <button type="button" onClick={handleLogout} className="btn-ghost btn-icon" aria-label="Cerrar sesión" title="Cerrar sesión">
                 <LogOut className="h-4 w-4" />
               </button>

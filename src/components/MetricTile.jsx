@@ -1,7 +1,7 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { Line, LineChart, ResponsiveContainer, YAxis } from 'recharts'
 import { useCountUp } from '../hooks/useCountUp.js'
-import { CHART } from '../lib/chartTheme.js'
+import { useChartTheme } from '../hooks/useChartTheme.js'
 
 // Tamaño del valor según el ancho de la propia tarjeta (container query
 // units): la misma tarjeta sirve en una grilla de 5 columnas, en un modal o
@@ -75,6 +75,7 @@ export default function MetricTile({
 }
 
 function Sparkline({ values, tall }) {
+  const { C: CHART } = useChartTheme()
   const data = values.map((v, i) => ({ i, v }))
   const last = data.length - 1
   return (

@@ -29,7 +29,7 @@ export default function SuccessAnimation({ invoice, onDone }) {
         {/* Checkmark SVG animado */}
         <div className="flex justify-center mb-4">
           <svg
-            className="w-20 h-20"
+            className="w-20 h-20 text-green-600"
             viewBox="0 0 52 52"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -37,14 +37,14 @@ export default function SuccessAnimation({ invoice, onDone }) {
             <circle
               className="checkmark-circle"
               cx="26" cy="26" r="25"
-              stroke="#22c55e"
+              stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
             />
             <path
               className="checkmark-path"
               d="M14 27l8 8 16-16"
-              stroke="#22c55e"
+              stroke="currentColor"
               strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"

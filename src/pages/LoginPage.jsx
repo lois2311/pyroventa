@@ -6,6 +6,7 @@ import { api } from '../lib/api.js'
 import { classifyBootstrapError } from '../lib/bootstrapError.js'
 import { useApi } from '../hooks/useApi.js'
 import LocationSelector from '../components/LocationSelector.jsx'
+import ThemeToggle from '../components/ThemeToggle.jsx'
 import ErrorNotice from '../components/ErrorNotice.jsx'
 import { useToast } from '../components/Toast.jsx'
 
@@ -258,6 +259,8 @@ export default function LoginPage() {
       {/* Halo de marca, solo decorativo. Gradiente radial en vez de
           filter: blur — más barato de pintar en tablets modestas. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(ellipse_60%_55%_at_50%_0%,rgba(249,115,22,0.13),transparent)]" />
+      {/* El tema se elige antes de entrar: queda guardado en este equipo */}
+      <ThemeToggle className="absolute right-3 top-3 sm:right-5 sm:top-5" />
       <div className="relative w-full max-w-lg">
 
         {/* Logo */}

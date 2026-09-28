@@ -53,7 +53,7 @@ export default function ProductImage({ src, name, className = 'w-9 h-9', fit = '
       {/* Portal: dentro de un modal (Editar factura) un ancestro con
           transform encerraba el `fixed` en el panel en vez de la pantalla. */}
       {zoomed && createPortal(
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4 animate-fade-in">
+        <div data-theme="dark" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4 animate-fade-in">
           {/* Tocar en cualquier parte cierra; con teclado, Escape o la X */}
           <button
             type="button"

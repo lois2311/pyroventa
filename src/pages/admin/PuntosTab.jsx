@@ -77,7 +77,7 @@ export default function PuntosTab({ locations, onChanged, isOwner }) {
                   <Pencil className="h-3.5 w-3.5" /> Editar
                 </button>
                 {isOwner && (
-                  <button type="button" onClick={() => handleToggle(loc)} className="btn-ghost btn-sm btn-touch-safe text-yellow-500">
+                  <button type="button" onClick={() => handleToggle(loc)} className="btn-ghost btn-sm btn-touch-safe text-yellow-400">
                     {loc.active ? 'Desactivar' : 'Activar'}
                   </button>
                 )}

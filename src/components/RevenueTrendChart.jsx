@@ -3,7 +3,8 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { formatCOP, formatCOPShort, formatDayShort } from '../lib/format.js'
-import { AXIS_TICK, CHART, MAX_BAR, PAY_COLORS, PAY_KEYS, PAY_LABELS } from '../lib/chartTheme.js'
+import { MAX_BAR, PAY_COLORS, PAY_KEYS, PAY_LABELS } from '../lib/chartTheme.js'
+import { useChartTheme } from '../hooks/useChartTheme.js'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js'
 import ChartTooltip from './charts/ChartTooltip.jsx'
 
@@ -23,13 +24,13 @@ const invoicesLabel = (n) => `${n} factura${n !== 1 ? 's' : ''}`
  * lleva la punta redondeada (4px); el resto es rectangular. El trazo del
  * color de la superficie deja una separación de 2px entre segmentos.
  */
-function StackSegment({ x, y, width, height, fill, isTop }) {
+function StackSegment({ x, y, width, height, fill, isTop, surface }) {
   if (!height || height <= 0 || !width) return null
   const r = isTop ? Math.min(4, width / 2, height) : 0
   const d = r
     ? `M${x},${y + height} V${y + r} Q${x},${y} ${x + r},${y} H${x + width - r} Q${x + width},${y} ${x + width},${y + r} V${y + height} Z`
     : `M${x},${y + height} V${y} H${x + width} V${y + height} Z`
-  return <path d={d} fill={fill} stroke={CHART.surface} strokeWidth={2} />
+  return <path d={d} fill={fill} stroke={surface} strokeWidth={2} />
 }
 
 /**
@@ -44,6 +45,7 @@ function StackSegment({ x, y, width, height, fill, isTop }) {
 export default function RevenueTrendChart({ data, loading = false }) {
   const [view, setView] = useState('trend')
   const reducedMotion = usePrefersReducedMotion()
+  const { C: CHART, AXIS_TICK } = useChartTheme()
   const gradientId = `rev-${useId().replace(/:/g, '')}`
 
   const stats = useMemo(() => {
@@ -200,7 +202,7 @@ export default function RevenueTrendChart({ data, loading = false }) {
                   maxBarSize={MAX_BAR}
                   isAnimationActive={!reducedMotion}
                   animationDuration={600}
-                  shape={(p) => <StackSegment {...p} isTop={topKey[p.payload?.day] === k} />}
+                  shape={(p) => <StackSegment {...p} surface={CHART.surface} isTop={topKey[p.payload?.day] === k} />}
                 />
               ))}
             </BarChart>

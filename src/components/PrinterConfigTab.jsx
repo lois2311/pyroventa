@@ -480,6 +480,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
           {/* Contenedor del Ticket Térmico con diseño realista */}
           <div className="flex justify-center p-4 bg-surface-500/80 rounded-2xl border border-white/10 overflow-hidden">
             <div
+              data-theme="dark"
               className="bg-[#fcfbf9] text-gray-900 shadow-2xl p-5 transition-all duration-300 rounded-sm relative selection:bg-gray-300 selection:text-black"
               style={{
                 width: paperWidth === '80mm' ? '320px' : '250px',

@@ -12,6 +12,9 @@
        el escritorio no se ve inflado. */
   :root {
     color-scheme: dark; /* íconos de <input type="date">, selects y scrollbars nativos en oscuro */
+    --pv-focus: 249 115 22;       /* brand-500 */
+    --pv-scroll-track: 26 26 26;
+    --pv-scroll-thumb: 58 58 58;
     --gutter: clamp(1rem, 0.5rem + 2vw, 2rem);
     --control-h: 2.5rem;
     --control-h-sm: 2rem;
@@ -22,6 +25,15 @@
       --control-h: 2.75rem;
       --control-h-sm: 2.5rem;
     }
+  }
+
+  /* Tema claro de alto contraste (paleta en tailwind.config.js). Pensado para
+     stands al aire libre y pantallas con mucho reflejo: texto ≥7:1. */
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --pv-focus: 194 65 12;        /* brand-700: el anillo de foco pasa 3:1 sobre blanco */
+    --pv-scroll-track: 233 233 236;
+    --pv-scroll-thumb: 161 161 170;
   }
 
   *, *::before, *::after {
@@ -40,7 +52,7 @@
 
   body {
     @apply bg-surface-500;
-    color: #f3f4f6;
+    color: rgb(var(--pv-gray-100));
     min-height: 100vh;
     min-height: 100dvh;
     overflow-x: hidden;
@@ -56,8 +68,8 @@
     width: 6px;
     height: 6px;
   }
-  ::-webkit-scrollbar-track  { background: #1a1a1a; }
-  ::-webkit-scrollbar-thumb  { background: #3a3a3a; border-radius: 3px; }
+  ::-webkit-scrollbar-track  { background: rgb(var(--pv-scroll-track)); }
+  ::-webkit-scrollbar-thumb  { background: rgb(var(--pv-scroll-thumb)); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: #f97316; }
 
   /* Foco visible consistente para navegación por teclado.
@@ -66,7 +78,7 @@
   a:focus-visible,
   [role="button"]:focus-visible,
   [tabindex]:focus-visible {
-    outline: 2px solid #f97316;
+    outline: 2px solid rgb(var(--pv-focus));
     outline-offset: 2px;
     border-radius: 6px;
   }
@@ -383,3 +395,36 @@
   background-color: rgba(249, 115, 22, 0.15);
   border-color: rgba(249, 115, 22, 0.4);
 }
+
+/* ================================================================
+   TEMA CLARO — ajustes que el remapeo de tokens no cubre solo
+   ================================================================ */
+
+/* Texto blanco sobre botones y avisos de color lleno: "white" pasa a ser
+   casi negro en el tema claro, pero sobre verde/azul/rosa/rojo oscuros el
+   texto tiene que seguir siendo blanco. Redefinir la variable en el elemento
+   alcanza a su text-white y al de sus hijos. */
+[data-theme="light"] :is(
+  .btn-success, .btn-danger,
+  .bg-green-700, .bg-blue-700, .bg-pink-700,
+  .bg-red-600, .bg-red-700, .bg-yellow-700
+) {
+  --pv-white: 255 255 255;
+}
+
+/* Bordes y divisores: los /5 y /10 pensados para blanco sobre negro quedan
+   casi invisibles como negro sobre blanco. Un paso más de opacidad. */
+[data-theme="light"] .border-white\/5 { border-color: rgb(var(--pv-white) / 0.12); }
+[data-theme="light"] .border-white\/10 { border-color: rgb(var(--pv-white) / 0.18); }
+[data-theme="light"] .border-white\/15 { border-color: rgb(var(--pv-white) / 0.24); }
+[data-theme="light"] .divide-white\/5 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--pv-white) / 0.1); }
+
+/* Placeholder: con el remapeo quedaría tan oscuro como el texto escrito */
+[data-theme="light"] .input::placeholder,
+[data-theme="light"] .placeholder-gray-400::placeholder {
+  color: rgb(107 114 128); /* gray-500: 4.8:1 */
+}
+
+/* Naranja de marca como texto (logo, íconos de rol): brand-500 da 2.8:1
+   sobre blanco; brand-700 conserva el tono y pasa AA. */
+[data-theme="light"] .text-brand-500 { color: #c2410c; }

@@ -45,11 +45,11 @@ export default function LocationComparison({ data, loading }) {
             <span>Ticket prom. {formatCOP(loc.avg_ticket)}</span>
             <span className="flex gap-3">
               <span className="flex items-center gap-1" title="Pendientes">
-                <Clock className="h-3.5 w-3.5 text-yellow-500" /> {loc.pending_count}
+                <Clock className="h-3.5 w-3.5 text-yellow-400" /> {loc.pending_count}
                 <span className="sr-only">pendientes</span>
               </span>
               <span className="flex items-center gap-1" title="Canceladas">
-                <XCircle className="h-3.5 w-3.5 text-red-500" /> {loc.cancelled_count}
+                <XCircle className="h-3.5 w-3.5 text-red-400" /> {loc.cancelled_count}
                 <span className="sr-only">canceladas</span>
               </span>
             </span>

@@ -82,7 +82,7 @@ export default function UsuariosTab({ locations, isOwner }) {
                   <Pencil className="h-3.5 w-3.5" /> Editar
                 </button>
                 {s.id !== me?.id && (
-                  <button type="button" onClick={() => handleToggle(s)} className={`btn-ghost btn-sm btn-touch-safe ${s.active ? 'text-yellow-500' : 'text-green-500'}`}>
+                  <button type="button" onClick={() => handleToggle(s)} className={`btn-ghost btn-sm btn-touch-safe ${s.active ? 'text-yellow-400' : 'text-green-400'}`}>
                     {s.active ? 'Desactivar' : 'Activar'}
                   </button>
                 )}

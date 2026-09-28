@@ -1,6 +1,7 @@
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatCOP } from '../lib/format.js'
-import { AXIS_TICK, CHART, MAX_BAR } from '../lib/chartTheme.js'
+import { MAX_BAR } from '../lib/chartTheme.js'
+import { useChartTheme } from '../hooks/useChartTheme.js'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js'
 import ChartTooltip from './charts/ChartTooltip.jsx'
 
@@ -19,6 +20,7 @@ const salesLabel = (n) => `${n} venta${n !== 1 ? 's' : ''}`
  */
 export default function HourlyBarChart({ data }) {
   const reducedMotion = usePrefersReducedMotion()
+  const { C: CHART, AXIS_TICK } = useChartTheme()
   if (!data?.length) return null
 
   const peak = data.reduce((a, b) => (b.count > a.count ? b : a), data[0])
@@ -27,7 +29,7 @@ export default function HourlyBarChart({ data }) {
   const renderPeakLabel = ({ x, y, width, index, value }) => (index === peakIndex
     ? (
       <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={11} fontWeight={600}
-        fill="#e5e7eb" fontFamily='"DM Mono", ui-monospace, monospace'>
+        fill={CHART.label} fontFamily='"DM Mono", ui-monospace, monospace'>
         {value}
       </text>
     )

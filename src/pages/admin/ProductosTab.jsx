@@ -141,7 +141,7 @@ export default function ProductosTab({ hasInventory = false }) {
                 <button
                   type="button"
                   onClick={() => handleToggle(p)}
-                  className="btn-ghost btn-sm btn-touch-safe text-yellow-500"
+                  className="btn-ghost btn-sm btn-touch-safe text-yellow-400"
                   title={p.active ? 'Se oculta del POS, se puede reactivar' : 'Vuelve a estar disponible en el POS'}
                 >
                   {p.active ? 'Desactivar' : 'Activar'}

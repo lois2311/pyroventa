@@ -519,7 +519,7 @@ export default function CajaPage() {
         <div className="space-y-4">
           <InvoiceDetail invoice={invoice} productImages={productImages} />
           {invoice.edited_at && (
-            <p className="inline-flex items-center gap-1 text-2xs text-yellow-500/80">
+            <p className="inline-flex items-center gap-1 text-2xs text-yellow-400/80">
               <Pencil className="h-3 w-3" /> Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}
             </p>
           )}

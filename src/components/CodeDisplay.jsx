@@ -40,7 +40,7 @@ export default function CodeDisplay({ invoice, onNewSale }) {
           <p className="text-yellow-400 text-xs font-medium inline-flex items-center gap-1.5">
             <WifiOff className="w-3.5 h-3.5" /> Factura offline
           </p>
-          <p className="text-yellow-500/70 text-2xs">Se sincronizará cuando vuelva la conexión. El código real se asignará en ese momento.</p>
+          <p className="text-yellow-400/70 text-2xs">Se sincronizará cuando vuelva la conexión. El código real se asignará en ese momento.</p>
         </div>
       )}
 
