@@ -48,7 +48,7 @@ export default function RegisterComparison({ data, loading, from, to, locationId
                     <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-white">{formatCOP(reg.total)}</p>
                   </div>
                   <p className="mt-0.5 text-2xs text-gray-400">
-                    {reg.count} cobro{reg.count !== 1 ? 's' : ''} · Ticket prom. {formatCOP(reg.avg_ticket)}
+                    {reg.count} cobro{reg.count !== 1 ? 's' : ''} · Ticket prom. <span className="font-mono tabular-nums">{formatCOP(reg.avg_ticket)}</span>
                     {reg.cashier_name && <span> · {reg.cashier_name}</span>}
                   </p>
                   <div className="mt-2">

@@ -1,7 +1,19 @@
+import { useEffect, useRef } from 'react'
 import { Plus, WifiOff } from 'lucide-react'
 import { formatCOP } from '../lib/format.js'
+import Kbd from './Kbd.jsx'
 
-export default function CodeDisplay({ invoice, onNewSale }) {
+/**
+ * Código de la factura recién generada.
+ * `autoFocus`: enfoca "Nueva venta" (panel de escritorio), así Enter sigue.
+ * `shortcuts`: muestra las teclas (Enter / Esc las escucha VendedorPage).
+ */
+export default function CodeDisplay({ invoice, onNewSale, autoFocus = false, shortcuts = false }) {
+  const newSaleRef = useRef(null)
+  useEffect(() => {
+    if (autoFocus) newSaleRef.current?.focus()
+  }, [autoFocus])
+
   if (!invoice) return null
 
   const digits = String(invoice.code).split('')
@@ -10,21 +22,20 @@ export default function CodeDisplay({ invoice, onNewSale }) {
     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
 
       {/* Etiqueta */}
-      <p className="text-gray-400 text-sm font-medium uppercase tracking-widest mb-3">
+      <p className="eyebrow mb-3 text-sm tracking-widest">
         Código de factura
       </p>
 
-      {/* Código — la pieza central */}
-      <div className="animate-pulse-glow border-2 border-brand-500 rounded-2xl px-8 py-6 mb-4 bg-brand-500/5">
+      {/* Código — la pieza central. El borde late dos veces y se queda quieto. */}
+      <div className="animate-pulse-glow border-2 border-brand-500 rounded-lg px-8 py-6 mb-4 bg-brand-500/5">
         <div className="flex gap-3 items-center justify-center">
           {digits.map((d, i) => (
             <span
               key={i}
-              className="font-mono font-bold text-brand-400 animate-scale-in"
+              className="font-mono font-bold tabular-nums text-brand-400"
               style={{
                 fontSize:        'clamp(56px, 10vw, 96px)',
                 lineHeight:      1,
-                animationDelay:  `${i * 60}ms`,
                 letterSpacing:   0,
               }}
             >
@@ -38,24 +49,24 @@ export default function CodeDisplay({ invoice, onNewSale }) {
       {invoice._offline && (
         <div className="bg-yellow-500/15 border border-yellow-500/30 rounded-lg px-3 py-2 mb-3 max-w-xs">
           <p className="text-yellow-400 text-xs font-medium inline-flex items-center gap-1.5">
-            <WifiOff className="w-3.5 h-3.5" /> Factura offline
+            <WifiOff className="w-3.5 h-3.5" /> Factura sin conexión
           </p>
-          <p className="text-yellow-400/70 text-2xs">Se sincronizará cuando vuelva la conexión. El código real se asignará en ese momento.</p>
+          <p className="text-yellow-300 text-2xs">Se envía sola cuando vuelva la red; ahí recibe su código definitivo.</p>
         </div>
       )}
 
       {/* Díselo al cliente */}
       <p className="text-gray-400 text-xs mb-5 max-w-xs">
         {invoice._offline
-          ? 'Anote este código temporal. El código definitivo se asigna al sincronizar.'
-          : 'Dígale este código al cliente para que vaya a la caja a pagar'
+          ? 'Anota este código temporal. El definitivo se asigna al sincronizar.'
+          : 'Dile este código al cliente para que pague en la caja.'
         }
       </p>
 
       {/* Total */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-gray-400 text-sm">Total a cobrar:</span>
-        <span className="font-mono font-bold text-2xl text-white">{formatCOP(invoice.total)}</span>
+      <div className="flex items-baseline gap-2 mb-2">
+        <span className="text-gray-400 text-sm">Total a cobrar</span>
+        <span className="font-mono font-bold tabular-nums text-2xl text-white">{formatCOP(invoice.total)}</span>
       </div>
 
       {/* Meta */}
@@ -65,8 +76,15 @@ export default function CodeDisplay({ invoice, onNewSale }) {
       </div>
 
       {/* Botón nueva venta */}
-      <button onClick={onNewSale} className="btn btn-primary btn-lg">
+      <button
+        ref={newSaleRef}
+        type="button"
+        onClick={onNewSale}
+        aria-keyshortcuts={shortcuts ? 'Enter Escape' : undefined}
+        className="btn btn-primary btn-lg"
+      >
         <Plus className="w-4 h-4" /> Nueva venta
+        {shortcuts && <Kbd className="kbd-on-fill">Enter</Kbd>}
       </button>
     </div>
   )

@@ -62,3 +62,24 @@ describe('cartStore: tope de stock', () => {
     expect(store().items.map(i => i.stock)).toEqual([4, 4])
   })
 })
+
+describe('cartStore: restore (venta en pausa)', () => {
+  beforeEach(() => store().clear())
+
+  it('devuelve el ticket guardado tal cual, con precios editados', () => {
+    store().addItem(unidad)
+    store().addItem(unidad)
+    store().updatePrice('p1-u', 2500, 'Cliente frecuente')
+    const saved = store().items
+    store().clear()
+    store().restore(saved)
+    expect(store().items).toEqual(saved)
+    expect(store().total()).toBe(5000)
+  })
+
+  it('algo que no es lista deja el ticket vacío', () => {
+    store().addItem(otro)
+    store().restore(null)
+    expect(store().items).toEqual([])
+  })
+})

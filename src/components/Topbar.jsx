@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, MapPin, Menu, ShoppingCart, Shield, X } from 'lucide-react'
+import { Keyboard, LogOut, MapPin, Menu, ShoppingCart, Shield, X } from 'lucide-react'
 import ThemeToggle from './ThemeToggle.jsx'
 import VendraLogo from './VendraLogo.jsx'
 import { useTheme } from '../lib/theme.js'
 import Kbd from './Kbd.jsx'
+import ShortcutsHelp from './ShortcutsHelp.jsx'
+import { isTypingTarget } from '../lib/device.js'
 import { useAuthStore } from '../store/authStore.js'
 import { useCartStore }  from '../store/cartStore.js'
 import { can, ROLE_LABELS } from '../../api/_lib/roles.js'
@@ -16,6 +18,8 @@ export default function Topbar({ title }) {
   const cartCount = useCartStore(s => s.count())
   const clearCart = useCartStore(s => s.clear)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const helpContext = route.pathname === '/vender' ? 'vender' : route.pathname === '/caja' ? 'caja' : null
   const theme = useTheme()
 
   const handleLogout = () => {
@@ -60,6 +64,12 @@ export default function Topbar({ title }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
+      // "?" abre la hoja de atajos (fuera de los campos)
+      if (e.key === '?' && !isTypingTarget(e.target) && !document.querySelector('[role="dialog"]')) {
+        e.preventDefault()
+        setHelpOpen(true)
+        return
+      }
       const link = navLinks.find(l => l.key === e.key)
       if (!link || document.querySelector('[role="dialog"]')) return
       e.preventDefault()
@@ -152,10 +162,21 @@ export default function Topbar({ title }) {
             <MapPin className="w-3.5 h-3.5 text-brand-400 shrink-0" />
             <span className="text-brand-400 text-xs font-medium truncate">
               {location.name}
-              {register && <span className="text-brand-300/60"> · {register.name}</span>}
+              {register && <span className="text-gray-300"> · {register.name}</span>}
             </span>
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          aria-keyshortcuts="?"
+          aria-label="Atajos de teclado"
+          title="Atajos de teclado"
+          className="btn btn-ghost btn-sm hidden px-2 text-gray-400 lg:[@media(any-pointer:fine)]:inline-flex"
+        >
+          <Keyboard className="h-4 w-4" aria-hidden="true" /> <Kbd>?</Kbd>
+        </button>
 
         <ThemeToggle />
 
@@ -178,6 +199,8 @@ export default function Topbar({ title }) {
           </div>
         )}
       </header>
+
+      {helpOpen && <ShortcutsHelp context={helpContext} onClose={() => setHelpOpen(false)} />}
 
       {drawerOpen && (
         <div className="fixed inset-0 z-[1200] md:hidden">
@@ -229,7 +252,7 @@ export default function Topbar({ title }) {
                     key={link.key}
                     onClick={() => go(link)}
                     aria-current={active ? 'page' : undefined}
-                    className={`flex min-h-[var(--control-h)] items-center gap-2 text-left rounded-lg px-3 text-sm font-medium border transition-colors ${active ? 'row-active bg-brand-500/15 border-brand-500/40 text-brand-300' : 'bg-surface-400 border-white/5 text-gray-300 hover:text-white hover:border-white/20'}`}
+                    className={`press flex min-h-[var(--control-h)] items-center gap-2 text-left rounded-lg px-3 text-sm font-medium border transition-colors ${active ? 'row-active bg-brand-500/15 border-brand-500/40 text-brand-300' : 'bg-surface-400 border-white/5 text-gray-300 hover:text-white hover:border-white/20'}`}
                   >
                     <span className="font-mono text-kbd text-gray-400">{link.key}</span>
                     {link.label}

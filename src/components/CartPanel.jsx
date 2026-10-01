@@ -1,22 +1,32 @@
 import { useState, useId, useEffect, useRef } from 'react'
-import { AlertTriangle, ShoppingCart, Ticket, X, Pencil, RotateCcw, MapPin } from 'lucide-react'
+import { AlertTriangle, ShoppingCart, Ticket, X, Pencil, RotateCcw, MapPin, Pause } from 'lucide-react'
 import { useCartStore, productQtyInCart, overStockItems } from '../store/cartStore.js'
 import { useAuthStore }    from '../store/authStore.js'
 import { formatCOP }       from '../lib/format.js'
 import { useConfirm }      from './ConfirmDialog.jsx'
 import Modal               from './Modal.jsx'
 import Kbd                 from './Kbd.jsx'
+import { isTypingTarget }  from '../lib/device.js'
 
 /**
  * Ticket de la venta en curso.
- * `shortcuts`: esta instancia escucha F12 (generar factura) y Esc (cancelar
- * venta). Solo una a la vez: la del panel de escritorio.
+ * `shortcuts`: esta instancia escucha el teclado. Solo una a la vez: la del
+ * panel de escritorio.
+ *   F12        genera la factura
+ *   Esc        cancela la venta (con confirmación)
+ *   + / −      suma o resta una unidad a la línea activa
+ *   Supr       quita la línea activa
+ *   ↑ / ↓      cambia la línea activa
+ * Las teclas de línea actúan fuera de los campos, o desde el escáner vacío
+ * (con texto en el escáner, + y − se escriben y ↓ baja al catálogo).
+ * `onPark`: pone la venta en pausa (F8, lo escucha VendedorPage).
+ * `onFocusScanner`: devuelve el foco al escáner al cerrar el editor de precio.
  */
-export default function CartPanel({ onCheckout, loading, shortcuts = false }) {
+export default function CartPanel({ onCheckout, loading, shortcuts = false, onFocusScanner, onPark }) {
   const { items, updateQty, updatePrice, resetPrice, removeItem, total, clear } = useCartStore()
   const cartTotal = total()
   const [editingItem, setEditingItem] = useState(null)
-  const activeId = useActiveItem(items)
+  const [activeId, setActiveId] = useActiveItem(items)
   const isOwner = useAuthStore(s => s.seller?.role === 'owner')
   const confirm = useConfirm()
   // El stock pudo bajar después de agregar (otro vendedor cobró y el
@@ -46,20 +56,42 @@ export default function CartPanel({ onCheckout, loading, shortcuts = false }) {
   // F12 genera la factura · Esc cancela la venta. No actúan mientras se
   // escribe en un campo ni con un diálogo abierto. Estado leído por ref.
   const keys = useRef(null)
-  keys.current = { canCheckout, onCheckout, handleClear, hasItems: items.length > 0 }
+  keys.current = { canCheckout, onCheckout, handleClear, items, activeId, setActiveId, updateQty, removeItem }
   useEffect(() => {
     if (!shortcuts) return
     const onKey = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
       if (document.querySelector('[role="dialog"]')) return
       const k = keys.current
+      const hasItems = k.items.length > 0
       if (e.key === 'F12') {
         e.preventDefault()
         if (!e.repeat && k.canCheckout) k.onCheckout()
-      } else if (e.key === 'Escape' && k.hasItems) {
-        if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')) return
+        return
+      }
+      const typing = isTypingTarget(e.target)
+      if (e.key === 'Escape' && hasItems) {
+        if (typing) return
         e.preventDefault()
         k.handleClear({ alwaysConfirm: true })
+        return
+      }
+      // Teclas de línea: fuera de los campos o desde el escáner vacío
+      const emptyScanner = e.target instanceof Element && e.target.matches('[data-scanner-input]') && !e.target.value
+      if (!hasItems || (typing && !emptyScanner)) return
+      const idx = k.items.findIndex(i => i.presentationId === k.activeId)
+      const active = k.items[idx]
+      if (!active) return
+      if (e.key === '+' || e.key === '-') {
+        e.preventDefault()
+        k.updateQty(active.presentationId, active.qty + (e.key === '+' ? 1 : -1))
+      } else if (e.key === 'Delete') {
+        e.preventDefault()
+        k.removeItem(active.presentationId)
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        const next = k.items[Math.min(k.items.length - 1, Math.max(0, idx + (e.key === 'ArrowUp' ? -1 : 1)))]
+        k.setActiveId(next.presentationId)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -72,8 +104,11 @@ export default function CartPanel({ onCheckout, loading, shortcuts = false }) {
         <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-surface-300">
           <ShoppingCart className="h-6 w-6" />
         </span>
-        <p className="text-sm font-medium text-gray-200">Ticket vacío</p>
-        <p className="mt-1 text-xs">Escanea o toca un producto para empezar.</p>
+        <p className="text-sm font-medium text-gray-200">Listo para vender.</p>
+        <p className="mt-1 text-xs">
+          Escanea o toca un producto para empezar.
+          {shortcuts && <> <Kbd className="ml-1">/</Kbd></>}
+        </p>
       </div>
     )
   }
@@ -81,18 +116,34 @@ export default function CartPanel({ onCheckout, loading, shortcuts = false }) {
   return (
     <div className="flex flex-col h-full relative">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-white/5 px-4 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-white/5 px-4 py-2.5">
         <h2 className="text-sm font-semibold text-white">
           Ticket <span className="font-mono font-normal text-gray-400">({items.length})</span>
         </h2>
-        <button
-          type="button"
-          onClick={() => handleClear()}
-          aria-keyshortcuts="Escape"
-          className="btn-ghost btn-sm -mr-2 text-gray-400 hover:text-red-400"
-        >
-          Cancelar venta <Kbd>Esc</Kbd>
-        </button>
+        <div className="-mr-2 flex items-center gap-1">
+          {onPark && (
+            <button
+              type="button"
+              onClick={onPark}
+              aria-keyshortcuts="F8"
+              aria-label="Pausar venta"
+              title="Pausar venta: atiende a otro cliente y retómala después"
+              className="btn-ghost btn-sm min-w-[var(--control-h-sm)] px-2 text-gray-400 hover:text-amber-300"
+            >
+              <Pause className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden 2xl:inline">Pausar</span>
+              {shortcuts && <Kbd>F8</Kbd>}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => handleClear()}
+            aria-keyshortcuts="Escape"
+            className="btn-ghost btn-sm text-gray-400 hover:text-red-400"
+          >
+            Cancelar venta {shortcuts && <Kbd>Esc</Kbd>}
+          </button>
+        </div>
       </div>
 
       {/* Lista de items */}
@@ -103,6 +154,7 @@ export default function CartPanel({ onCheckout, loading, shortcuts = false }) {
             item={item}
             productQty={productQtyInCart(items, item.productId)}
             active={item.presentationId === activeId}
+            showKeys={shortcuts}
             canEditPrice={isOwner}
             onUpdateQty={(qty) => updateQty(item.presentationId, qty)}
             onEditPrice={() => setEditingItem(item)}
@@ -155,14 +207,16 @@ export default function CartPanel({ onCheckout, loading, shortcuts = false }) {
       {editingItem && isOwner && (
         <EditPriceModal
           item={editingItem}
-          onClose={() => setEditingItem(null)}
+          onClose={() => { setEditingItem(null); onFocusScanner?.() }}
           onSave={(newPrice, reason) => {
             updatePrice(editingItem.presentationId, newPrice, reason)
             setEditingItem(null)
+            onFocusScanner?.()
           }}
           onReset={() => {
             resetPrice(editingItem.presentationId)
             setEditingItem(null)
+            onFocusScanner?.()
           }}
         />
       )}
@@ -172,10 +226,11 @@ export default function CartPanel({ onCheckout, loading, shortcuts = false }) {
 
 // ---- Item individual ------------------------------------
 // Dos filas: nombre + subtotal arriba (el nombre ya no se corta a 12
-// caracteres), detalle + controles abajo. Los botones de cantidad miden
-// 32px (antes 24px), cómodos para el dedo en tablet.
-// La fila activa (la última agregada o modificada) lleva la línea Voltaje.
-function CartItem({ item, productQty, active, onUpdateQty, onEditPrice, canEditPrice, onRemove }) {
+// caracteres), detalle + controles abajo. Los botones de cantidad son
+// cuadrados de --control-h-sm (40px con mouse, 48px en pantallas táctiles).
+// La fila activa (la última agregada o modificada) lleva la línea Voltaje y,
+// con teclado, las teclas que la controlan (+ − Supr).
+function CartItem({ item, productQty, active, showKeys, onUpdateQty, onEditPrice, canEditPrice, onRemove }) {
   const hasStock = item.stock !== null && item.stock !== undefined
   const atCap = hasStock && productQty >= item.stock
   return (
@@ -185,14 +240,14 @@ function CartItem({ item, productQty, active, onUpdateQty, onEditPrice, canEditP
     >
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 text-sm font-medium leading-snug text-white">{item.productName}</p>
-        <span className={`shrink-0 font-mono text-sm font-semibold tabular-nums ${active ? 'text-brand-400' : 'text-white'}`}>
+        <span className={`shrink-0 text-right font-mono text-sm font-semibold tabular-nums ${active ? 'text-brand-400' : 'text-white'}`}>
           {formatCOP(item.subtotal)}
         </span>
       </div>
 
       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
         <p className="text-xs text-gray-400">
-          {item.label} · <span className="font-mono">{formatCOP(item.price)}</span>
+          {item.label} · <span className="font-mono tabular-nums">{formatCOP(item.price)}</span>
         </p>
         {item.is_price_edited && (
           <span className="rounded border border-amber-500/30 bg-amber-500/20 px-1.5 py-px text-2xs font-medium text-amber-300">
@@ -221,21 +276,25 @@ function CartItem({ item, productQty, active, onUpdateQty, onEditPrice, canEditP
             type="button"
             onClick={() => onUpdateQty(item.qty - 1)}
             aria-label={`Quitar una unidad de ${item.productName}`}
-            className="flex h-[var(--control-h-sm)] w-10 items-center justify-center rounded-l-lg text-lg text-gray-300 transition-colors hover:bg-surface-50 hover:text-white"
+            aria-keyshortcuts={active && showKeys ? '-' : undefined}
+            className="press flex h-[var(--control-h-sm)] w-[var(--control-h-sm)] items-center justify-center rounded-l-lg text-lg text-gray-300 transition-colors hover:bg-surface-50 hover:text-white"
           >
             −
           </button>
-          <span className="w-8 text-center font-mono text-sm font-semibold tabular-nums text-white" aria-live="polite">{item.qty}</span>
+          <span className="min-w-8 px-1 text-center font-mono text-sm font-semibold tabular-nums text-white" aria-live="polite">{item.qty}</span>
           <button
             type="button"
             onClick={() => onUpdateQty(item.qty + 1)}
             disabled={atCap}
             aria-label={`Agregar una unidad de ${item.productName}`}
-            className="flex h-[var(--control-h-sm)] w-10 items-center justify-center rounded-r-lg text-lg text-gray-300 transition-colors hover:bg-brand-500/20 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-300"
+            aria-keyshortcuts={active && showKeys ? '+' : undefined}
+            className="press flex h-[var(--control-h-sm)] w-[var(--control-h-sm)] items-center justify-center rounded-r-lg text-lg text-gray-300 transition-colors hover:bg-brand-500/20 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-300"
           >
             +
           </button>
         </div>
+
+        {active && showKeys && <Kbd className="ml-1.5">±</Kbd>}
 
         {atCap && (
           <span className={`ml-2 text-2xs ${productQty > item.stock ? 'text-red-400' : 'text-amber-300'}`}>
@@ -258,14 +317,16 @@ function CartItem({ item, productQty, active, onUpdateQty, onEditPrice, canEditP
           </button>
         )}
 
-        {/* Eliminar */}
+        {/* Eliminar: separado del lápiz para no tocarlo por error */}
         <button
           type="button"
           onClick={onRemove}
-          className="btn-ghost btn-icon btn-sm text-gray-400 hover:text-red-400"
+          aria-keyshortcuts={active && showKeys ? 'Delete' : undefined}
+          className={`btn-ghost btn-sm ml-3 min-w-[var(--control-h-sm)] shrink-0 text-gray-400 hover:text-red-400 ${active && showKeys ? 'px-2' : 'btn-icon'}`}
           aria-label={`Quitar ${item.productName}`}
         >
           <X className="h-4 w-4" />
+          {active && showKeys && <Kbd>Supr</Kbd>}
         </button>
       </div>
     </div>
@@ -285,8 +346,10 @@ function useActiveItem(items) {
     setPrevItems(items)
     if (changed) setTouched(changed.presentationId)
   }
-  if (touched && items.some(i => i.presentationId === touched)) return touched
-  return items[items.length - 1]?.presentationId ?? null
+  const activeId = touched && items.some(i => i.presentationId === touched)
+    ? touched
+    : items[items.length - 1]?.presentationId ?? null
+  return [activeId, setTouched]
 }
 
 // ---- Modal de Edición de Precio ----

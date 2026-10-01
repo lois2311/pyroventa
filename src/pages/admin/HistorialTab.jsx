@@ -187,7 +187,7 @@ export default function HistorialTab({ locations }) {
                           <p className="mt-2 text-xs text-gray-400">Cobrada: {formatDate(inv.paid_at)}</p>
                         )}
                         {inv.edited_at && (
-                          <p className="mt-1 inline-flex items-center gap-1 text-2xs text-yellow-400/80"><Pencil className="h-3 w-3" /> Editada: {formatDate(inv.edited_at)}</p>
+                          <p className="mt-1 inline-flex items-center gap-1 text-2xs text-yellow-400"><Pencil className="h-3 w-3" /> Editada: {formatDate(inv.edited_at)}</p>
                         )}
                         {inv.status === 'refunded' && (
                           <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">

@@ -24,10 +24,20 @@ import { formatCOP }   from '../lib/format.js'
 import EmptyState      from '../components/EmptyState.jsx'
 import ErrorNotice     from '../components/ErrorNotice.jsx'
 import Kbd             from '../components/Kbd.jsx'
+import { isTypingTarget } from '../lib/device.js'
 
 // Enfoca el campo de código visible (desktop y móvil tienen el suyo)
 function focusCodeInput() {
   focusVisible('[data-code-input]')
+}
+// Después de renderizar: el elemento a enfocar puede no existir todavía
+function afterRender(fn) {
+  requestAnimationFrame(() => requestAnimationFrame(fn))
+}
+// Zona de cobro: con el foco aquí funcionan 1/2/3, N/D/B, Enter, F12 y Esc
+// (con el foco en el código, esas teclas se "escribían" y no hacían nada)
+function focusPayArea() {
+  focusVisible('[data-pay-area]')
 }
 function focusVisible(selector) {
   const el = [...document.querySelectorAll(selector)].find(x => x.offsetParent !== null)
@@ -36,11 +46,17 @@ function focusVisible(selector) {
 }
 
 // ---- Campo de código ------------------------------------
+// Busca sola al escribir el 4.º dígito; Enter y "Buscar" siguen funcionando.
 function CodeInput({ id, value, onChange, onSearch, loading }) {
   const inputRef = useRef(null)
   useEffect(() => { inputRef.current?.focus() }, [])
   const handleKey = (e) => {
-    if (e.key === 'Enter' && value.length === 4) onSearch()
+    if (e.key === 'Enter' && value.length === 4) onSearch(value)
+  }
+  const handleChange = (e) => {
+    const next = e.target.value.replace(/\D/g, '').slice(0, 4)
+    onChange(next)
+    if (next.length === 4 && next !== value) onSearch(next)
   }
   return (
     <div className="flex items-stretch gap-2">
@@ -54,14 +70,14 @@ function CodeInput({ id, value, onChange, onSearch, loading }) {
         autoComplete="off"
         maxLength={4}
         value={value}
-        onChange={e => onChange(e.target.value.replace(/\D/g, '').slice(0, 4))}
+        onChange={handleChange}
         onKeyDown={handleKey}
         placeholder="____"
         className="input input-lg min-w-0 flex-1 text-center font-mono text-2xl tracking-[0.5em] indent-[0.5em]"
       />
       <button
         type="button"
-        onClick={onSearch}
+        onClick={() => onSearch(value)}
         disabled={value.length !== 4 || loading}
         className="btn-primary btn-lg shrink-0 px-5"
       >
@@ -80,16 +96,16 @@ function PaidOverlay({ invoice, onDone }) {
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         className="cq bg-surface-300 border border-green-400/30 rounded-lg p-6 sm:p-8 max-w-sm w-full text-center animate-scale-in">
-        <CheckCircle2 className="w-14 h-14 sm:w-16 sm:h-16 text-green-400 mx-auto mb-4" />
+        <CheckCircle2 className="w-14 h-14 sm:w-16 sm:h-16 text-green-400 mx-auto mb-4" aria-hidden="true" />
         <h2 id={titleId} className="font-display font-bold text-xl sm:text-2xl text-green-400 mb-2">¡Cobrado!</h2>
-        <div className="font-mono font-bold text-brand-400 text-3xl sm:text-5xl tracking-[0.2em] mb-2">
+        <div className="font-mono font-bold tabular-nums text-brand-400 text-3xl sm:text-5xl tracking-[0.2em] mb-2">
           {invoice?.code}
         </div>
         <p className="total-display mb-3">{formatCOP(invoice?.total)}</p>
 
         {Number(invoice?.discount) > 0 && (
           <p className="text-xs text-amber-400 mb-2 inline-flex items-center gap-1.5">
-            <Tag className="w-3.5 h-3.5" /> Descuento: <span className="font-mono">−{formatCOP(invoice.discount)}</span>
+            <Tag className="w-3.5 h-3.5" /> Descuento: <span className="font-mono tabular-nums">−{formatCOP(invoice.discount)}</span>
           </p>
         )}
 
@@ -106,7 +122,7 @@ function PaidOverlay({ invoice, onDone }) {
         )}
 
         <div className="mb-5 flex justify-center">
-          <PrintButton invoice={invoice} />
+          <PrintButton invoice={invoice} shortcutKey="p" />
         </div>
 
         {/* data-autofocus: Enter tras cobrar continúa (no reimprime) */}
@@ -119,9 +135,26 @@ function PaidOverlay({ invoice, onDone }) {
 }
 
 // ---- Selector de caja (pantalla completa) ---------------
+// Teclas 1–9 eligen caja (en el orden en pantalla)
 function RegisterGate({ locationId, onSelect }) {
   const registersQ = useApi(locationId ? `/registers?location_id=${locationId}` : null, { initialData: [] })
   const registers = registersQ.data || []
+
+  const keys = useRef(null)
+  keys.current = { registers, onSelect }
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || e.repeat) return
+      if (document.querySelector('[role="dialog"]') || isTypingTarget(e.target)) return
+      const n = Number(e.key)
+      const reg = Number.isInteger(n) && n >= 1 ? keys.current.registers[n - 1] : null
+      if (!reg) return
+      e.preventDefault()
+      keys.current.onSelect(reg)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   if (registersQ.loading) {
     return (
@@ -158,6 +191,7 @@ function RegisterGate({ locationId, onSelect }) {
             Pide a un administrador que las cree en Reportes → Cajas.
           </p>
           <button
+            type="button"
             onClick={() => onSelect(null)}
             className="btn-outline"
           >
@@ -176,12 +210,15 @@ function RegisterGate({ locationId, onSelect }) {
         <p className="text-gray-400 text-sm mb-6">¿Dónde cobras hoy?</p>
 
         <div className="grid grid-cols-2 gap-3">
-          {registers.map(reg => (
+          {registers.map((reg, i) => (
             <button
               key={reg.id}
+              type="button"
               onClick={() => onSelect(reg)}
-              className="card-hover flex min-h-[var(--control-h)] flex-col items-center gap-2 py-5"
+              aria-keyshortcuts={i < 9 ? String(i + 1) : undefined}
+              className="card-hover press relative flex min-h-[var(--control-h)] flex-col items-center gap-2 py-5"
             >
+              {i < 9 && <Kbd className="absolute right-2 top-2">{i + 1}</Kbd>}
               <Monitor className="w-7 h-7 text-gray-400" />
               <span className="font-semibold text-white">{reg.name}</span>
             </button>
@@ -189,8 +226,9 @@ function RegisterGate({ locationId, onSelect }) {
         </div>
 
         <button
+          type="button"
           onClick={() => onSelect(null)}
-          className="text-xs text-gray-400 hover:text-white transition-colors mt-4"
+          className="btn-ghost mt-4 text-gray-400"
         >
           Continuar sin seleccionar caja
         </button>
@@ -232,9 +270,11 @@ export default function CajaPage() {
 
   // Cambiar de método limpia el detalle de transferencia: si no, quedaría
   // colgado un proveedor de una selección anterior y el API lo rechazaría.
-  const selectPayMethod = (m) => {
+  // Con teclado, Efectivo lleva directo a "¿Con cuánto paga?" (Enter ahí cobra).
+  const selectPayMethod = (m, { fromKey = false } = {}) => {
     setPayMethod(m)
     if (m !== 'transfer') setTransferProv(null)
+    if (m === 'cash' && fromKey) afterRender(() => focusVisible('[data-cash-input]'))
   }
 
   const canEdit = can(seller?.role, 'charge')
@@ -317,25 +357,41 @@ export default function CajaPage() {
   }, [location?.id, addPending, removePending, updatePending, fetchPending, invoice?.id])
 
   // ---- Buscar factura por código -------------------------
-  const handleSearch = async () => {
-    if (code.length !== 4 || !location?.id) return
+  // Se llama con el código recién escrito (búsqueda automática al 4.º dígito)
+  const searchSeq = useRef(0)
+  const handleSearch = async (value) => {
+    const c = typeof value === 'string' ? value : code
+    if (c.length !== 4 || !location?.id) return
+    const seq = ++searchSeq.current
     setSearching(true); setNotFound(false); setInvoice(null); setPayMethod(null); setTransferProv(null); setObservations('')
     setDiscountStr(''); setCashReceived('')
     try {
-      const data = await api.get(`/invoices/${code}?location_id=${location.id}`)
+      const data = await api.get(`/invoices/${c}?location_id=${location.id}`)
+      if (seq !== searchSeq.current) return
       setInvoice(data)
       setObservations(data.observations || '')
       setMobileTab('pagar')
+      afterRender(focusPayArea)
     } catch (err) {
-      setNotFound(true)
-      toastError(err.message || 'Factura no encontrada')
-    } finally { setSearching(false) }
+      if (seq !== searchSeq.current) return
+      // "No existe" ya se ve junto al campo; el toast queda para fallas de
+      // red o del servidor, que el mensaje en línea no explica.
+      if (err.offline || !err.status || err.status >= 500) {
+        toastError(err.offline
+          ? 'Sin conexión. No se pudo buscar la factura; intenta de nuevo.'
+          : (err.message || 'No se pudo buscar la factura. Intenta de nuevo.'))
+      } else {
+        setNotFound(true)
+      }
+      afterRender(focusCodeInput) // código seleccionado: se reescribe encima
+    } finally { if (seq === searchSeq.current) setSearching(false) }
   }
 
   const handleSelectPending = (inv) => {
     setCode(inv.code); setInvoice(inv); setPayMethod(null); setTransferProv(null)
     setNotFound(false); setObservations(inv.observations || ''); setMobileTab('pagar')
     setDiscountStr(''); setCashReceived('')
+    afterRender(focusPayArea)
   }
 
   // Total a cobrar con el descuento aplicado
@@ -407,7 +463,9 @@ export default function CajaPage() {
   //   N D B    Nequi / Daviplata / Bancolombia (con Transferencia)
   //   F12      cobra (también Enter, salvo en botones, enlaces y el código)
   //   F6       enfoca el descuento
-  //   Esc      cancela la venta (pide confirmación)
+  //   F7       enfoca cliente / observaciones
+  //   Esc      dentro de un campo: sale a la zona de cobro; fuera: cancela
+  //            la venta (pide confirmación)
   // Los números no actúan mientras se escribe en un campo (descuento, efectivo)
   // ni con un diálogo abierto. El listener lee el estado por ref para no
   // re-suscribirse en cada render.
@@ -422,7 +480,11 @@ export default function CajaPage() {
       const st = shortcuts.current
       if (st.busy || document.querySelector('[role="dialog"]')) return
       const target = e.target instanceof Element ? e.target : null
-      const typing = Boolean(target?.closest('input, textarea, select, [contenteditable="true"]'))
+      // El código lleno (4 dígitos, sin selección) ya no admite más: ahí las
+      // teclas de cobro funcionan aunque el foco no haya salido todavía.
+      const fullCode = target?.matches('[data-code-input]') && target.value.length === 4
+        && target.selectionStart === target.selectionEnd
+      const typing = isTypingTarget(target) && !fullCode
 
       if (e.key === '/' && !typing) { e.preventDefault(); focusCodeInput(); return }
       if (!st.invoice) return
@@ -433,7 +495,9 @@ export default function CajaPage() {
         return
       }
       if (e.key === 'F6') { e.preventDefault(); focusVisible('[data-discount-input]'); return }
-      if (e.key === 'Escape' && !typing && st.canEdit) { e.preventDefault(); st.handleCancel(); return }
+      if (e.key === 'F7') { e.preventDefault(); focusVisible('[data-obs-input]'); return }
+      if (e.key === 'Escape' && typing) { e.preventDefault(); focusPayArea(); return }
+      if (e.key === 'Escape' && st.canEdit) { e.preventDefault(); st.handleCancel(); return }
 
       if (e.key === 'Enter') {
         if (e.repeat || target?.closest('button, a, textarea, select, [data-code-input]')) return
@@ -445,7 +509,7 @@ export default function CajaPage() {
       if (typing) return
 
       const method = METHODS.find(m => m.key === e.key)
-      if (method) { e.preventDefault(); st.selectPayMethod(method.id); return }
+      if (method) { e.preventDefault(); st.selectPayMethod(method.id, { fromKey: true }); return }
       if (st.payMethod === 'transfer') {
         const provider = Object.keys(PROVIDER_KEYS).find(id => PROVIDER_KEYS[id] === e.key.toUpperCase())
         if (provider) { e.preventDefault(); st.setTransferProv(provider) }
@@ -535,7 +599,7 @@ export default function CajaPage() {
         <div className="space-y-4">
           <InvoiceDetail invoice={invoice} productImages={productImages} />
           {invoice.edited_at && (
-            <p className="inline-flex items-center gap-1 text-2xs text-yellow-400/80">
+            <p className="inline-flex items-center gap-1 text-2xs text-yellow-400">
               <Pencil className="h-3 w-3" /> Editada el {new Date(invoice.edited_at).toLocaleString('es-CO')}
             </p>
           )}
@@ -559,8 +623,8 @@ export default function CajaPage() {
       ) : !notFound ? (
         <EmptyState
           icon={Hash}
-          title="Escribe el código de 4 dígitos."
-          description="O toca una factura pendiente."
+          title={register ? `${register.name} lista.` : 'Caja lista.'}
+          description="Escribe el código de 4 dígitos o toca una factura pendiente."
         />
       ) : null}
     </div>
@@ -568,13 +632,19 @@ export default function CajaPage() {
 
   // ---- Cobro: total, ajustes opcionales y método de pago ----------------
   const renderPayForm = (prefix) => (
-    <div className="space-y-5">
+    <div
+      data-pay-area
+      tabIndex={-1}
+      role="group"
+      aria-label={`Cobro de la factura #${invoice.code}`}
+      className="space-y-5 rounded-lg focus:outline-none focus-visible:outline-dashed focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-white/15"
+    >
       <div className="cq rounded-lg border border-white/5 bg-surface-300 p-4 text-center">
         <p className="eyebrow">Total a cobrar</p>
         <p className="total-display mt-2" aria-live="polite">{formatCOP(totalToPay)}</p>
         {discountNum > 0 && !invalidDiscount && (
           <p className="mt-0.5 text-xs text-gray-400">
-            <span className="line-through">{formatCOP(invoice.total)}</span> · descuento {formatCOP(discountNum)}
+            <span className="font-mono tabular-nums line-through">{formatCOP(invoice.total)}</span> · descuento <span className="font-mono tabular-nums">{formatCOP(discountNum)}</span>
           </p>
         )}
         <p className="mt-2 text-xs text-gray-400">
@@ -592,13 +662,13 @@ export default function CajaPage() {
           <label htmlFor={`${prefix}-discount`} className="field-label flex items-center gap-2">Descuento en $ <span className="font-normal">(opcional)</span> <Kbd>F6</Kbd></label>
           <input id={`${prefix}-discount`} data-discount-input aria-keyshortcuts="F6" type="number" inputMode="numeric" min="0" value={discountStr}
             onChange={e => setDiscountStr(e.target.value)}
-            placeholder="0" className="input font-mono" />
+            placeholder="0" className="input text-right font-mono tabular-nums" />
           {invalidDiscount && <p className="mt-1 text-xs text-red-400">No puede superar {formatCOP(invoice.total)}</p>}
         </div>
         <div>
-          <label htmlFor={`${prefix}-obs`} className="field-label">Observaciones <span className="font-normal">(opcional)</span></label>
-          <textarea id={`${prefix}-obs`} value={observations} onChange={e => setObservations(e.target.value)}
-            placeholder="Ej: Se obsequió producto x con autorización del jefe"
+          <label htmlFor={`${prefix}-obs`} className="field-label flex items-center gap-2">Cliente u observaciones <span className="font-normal">(opcional)</span> <Kbd>F7</Kbd></label>
+          <textarea id={`${prefix}-obs`} data-obs-input aria-keyshortcuts="F7" value={observations} onChange={e => setObservations(e.target.value)}
+            placeholder="Ej: Cliente Ana Gómez · se obsequió producto x con autorización"
             rows={2} className="input resize-none" />
         </div>
       </div>

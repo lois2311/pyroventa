@@ -67,7 +67,7 @@ export default function PaymentMethods({
             aria-pressed={selected === m.id}
             aria-keyshortcuts={m.key}
             className={`
-              relative flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border-2 transition-colors duration-150 cursor-pointer min-h-[72px]
+              press relative flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border-2 cursor-pointer min-h-[72px]
               ${selected === m.id
                 ? `${m.bg} border-opacity-100 ring-2 ${m.ring} text-white`
                 : 'bg-surface-300 border-white/5 text-gray-400 hover:border-white/15 hover:text-white'
@@ -85,7 +85,7 @@ export default function PaymentMethods({
       {/* Transferencia: por dónde entró la plata */}
       {selected === 'transfer' && (
         <div className="animate-fade-in">
-          <p id={`${fid}-providers`} className="text-2xs text-gray-400 uppercase tracking-wider mb-1.5">¿Por dónde llegó la transferencia?</p>
+          <p id={`${fid}-providers`} className="eyebrow mb-1.5">¿Por dónde llegó la transferencia?</p>
           <div role="group" aria-labelledby={`${fid}-providers`} className="grid grid-cols-3 gap-2">
             {TRANSFER_PROVIDERS.map(p => (
               <button
@@ -95,7 +95,7 @@ export default function PaymentMethods({
                 aria-pressed={transferProvider === p.id}
                 aria-keyshortcuts={PROVIDER_KEYS[p.id]}
                 className={`
-                  flex min-h-[var(--control-h)] items-center justify-center gap-1.5 px-2 py-2 rounded-lg border-2 text-xs font-medium transition-colors duration-150 cursor-pointer
+                  press flex min-h-[var(--control-h)] items-center justify-center gap-1.5 px-2 py-2 rounded-lg border-2 text-xs font-medium cursor-pointer
                   ${transferProvider === p.id
                     ? 'bg-blue-700 border-blue-500 ring-2 ring-blue-500/30 text-white'
                     : 'bg-surface-300 border-white/5 text-gray-400 hover:border-white/15 hover:text-white'
@@ -113,18 +113,19 @@ export default function PaymentMethods({
       {/* Efectivo: calcular el cambio */}
       {selected === 'cash' && onCashReceived && (
         <div className="cq animate-fade-in">
-          <label htmlFor={`${fid}-cash`} className="block text-2xs text-gray-400 uppercase tracking-wider mb-1">
+          <label htmlFor={`${fid}-cash`} className="eyebrow mb-1 block">
             ¿Con cuánto paga el cliente? (opcional)
           </label>
           <input
             id={`${fid}-cash`}
+            data-cash-input
             type="number"
             inputMode="numeric"
             min="0"
             value={cashReceived}
             onChange={e => onCashReceived(e.target.value)}
             placeholder={String(total)}
-            className="input font-mono"
+            className="input text-right font-mono text-lg tabular-nums"
           />
           {/* Billetes probables: un toque en vez de teclear el monto */}
           <div className="quick-cash mt-2" role="group" aria-label="Montos rápidos">
@@ -136,7 +137,7 @@ export default function PaymentMethods({
                   type="button"
                   onClick={() => onCashReceived(String(amount))}
                   aria-pressed={active}
-                  className={`min-h-[var(--control-h-sm)] whitespace-nowrap rounded-lg border px-1.5 font-mono text-xs font-medium tabular-nums transition-colors
+                  className={`press min-h-[var(--control-h-sm)] whitespace-nowrap rounded-lg border px-1.5 font-mono text-xs font-medium tabular-nums transition-colors
                     ${active
                       ? 'border-green-500/60 bg-green-500/15 text-green-300'
                       : 'border-white/10 bg-surface-300 text-gray-300 hover:border-white/20 hover:text-white'}`}
@@ -152,10 +153,10 @@ export default function PaymentMethods({
                 <span className="text-xs text-green-300 font-medium inline-flex items-center gap-1.5">
                   <Wallet className="w-3.5 h-3.5" /> Cambio a devolver
                 </span>
-                <span className="font-mono font-bold text-green-400 text-2xl">{formatCOP(change)}</span>
+                <span className="font-mono font-bold tabular-nums text-green-400 text-2xl text-right">{formatCOP(change)}</span>
               </div>
             ) : (
-              <p className="text-xs text-red-400 mt-1.5" aria-live="polite">Faltan <span className="font-mono">{formatCOP(-change)}</span>. El efectivo no alcanza.</p>
+              <p className="text-xs text-red-400 mt-1.5" aria-live="polite">Faltan <span className="font-mono tabular-nums">{formatCOP(-change)}</span>. El efectivo no alcanza.</p>
             )
           )}
         </div>
@@ -182,7 +183,7 @@ export default function PaymentMethods({
           ) : (
             <span className="inline-flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
-              Cobrar <span className="font-mono font-bold">{formatCOP(total)}</span>
+              Cobrar <span className="font-mono font-bold tabular-nums">{formatCOP(total)}</span>
               <Kbd className="kbd-on-fill">F12</Kbd>
             </span>
           )}

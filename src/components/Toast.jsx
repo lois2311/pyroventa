@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef } from 'react'
+import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react'
 
 // ---- Context --------------------------------------------
 const ToastContext = createContext(null)
@@ -40,11 +41,13 @@ export function useToast() {
 }
 
 // ---- Componente de toasts --------------------------------
+// Fondo de superficie con borde e ícono del estado (Correcto, Error,
+// Atención, Info): mismo lenguaje que el resto del POS, sin glifos sueltos.
 const STYLES = {
-  success: { bg: 'bg-green-900/90 border-green-500/40',  icon: '✓', text: 'text-green-300' },
-  error:   { bg: 'bg-red-900/90 border-red-500/40',      icon: '✕', text: 'text-red-300'   },
-  warning: { bg: 'bg-yellow-900/90 border-yellow-500/40',icon: '⚠', text: 'text-yellow-300'},
-  info:    { bg: 'bg-surface-200 border-white/10',        icon: 'ℹ', text: 'text-gray-300'  },
+  success: { bg: 'bg-surface-200 border-green-400/40',  Icon: CheckCircle2,  text: 'text-green-400' },
+  error:   { bg: 'bg-surface-200 border-red-400/50',    Icon: XCircle,       text: 'text-red-400'   },
+  warning: { bg: 'bg-surface-200 border-yellow-400/50', Icon: AlertTriangle, text: 'text-yellow-400'},
+  info:    { bg: 'bg-surface-200 border-white/10',      Icon: Info,          text: 'text-blue-400'  },
 }
 
 // El contenedor se monta siempre (aunque esté vacío): una región aria-live
@@ -62,17 +65,17 @@ function ToastContainer({ toasts, onDismiss }) {
         return (
           <div
             key={t.id}
-            className={`${s.bg} border rounded-xl px-4 py-3 flex items-start gap-3 animate-slide-left pointer-events-auto`}
+            className={`${s.bg} border rounded-lg px-4 py-3 flex items-start gap-3 animate-slide-left pointer-events-auto`}
           >
-            <span className={`${s.text} font-bold mt-0.5 shrink-0`}>{s.icon}</span>
-            <span className="text-sm text-white/90 flex-1 leading-snug">{t.message}</span>
+            <s.Icon className={`${s.text} mt-0.5 h-4 w-4 shrink-0`} aria-hidden="true" />
+            <span className="text-sm text-white flex-1 leading-snug">{t.message}</span>
             <button
               type="button"
               onClick={() => onDismiss(t.id)}
               aria-label="Cerrar aviso"
-              className="-my-1 -mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-lg leading-none text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+              className="press -my-2 -mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-surface-50 hover:text-white"
             >
-              ×
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         )

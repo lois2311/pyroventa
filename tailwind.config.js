@@ -248,21 +248,22 @@ export default {
         syne:    ['"Space Grotesk"', 'Arial', 'sans-serif'],
         dm:      ['Figtree', '"Segoe UI"', 'system-ui', 'sans-serif'],
       },
+      // VENDRA: transiciones limpias de 150ms ease-out, sin rebote ni zoom.
+      // El brillo del código late dos veces y se queda quieto (un loop infinito
+      // distrae en una pantalla que el cajero mira todo el día).
       animation: {
-        'fade-in':    'fadeIn 0.2s ease-out',
-        // Sin rebote: cubic-bezier(...,1.275) hacía overshoot (pasa de 1 y
-        // vuelve). ease-out-quart entra limpio, sin elástico.
-        'scale-in':   'scaleIn 0.22s cubic-bezier(0.25, 1, 0.5, 1)',
-        'slide-up':   'slideUp 0.25s ease-out',
-        'slide-left': 'slideLeft 0.25s ease-out',
-        'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
+        'fade-in':    'fadeIn 150ms ease-out',
+        'scale-in':   'scaleIn 150ms ease-out',
+        'slide-up':   'slideUp 150ms ease-out',
+        'slide-left': 'slideLeft 150ms ease-out',
+        'pulse-glow': 'pulseGlow 1.6s ease-in-out 2',
       },
       keyframes: {
         fadeIn:    { from: { opacity: '0' }, to: { opacity: '1' } },
         // 0.96 → 1 en vez de 0.5 → 1: una aparición sutil de panel, no un zoom dramático
-        scaleIn:   { from: { opacity: '0', transform: 'scale(0.96)' }, to: { opacity: '1', transform: 'scale(1)' } },
-        slideUp:   { from: { opacity: '0', transform: 'translateY(12px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
-        slideLeft: { from: { opacity: '0', transform: 'translateX(12px)' }, to: { opacity: '1', transform: 'translateX(0)' } },
+        scaleIn:   { from: { opacity: '0', transform: 'scale(0.98)' }, to: { opacity: '1', transform: 'scale(1)' } },
+        slideUp:   { from: { opacity: '0', transform: 'translateY(8px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        slideLeft: { from: { opacity: '0', transform: 'translateX(8px)' }, to: { opacity: '1', transform: 'translateX(0)' } },
         // Sin sombras: el código recién generado "late" con el borde en Voltaje
         pulseGlow: {
           '0%, 100%': { borderColor: 'rgb(180 232 84 / 1)' },

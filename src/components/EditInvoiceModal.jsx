@@ -217,7 +217,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium text-white">{item.product_name}</p>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="text-2xs text-gray-400">{item.label} · {formatCOP(item.price)} c/u</p>
+                    <p className="text-2xs text-gray-400">{item.label} · <span className="font-mono tabular-nums">{formatCOP(item.price)}</span> c/u</p>
                     {item.is_price_edited && (
                       <span className="rounded border border-amber-500/30 bg-amber-500/20 px-1.5 text-2xs font-medium text-amber-300">
                         Editado (Base: {formatCOP(item.original_price)})

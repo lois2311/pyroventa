@@ -130,11 +130,11 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
         </div>
         <div className="card bg-surface-400 text-center py-3 border-l-2 border-l-yellow-500">
           <p className="font-mono font-bold text-xl text-yellow-400">{lowStockCount}</p>
-          <p className="text-2xs text-yellow-400/80">Stock Bajo (≤ 5)</p>
+          <p className="text-2xs text-yellow-400">Stock Bajo (≤ 5)</p>
         </div>
         <div className="card bg-surface-400 text-center py-3 border-l-2 border-l-red-500">
           <p className="font-mono font-bold text-xl text-red-400">{outOfStockCount}</p>
-          <p className="text-2xs text-red-400/80">Agotados (0)</p>
+          <p className="text-2xs text-red-400">Agotados (0)</p>
         </div>
       </div>
 

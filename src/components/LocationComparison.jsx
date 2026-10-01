@@ -42,7 +42,7 @@ export default function LocationComparison({ data, loading }) {
           <ProgressBar pct={(loc.total_revenue / maxRevenue) * 100} height="md" />
 
           <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pt-3 text-xs text-gray-400">
-            <span>Ticket prom. {formatCOP(loc.avg_ticket)}</span>
+            <span>Ticket prom. <span className="font-mono tabular-nums">{formatCOP(loc.avg_ticket)}</span></span>
             <span className="flex gap-3">
               <span className="flex items-center gap-1" title="Pendientes">
                 <Clock className="h-3.5 w-3.5 text-yellow-400" /> {loc.pending_count}

@@ -12,7 +12,7 @@ export default function InvoiceDetail({ invoice, productImages = {} }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-gray-400 uppercase tracking-wider">Factura</p>
-          <span className="font-mono font-bold text-4xl text-white tracking-widest">
+          <span className="font-mono font-bold tabular-nums text-4xl text-white tracking-widest">
             #{invoice.code}
           </span>
         </div>
@@ -35,7 +35,7 @@ export default function InvoiceDetail({ invoice, productImages = {} }) {
       <div className="border border-white/5 rounded-lg overflow-hidden">
         <div className="flex text-xs text-gray-400 px-3 py-2 border-b border-white/5 bg-surface-400">
           <span className="flex-1">Producto</span>
-          <span className="w-10 text-center">Cant</span>
+          <span className="w-12 text-right">Cant</span>
           <span className="w-24 text-right">Valor</span>
         </div>
         {items.map((item, idx) => (
@@ -50,9 +50,9 @@ export default function InvoiceDetail({ invoice, productImages = {} }) {
                 {item.product_name || item.productName}
               </p>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <p className="text-xs text-gray-400">{item.label} · <span className="font-mono">{formatCOP(item.price)}</span></p>
+                <p className="text-xs text-gray-400">{item.label} · <span className="font-mono tabular-nums">{formatCOP(item.price)}</span></p>
                 {item.is_price_edited && (
-                  <span className="text-2xs bg-amber-500/20 text-amber-300 font-medium px-1.5 py-0.2 rounded border border-amber-500/30">
+                  <span className="text-2xs bg-amber-500/20 text-amber-300 font-medium px-1.5 py-px rounded border border-amber-500/30">
                     Editado (Base: {formatCOP(item.original_price)})
                   </span>
                 )}
@@ -63,8 +63,8 @@ export default function InvoiceDetail({ invoice, productImages = {} }) {
                 </p>
               )}
             </div>
-            <span className="w-10 text-center font-mono text-sm text-gray-400">×{item.qty}</span>
-            <span className="w-24 text-right text-sm font-mono font-semibold text-white">
+            <span className="w-12 text-right font-mono tabular-nums text-sm text-gray-300">×{item.qty}</span>
+            <span className="w-24 text-right text-sm font-mono tabular-nums font-semibold text-white">
               {formatCOP(item.subtotal)}
             </span>
           </div>
@@ -74,7 +74,7 @@ export default function InvoiceDetail({ invoice, productImages = {} }) {
       {/* Total */}
       <div className="flex items-center justify-between border-t border-white/5 pt-3">
         <span className="text-gray-400">Total</span>
-        <span className="font-mono font-bold text-3xl text-white">{formatCOP(invoice.total)}</span>
+        <span className="font-mono font-bold tabular-nums text-3xl text-white">{formatCOP(invoice.total)}</span>
       </div>
     </div>
   )

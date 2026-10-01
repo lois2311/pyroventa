@@ -39,7 +39,7 @@ export default function SellerStats({ data, loading, from, to, locationId }) {
                   <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-white">{formatCOP(s.total)}</p>
                 </div>
                 <p className="mt-0.5 text-2xs text-gray-400">
-                  {s.count} factura{s.count !== 1 ? 's' : ''} · Ticket prom. {formatCOP(s.avg_ticket)}
+                  {s.count} factura{s.count !== 1 ? 's' : ''} · Ticket prom. <span className="font-mono tabular-nums">{formatCOP(s.avg_ticket)}</span>
                 </p>
                 <div className="mt-2">
                   <ProgressBar pct={(s.total / maxRevenue) * 100} height="xs" />

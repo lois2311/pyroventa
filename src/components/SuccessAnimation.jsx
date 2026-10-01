@@ -6,9 +6,9 @@ export default function SuccessAnimation({ invoice, onDone }) {
   const titleId = useId()
   const panelRef = useModalA11y(onDone)
 
-  // Auto-dismiss después de 2.5s
+  // Se cierra sola a los 2 s (Enter o un toque la saltan)
   useEffect(() => {
-    const t = setTimeout(onDone, 2500)
+    const t = setTimeout(onDone, 2000)
     return () => clearTimeout(t)
   }, [onDone])
 
@@ -24,12 +24,12 @@ export default function SuccessAnimation({ invoice, onDone }) {
       />
       <div
         ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="relative bg-surface-300 border border-green-500/30 rounded-2xl p-8 max-w-xs w-full text-center animate-scale-in"
+        className="relative bg-surface-300 border border-green-500/30 rounded-lg p-8 max-w-xs w-full text-center animate-scale-in"
       >
         {/* Checkmark SVG animado */}
         <div className="flex justify-center mb-4">
           <svg
-            className="w-20 h-20 text-green-600"
+            className="w-20 h-20 text-green-400"
             viewBox="0 0 52 52"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -57,15 +57,15 @@ export default function SuccessAnimation({ invoice, onDone }) {
         {/* Código grande */}
         {invoice?.code && (
           <div className="my-3">
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Código</p>
-            <div className="font-mono font-bold text-brand-400 text-5xl tracking-[0.2em]">
+            <p className="eyebrow mb-1">Código</p>
+            <div className="font-mono font-bold tabular-nums text-brand-400 text-5xl tracking-[0.2em]">
               {invoice.code}
             </div>
           </div>
         )}
 
         {invoice?.total && (
-          <p className="text-white font-semibold text-lg mb-4">{formatCOP(invoice.total)}</p>
+          <p className="font-mono font-bold tabular-nums text-white text-xl mb-4">{formatCOP(invoice.total)}</p>
         )}
 
         {/* after:inset-0 estira el área del botón a toda la tarjeta: tocar
@@ -74,9 +74,9 @@ export default function SuccessAnimation({ invoice, onDone }) {
           type="button"
           onClick={onDone}
           data-autofocus
-          className="text-xs text-gray-400 after:absolute after:inset-0 after:rounded-2xl after:content-[''] focus-visible:text-white"
+          className="text-xs text-gray-400 after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:text-white"
         >
-          Toca para continuar
+          Toca o pulsa Enter para continuar
         </button>
       </div>
     </div>

@@ -11,8 +11,8 @@ export default function PendingList({ invoices, selectedId, onSelect }) {
   if (!invoices.length) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-400">
-        <CheckCircle2 className="w-8 h-8 mb-2" />
-        <p className="text-sm font-medium">Nada pendiente.</p>
+        <CheckCircle2 className="w-8 h-8 mb-2" aria-hidden="true" />
+        <p className="text-sm font-medium text-gray-200">Nada pendiente.</p>
         <p className="text-xs mt-1">Las facturas nuevas llegan aquí solas.</p>
       </div>
     )
@@ -30,7 +30,7 @@ export default function PendingList({ invoices, selectedId, onSelect }) {
             onClick={() => onSelect(inv)}
             aria-current={isSelected ? 'true' : undefined}
             className={`
-              w-full text-left p-3 rounded-lg border transition-colors duration-100
+              press w-full min-h-[var(--control-h)] text-left p-3 rounded-lg border
               ${isSelected
                 ? 'row-active bg-brand-500/10 border-brand-500/40'
                 : 'bg-surface-300 border-white/5 hover:border-white/15 hover:bg-surface-200'
@@ -39,7 +39,7 @@ export default function PendingList({ invoices, selectedId, onSelect }) {
           >
             {/* Código + urgencia */}
             <div className="flex items-center justify-between mb-1.5">
-              <span className="font-mono font-bold text-xl text-white tracking-widest">
+              <span className="font-mono font-bold tabular-nums text-xl text-white tracking-widest">
                 {inv.code}
               </span>
               <span className={`text-xs px-2 py-0.5 rounded-lg border font-medium ${URGENCY_STYLES[urgency]}`}>
@@ -52,7 +52,7 @@ export default function PendingList({ invoices, selectedId, onSelect }) {
               <span className="min-w-0 truncate text-gray-400">
                 {inv.seller_name || 'Sin vendedor'}
               </span>
-              <span className="font-semibold font-mono text-brand-400">
+              <span className="shrink-0 text-right font-semibold font-mono tabular-nums text-brand-400">
                 {formatCOP(inv.total)}
               </span>
             </div>

@@ -301,16 +301,33 @@ Convención de ids: el campo es `${fid}-${campo}` y su mensaje `${fid}-${campo}-
 
 ### 9.1 Atajos
 
+La tecla `?` abre la hoja de atajos (`ShortcutsHelp`), con la sección de la pantalla actual primero.
+
 | Vista | Tecla | Acción |
 |---|---|---|
-| Vender | `/` | Enfoca el buscador |
-| Caja | `/` | Enfoca el código de factura |
-| Caja | `1` `2` `3` | Efectivo · Transferencia · Datáfono |
+| Todas | `F1` `F2` `F3` `F4` | Vender · Inventario · Corte · Reportes |
+| Todas | `?` | Hoja de atajos |
+| Vender | `/` | Enfoca el escáner (`> escanea o escribe`) |
+| Vender (escáner) | `Enter` | Agrega la primera presentación si la búsqueda da un solo producto (o un nombre idéntico) y limpia el campo |
+| Vender (escáner con texto) | `↓` | Baja a la primera presentación del catálogo filtrado |
+| Vender (fuera de campos o escáner vacío) | `+` `−` · `Supr` · `↑` `↓` | Cantidad de la línea activa · quitarla · cambiar de línea |
+| Vender | `F8` | Pausa la venta (localStorage, por punto) o, con el ticket vacío, retoma la última |
+| Vender | `F12` · `Esc` | Generar factura · cancelar la venta (con confirmación) |
+| Vender (código en pantalla) | `Enter` · `Esc` | Nueva venta; el foco vuelve al escáner |
+| Caja (elegir caja) | `1`–`9` | Elige la caja en el orden en pantalla |
+| Caja | `/` | Enfoca el código de factura; al 4.º dígito busca solo |
+| Caja | `1` `2` `3` | Efectivo · Transferencia · Datáfono (Efectivo enfoca "¿Con cuánto paga?") |
 | Caja (transferencia) | `N` `D` `B` | Nequi · Daviplata · Bancolombia |
-| Caja | `Enter` | Cobra, con las mismas reglas que el botón (no con efectivo insuficiente ni sin proveedor); desde el campo "¿Con cuánto paga?" también |
-| "¡Cobrado!" | `Enter` | Continúa y deja el foco en el código para la siguiente factura |
+| Caja | `F6` · `F7` | Enfoca descuento · cliente u observaciones |
+| Caja | `Enter` / `F12` | Cobra, con las mismas reglas que el botón (no con efectivo insuficiente ni sin proveedor); desde el campo "¿Con cuánto paga?" también |
+| Caja | `Esc` | Dentro de un campo: sale a la zona de cobro. Fuera: cancela la venta (con confirmación) |
+| "¡Cobrado!" | `P` · `Enter` | Imprime el recibo (método automático) · continúa con el foco en el código |
 
-Reglas: los atajos de una letra no actúan mientras se escribe en un campo, con un diálogo abierto ni con Ctrl/Alt/⌘; Enter no actúa sobre botones ni enlaces (ellos ya responden a Enter) ni se repite al mantenerlo presionado. Cada control lleva `aria-keyshortcuts` y un `<Kbd>` visible solo con puntero fino.
+Reglas: los atajos de una letra no actúan mientras se escribe en un campo, con un diálogo abierto ni con Ctrl/Alt/⌘; Enter no actúa sobre botones ni enlaces (ellos ya responden a Enter) ni se repite al mantenerlo presionado. Cada control lleva `aria-keyshortcuts` y un `<Kbd>` visible cuando el equipo tiene teclado o mouse (`any-pointer: fine`).
+
+**Foco.** Tras encontrar una factura, el foco pasa a la zona de cobro (`[data-pay-area]`), donde funcionan `1 2 3`, `N D B`, `Enter` y `Esc`. En Vender, con teclado o mouse, el foco vuelve al escáner después de agregar con un clic, cerrar el editor de precio, pausar/retomar y empezar una venta nueva; en pantallas solo táctiles no (abriría el teclado en pantalla).
+
+**Toque.** Toda acción mide 48px (`--control-h`); las secundarias de filas densas (`--control-h-sm`) miden 40px solo si no hay pantalla táctil (`any-pointer: coarse` las sube a 48px, también en cajas táctiles con teclado). Los botones dan respuesta al presionar con `.press` / `.btn` (escala 0.98, 150ms).
 
 ### 9.2 Montos rápidos de efectivo
 

@@ -158,6 +158,9 @@ export const useCartStore = create(
 
       clear: () => set({ items: [] }),
 
+      /** Vuelve a poner un ticket guardado (venta en pausa, F8) tal como estaba. */
+      restore: (items) => set({ items: Array.isArray(items) ? items : [] }),
+
       total: () => get().items.reduce((sum, i) => sum + i.subtotal, 0),
       count: () => get().items.reduce((sum, i) => sum + i.qty, 0),
     }),

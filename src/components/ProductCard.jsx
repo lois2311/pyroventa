@@ -4,8 +4,10 @@ import { useAuthStore } from '../store/authStore.js'
 import { formatCOP }    from '../lib/format.js'
 import { useToast }     from './Toast.jsx'
 import ProductImage     from './ProductImage.jsx'
+import { buildCartItem, activePresentations, stockWarning } from '../lib/cartItem.js'
 
-export default function ProductCard({ product }) {
+/** `onAdded(event)`: después de agregar (VendedorPage devuelve el foco al escáner). */
+export default function ProductCard({ product, onAdded }) {
   const addItem = useCartStore(s => s.addItem)
   const items   = useCartStore(s => s.items)
   const tenant  = useAuthStore(s => s.tenant)
@@ -20,25 +22,13 @@ export default function ProductCard({ product }) {
   const outOfStock = hasInventory && stockQty <= 0
   const atCap      = hasInventory && !outOfStock && inCart >= stockQty
 
-  const presentations = (product.presentations || []).filter(p => p.active !== false)
+  const presentations = activePresentations(product)
   if (!presentations.length) return null
 
-  const handleAdd = (pres) => {
-    const added = addItem({
-      presentationId:   pres.id,
-      productId:        product.id,
-      productName:      product.name,
-      label:            pres.label,
-      price:            pres.price,
-      isLocationPrice:  !!pres.is_differential,
-      companyPrice:     pres.is_differential ? pres.base_price : undefined,
-      stock:            hasInventory ? stockQty : null,
-    })
-    if (!added) {
-      warn(stockQty <= 0
-        ? `Sin existencia. Quedan 0 de ${product.name}.`
-        : `Quedan ${stockQty} de ${product.name} y ya están en el ticket.`)
-    }
+  const handleAdd = (pres, e) => {
+    const added = addItem(buildCartItem(product, pres, hasInventory))
+    if (!added) warn(stockWarning(product))
+    onAdded?.(e)
   }
 
   // Cantidad real en el carrito, no solo si está o no — un cajero agregando
@@ -96,14 +86,14 @@ export default function ProductCard({ product }) {
             <button
               key={pres.id}
               type="button"
-              onClick={() => handleAdd(pres)}
+              onClick={(e) => handleAdd(pres, e)}
+              data-pres-button
               disabled={outOfStock}
               aria-disabled={atCap || undefined}
               className={`
-                w-full min-h-[var(--control-h)] flex items-center justify-between px-3 py-1.5 rounded-lg text-sm
-                border transition-all duration-100
+                press w-full min-h-[var(--control-h)] flex items-center justify-between px-3 py-1.5 rounded-lg text-sm border
                 ${outOfStock
-                  ? 'cursor-not-allowed border-white/5 bg-surface-400/60 text-gray-500'
+                  ? 'cursor-not-allowed border-white/5 bg-surface-400/60 text-gray-400 opacity-60'
                   : active
                   ? 'cursor-pointer bg-brand-500/15 border-brand-500/60 text-brand-300'
                   : 'cursor-pointer bg-surface-400 border-white/5 text-gray-300 hover:bg-surface-200 hover:border-white/10 hover:text-white'
@@ -122,11 +112,11 @@ export default function ProductCard({ product }) {
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 {pres.is_differential && (
-                  <span className="text-2xs text-gray-400 line-through font-mono">
+                  <span className="text-2xs text-gray-400 line-through font-mono tabular-nums">
                     {formatCOP(pres.base_price)}
                   </span>
                 )}
-                <span className={`font-semibold font-mono text-xs ${pres.is_differential ? 'text-brand-300' : ''}`}>
+                <span className={`font-semibold font-mono tabular-nums text-xs text-right ${pres.is_differential ? 'text-brand-300' : ''}`}>
                   {formatCOP(pres.price)}
                 </span>
                 <span className={`

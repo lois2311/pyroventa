@@ -22,7 +22,7 @@ function ExpectedRow({ label, value, strong }) {
   return (
     <div className="flex justify-between text-sm">
       <span className={strong ? 'text-white font-medium' : 'text-gray-400'}>{label}</span>
-      <span className={`font-mono ${strong ? 'text-white font-bold' : 'text-gray-300'}`}>{value}</span>
+      <span className={`text-right font-mono tabular-nums ${strong ? 'text-white font-bold' : 'text-gray-300'}`}>{value}</span>
     </div>
   )
 }
