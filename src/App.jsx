@@ -8,6 +8,7 @@ import SuperLoginPage from './pages/SuperLoginPage.jsx'
 import { ToastProvider } from './components/Toast.jsx'
 import { ConfirmProvider } from './components/ConfirmDialog.jsx'
 import NetworkBanner from './components/NetworkBanner.jsx'
+import UpdateBanner from './components/UpdateBanner.jsx'
 import LicenseBlock from './components/LicenseBlock.jsx'
 import VendraLogo from './components/VendraLogo.jsx'
 import { useTheme } from './lib/theme.js'
@@ -64,6 +65,7 @@ export default function App() {
       <ConfirmProvider>
         <CompactViewportHint />
         <NetworkBanner />
+        <UpdateBanner />
         <LicenseBlock />
         <Suspense fallback={<PageLoader />}>
           <Routes>

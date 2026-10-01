@@ -119,11 +119,20 @@ async function request(method, path, body, options = {}) {
   throw lastError
 }
 
+// Escrituras en curso (crear factura, cobrar, guardar…). appUpdate.js no
+// recarga la app para aplicar una versión nueva mientras haya alguna.
+let writesInFlight = 0
+export const pendingWrites = () => writesInFlight
+async function write(method, path, body, opts) {
+  writesInFlight++
+  try { return await request(method, path, body, opts) } finally { writesInFlight-- }
+}
+
 export const api = {
   get:    (path, opts)        => request('GET',    path, undefined, opts),
-  post:   (path, body, opts)  => request('POST',   path, body, opts),
-  put:    (path, body, opts)  => request('PUT',    path, body, opts),
-  delete: (path, opts)        => request('DELETE', path, undefined, opts),
+  post:   (path, body, opts)  => write('POST',     path, body, opts),
+  put:    (path, body, opts)  => write('PUT',      path, body, opts),
+  delete: (path, opts)        => write('DELETE',   path, undefined, opts),
 }
 
 // ---- Caché de productos (TTL 1 hora, stale-while-revalidate) ----

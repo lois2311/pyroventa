@@ -7,8 +7,17 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // 'autoUpdate': el service worker nuevo se activa apenas se instala
+      // (también en los equipos que tienen la versión anterior). Cuándo
+      // recarga cada pantalla lo decide src/lib/appUpdate.js, que además
+      // busca versiones nuevas cada minuto y registra el SW con
+      // workbox-window (por eso no se inyecta el script del plugin).
       registerType: 'autoUpdate',
+      injectRegister: false,
       workbox: {
+        // Activación inmediata en todos los equipos (ver src/lib/appUpdate.js)
+        skipWaiting: true,
+        clientsClaim: true,
         // Cachear todos los assets estáticos…
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // …menos las librerías pesadas de funciones de administración que no
