@@ -2,8 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, Lock } from 'lucide-react'
 import { superApi } from '../lib/superApi.js'
+import VendraLogo from '../components/VendraLogo.jsx'
+import { useTheme } from '../lib/theme.js'
 
 export default function SuperLoginPage() {
+  const theme = useTheme()
   const navigate = useNavigate()
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
@@ -28,14 +31,13 @@ export default function SuperLoginPage() {
     <div className="flex min-h-[100dvh] items-center justify-center bg-surface-600 px-gutter py-10">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-500/15 border border-brand-500/30 mb-3">
-            <Lock className="w-8 h-8 text-brand-500" />
-          </div>
-          <h1 className="font-syne text-2xl font-bold text-white">PyroVenta</h1>
-          <p className="text-gray-400 text-sm mt-1">Panel de plataforma</p>
+          <h1 className="flex justify-center">
+            <VendraLogo variant="horizontal" size="md" theme={theme} title="VENDRA POS" />
+          </h1>
+          <p className="mt-3 inline-flex items-center gap-1.5 text-gray-400 text-sm"><Lock className="h-3.5 w-3.5" aria-hidden="true" /> Panel de plataforma</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card bg-surface-300 border-white/8 p-6 space-y-4 shadow-2xl shadow-black/40 sm:p-8">
+        <form onSubmit={handleSubmit} className="card bg-surface-300 border-white/8 p-6 space-y-4 sm:p-8">
           <div>
             <label htmlFor="super-email" className="field-label">Email</label>
             <input

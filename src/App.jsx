@@ -1,6 +1,5 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { Flame } from 'lucide-react'
 import { useAuthStore } from './store/authStore.js'
 import { can } from '../api/_lib/roles.js'
 import LoginPage    from './pages/LoginPage.jsx'
@@ -10,6 +9,8 @@ import { ToastProvider } from './components/Toast.jsx'
 import { ConfirmProvider } from './components/ConfirmDialog.jsx'
 import NetworkBanner from './components/NetworkBanner.jsx'
 import LicenseBlock from './components/LicenseBlock.jsx'
+import VendraLogo from './components/VendraLogo.jsx'
+import { useTheme } from './lib/theme.js'
 
 // Cada pantalla carga aparte: el login no descarga el POS, y Vender no descarga
 // Caja (que trae el cliente de Supabase Realtime) ni Administración (Recharts,
@@ -38,19 +39,19 @@ function CompactViewportHint() {
       className="hidden fixed bottom-3 left-3 right-3 z-[1100] rounded-xl border border-amber-500/40 bg-amber-900/80 backdrop-blur px-3 py-2 text-center"
     >
       <p className="text-amber-200 text-xs">
-        Vista compacta activa. Para una experiencia optima, usa un ancho de al menos <strong>360px</strong>.
+        Pantalla muy angosta. Gira el equipo o usa al menos <strong>360px</strong> de ancho.
       </p>
     </div>
   )
 }
 
-// ---- Carga de una vista diferida ----------------------------
+// ---- Carga de una vista diferida (pantalla de carga VENDRA) ----
+// Uno de los pocos lugares donde va el respaldo "by flightdev".
 function PageLoader() {
+  const theme = useTheme()
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center" role="status" aria-live="polite">
-      <span className="flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl border border-brand-500/30 bg-brand-500/15">
-        <Flame className="h-6 w-6 text-brand-500" />
-      </span>
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center" role="status" aria-live="polite">
+      <VendraLogo variant="endorsement" size="lg" theme={theme} className="animate-pulse" />
       <span className="sr-only">Cargando…</span>
     </div>
   )

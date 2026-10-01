@@ -53,7 +53,7 @@ export default function PaymentMethods({
 
   return (
     <div className="space-y-3 animate-fade-in">
-      <p id={`${fid}-methods`} className="text-sm text-gray-400 font-medium">Método de pago</p>
+      <p id={`${fid}-methods`} className="eyebrow">Forma de pago</p>
 
       {/* Botones de método */}
       <div role="group" aria-labelledby={`${fid}-methods`} className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -67,9 +67,9 @@ export default function PaymentMethods({
             aria-pressed={selected === m.id}
             aria-keyshortcuts={m.key}
             className={`
-              relative flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-xl border-2 transition-all duration-150 cursor-pointer min-h-[72px]
+              relative flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border-2 transition-colors duration-150 cursor-pointer min-h-[72px]
               ${selected === m.id
-                ? `${m.bg} border-opacity-100 ring-2 ${m.ring} text-white scale-[1.02]`
+                ? `${m.bg} border-opacity-100 ring-2 ${m.ring} text-white`
                 : 'bg-surface-300 border-white/5 text-gray-400 hover:border-white/15 hover:text-white'
               }
             `}
@@ -95,7 +95,7 @@ export default function PaymentMethods({
                 aria-pressed={transferProvider === p.id}
                 aria-keyshortcuts={PROVIDER_KEYS[p.id]}
                 className={`
-                  flex min-h-[var(--control-h)] items-center justify-center gap-1.5 px-2 py-2 rounded-lg border-2 text-xs font-medium transition-all duration-150 cursor-pointer
+                  flex min-h-[var(--control-h)] items-center justify-center gap-1.5 px-2 py-2 rounded-lg border-2 text-xs font-medium transition-colors duration-150 cursor-pointer
                   ${transferProvider === p.id
                     ? 'bg-blue-700 border-blue-500 ring-2 ring-blue-500/30 text-white'
                     : 'bg-surface-300 border-white/5 text-gray-400 hover:border-white/15 hover:text-white'
@@ -152,10 +152,10 @@ export default function PaymentMethods({
                 <span className="text-xs text-green-300 font-medium inline-flex items-center gap-1.5">
                   <Wallet className="w-3.5 h-3.5" /> Cambio a devolver
                 </span>
-                <span className="font-mono font-bold text-green-400 text-lg">{formatCOP(change)}</span>
+                <span className="font-mono font-bold text-green-400 text-2xl">{formatCOP(change)}</span>
               </div>
             ) : (
-              <p className="text-xs text-red-400 mt-1.5" aria-live="polite">Faltan {formatCOP(-change)} — el efectivo no alcanza</p>
+              <p className="text-xs text-red-400 mt-1.5" aria-live="polite">Faltan <span className="font-mono">{formatCOP(-change)}</span>. El efectivo no alcanza.</p>
             )
           )}
         </div>
@@ -167,8 +167,8 @@ export default function PaymentMethods({
           type="button"
           onClick={onConfirm}
           disabled={loading || insufficientCash || missingProvider}
-          aria-keyshortcuts="Enter"
-          className="btn btn-success btn-lg w-full animate-slide-up text-base disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-keyshortcuts="F12 Enter"
+          className="btn-primary btn-lg w-full animate-slide-up text-base disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {missingProvider ? (
             <span className="inline-flex items-center gap-2">
@@ -177,13 +177,13 @@ export default function PaymentMethods({
           ) : loading ? (
             <span className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Procesando...
+              Cobrando…
             </span>
           ) : (
             <span className="inline-flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
-              Cobrar {formatCOP(total)}
-              <Kbd className="border-white/30 bg-black/20 text-white/80">Enter</Kbd>
+              Cobrar <span className="font-mono font-bold">{formatCOP(total)}</span>
+              <Kbd className="kbd-on-fill">F12</Kbd>
             </span>
           )}
         </button>

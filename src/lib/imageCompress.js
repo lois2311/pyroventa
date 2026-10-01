@@ -1,5 +1,5 @@
 // =====================================================
-// PyroVenta — Compresión de fotos de producto en el browser
+// VENDRA POS — Compresión de fotos de producto en el browser
 // Redimensiona a máx 800px y convierte a WebP (fallback JPEG)
 // antes de subirlas al API como data URL base64.
 // =====================================================

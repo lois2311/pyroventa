@@ -8,7 +8,7 @@ import Modal from './Modal.jsx'
 import ErrorNotice from './ErrorNotice.jsx'
 import FieldError from './FieldError.jsx'
 
-// Diferencia con color: verde = cuadra, ámbar = sobra, rojo = falta
+// Diferencia con color: Correcto = cuadra, Atención = sobra, Error = falta
 function DiffAmount({ value, className = '' }) {
   const cls = value === 0 ? 'text-green-400' : value > 0 ? 'text-amber-400' : 'text-red-400'
   return (
@@ -68,19 +68,24 @@ export default function CloseRegisterModal({ register, location, onClose }) {
         notes:         notes.trim() || undefined,
       })
       setCreated(data)
-      toastSuccess('Cierre de caja registrado')
+      toastSuccess('Corte guardado.')
     } catch (err) {
-      setError(err.message || 'Error al cerrar la caja')
+      setError(err.message || 'No se pudo guardar el corte. Intenta de nuevo.')
     } finally {
       setSaving(false)
     }
   }
 
   const showForm = summary && !closure
+  // Lo vendido en el día por todas las formas de pago (para el mensaje final)
+  const soldToday = closure
+    ? Number(closure.expected_cash || 0) + Number(closure.expected_transfer || 0) + Number(closure.expected_card || 0)
+    : 0
+  const diff = Number(closure?.difference || 0)
 
   return (
     <Modal
-      title="Cierre de caja"
+      title="Corte de caja"
       description={`${register?.name || 'Sin caja'} · ${location?.name} · ${summary?.date || 'hoy'}`}
       icon={Receipt}
       onClose={onClose}
@@ -89,7 +94,7 @@ export default function CloseRegisterModal({ register, location, onClose }) {
       footer={showForm ? <>
         <button type="button" onClick={onClose} className="btn btn-ghost">Cancelar</button>
         <button type="submit" disabled={saving} className="btn btn-primary">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Registrar cierre'}
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar corte'}
         </button>
       </> : closure ? (
         <button type="button" onClick={onClose} className="btn btn-primary" data-autofocus>Listo</button>
@@ -102,16 +107,18 @@ export default function CloseRegisterModal({ register, location, onClose }) {
       ) : closure ? (
         /* ---- Resultado del cierre (o cierre ya existente) ---- */
         <>
-          <div role="status" className={`card py-5 text-center ${Number(closure.difference) === 0 ? 'border-green-500/30 bg-green-500/10' : 'border-amber-500/30 bg-surface-400'}`}>
-            {Number(closure.difference) === 0
+          <div role="status" className={`card py-5 text-center ${diff === 0 ? 'border-green-400/30 bg-green-400/10' : diff > 0 ? 'border-amber-400/30 bg-surface-400' : 'border-red-400/30 bg-surface-400'}`}>
+            {diff === 0
               ? <CheckCircle2 className="mx-auto mb-2 h-10 w-10 text-green-400" />
-              : <AlertTriangle className="mx-auto mb-2 h-10 w-10 text-amber-400" />}
-            <p className="mb-1 font-syne text-lg font-bold text-white">
-              {Number(closure.difference) === 0 ? '¡Caja cuadrada!' : Number(closure.difference) > 0 ? 'Sobra efectivo' : 'Falta efectivo'}
+              : <AlertTriangle className={`mx-auto mb-2 h-10 w-10 ${diff > 0 ? 'text-amber-400' : 'text-red-400'}`} />}
+            <p className="mb-1 font-display text-lg font-bold text-white">
+              {diff === 0
+                ? <>Caja cuadrada. Vendiste <span className="font-mono">{formatCOP(soldToday)}</span> hoy.</>
+                : diff > 0 ? 'Sobra efectivo en caja.' : 'Falta efectivo en caja.'}
             </p>
-            <DiffAmount value={Number(closure.difference)} className="text-2xl" />
+            {diff !== 0 && <DiffAmount value={diff} className="text-3xl" />}
           </div>
-          <div className="space-y-1.5 rounded-xl bg-surface-400 p-3">
+          <div className="space-y-1.5 rounded-lg bg-surface-400 p-3">
             <ExpectedRow label={`Facturas cobradas (${closure.invoice_count})`} value="" />
             <ExpectedRow label="Efectivo esperado" value={formatCOP(closure.expected_cash)} />
             <ExpectedRow label="Efectivo contado" value={formatCOP(closure.declared_cash)} strong />
@@ -130,7 +137,7 @@ export default function CloseRegisterModal({ register, location, onClose }) {
       ) : summary && (
         /* ---- Formulario de cierre ---- */
         <>
-          <div className="space-y-1.5 rounded-xl bg-surface-400 p-3">
+          <div className="space-y-1.5 rounded-lg bg-surface-400 p-3">
             <p className="mb-1 text-2xs uppercase tracking-wider text-gray-400">Según el sistema (hoy)</p>
             <ExpectedRow label="Facturas cobradas" value={String(summary.invoice_count)} />
             <ExpectedRow label="Efectivo esperado" value={formatCOP(summary.expected_cash)} strong />

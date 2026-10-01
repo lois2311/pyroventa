@@ -1,3 +1,8 @@
+/* Fuentes y tokens VENDRA antes de las directivas de Tailwind (los @import
+   tienen que ir primero). Referencia: docs/VENDRA_BRAND_SYSTEM.md */
+@import './fonts.css';
+@import './vendra-tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,33 +12,43 @@
      --gutter: margen lateral fluido. clamp() evita saltos entre breakpoints:
        16px en un teléfono de 390px, ~24px en tablet, 32px desde ~1200px.
      --control-h: altura única para inputs, selects y botones, así una barra
-       de filtros queda alineada. Con puntero grueso (dedo) sube a 44px, el
-       mínimo táctil de Apple HIG / WCAG 2.5.5; con mouse queda en 40px y
-       el escritorio no se ve inflado. */
+       de filtros queda alineada. VENDRA: 48px mínimo para toda acción
+       (pantallas táctiles de caja). --control-h-sm (acciones secundarias
+       dentro de filas densas) es 40px con mouse y sube a 48px con dedo.
+     --pv-accent-line: línea vertical de la fila activa (Voltaje). */
   :root {
     color-scheme: dark; /* íconos de <input type="date">, selects y scrollbars nativos en oscuro */
-    --pv-focus: 249 115 22;       /* brand-500 */
-    --pv-scroll-track: 26 26 26;
-    --pv-scroll-thumb: 58 58 58;
+    --pv-focus: 180 232 84;       /* Voltaje */
+    --pv-accent-line: 180 232 84; /* Voltaje */
+    --pv-total: 180 232 84;       /* total de venta: Voltaje (12.8:1 sobre Noche) */
+    --pv-scroll-track: 16 36 63;  /* Superficie */
+    --pv-scroll-thumb: 45 62 94;
     --gutter: clamp(1rem, 0.5rem + 2vw, 2rem);
-    --control-h: 2.5rem;
-    --control-h-sm: 2rem;
+    --control-h: 3rem;
+    --control-h-sm: 2.5rem;
     --topbar-h: 3.5rem;
   }
   @media (pointer: coarse) {
     :root {
-      --control-h: 2.75rem;
-      --control-h-sm: 2.5rem;
+      --control-h-sm: 3rem;
     }
   }
+  /* Subárbol forzado a oscuro dentro del tema claro: el total vuelve a Voltaje */
+  [data-theme="dark"] {
+    --pv-total: 180 232 84;
+  }
 
-  /* Tema claro de alto contraste (paleta en tailwind.config.js). Pensado para
-     stands al aire libre y pantallas con mucho reflejo: texto ≥7:1. */
-  :root[data-theme="light"] {
+  /* Tema claro (oficina, reportes, impresión). Paleta en tailwind.config.js.
+     Voltaje no pasa 3:1 sobre blanco: el foco y la línea activa usan Azul
+     Vuelo y un verde profundo. */
+  :root[data-theme="light"],
+  [data-theme="light"] {
     color-scheme: light;
-    --pv-focus: 194 65 12;        /* brand-700: el anillo de foco pasa 3:1 sobre blanco */
-    --pv-scroll-track: 233 233 236;
-    --pv-scroll-thumb: 161 161 170;
+    --pv-focus: 13 35 72;         /* Azul Vuelo */
+    --pv-accent-line: 79 122 22;  /* verde profundo: 5.1:1 sobre blanco */
+    --pv-total: 13 35 72;         /* total de venta: Azul Vuelo (14.6:1 sobre Nube); nunca Voltaje sobre claro */
+    --pv-scroll-track: 232 237 244;
+    --pv-scroll-thumb: 151 162 184;
   }
 
   *, *::before, *::after {
@@ -41,7 +56,7 @@
   }
 
   html {
-    font-family: 'DM Sans', sans-serif;
+    @apply font-sans;
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -63,6 +78,19 @@
     text-wrap: balance;
   }
 
+  /* Cifras: montos, códigos y SKU siempre alineados en columna */
+  .font-mono, kbd, code, .tabular-nums {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  ::selection {
+    background: rgb(180 232 84 / 0.35); /* Voltaje */
+  }
+  :root[data-theme="light"] ::selection {
+    background: #DCEBFF; /* Horizonte */
+    color: #0D2348;
+  }
+
   /* Scrollbar personalizado oscuro */
   ::-webkit-scrollbar {
     width: 6px;
@@ -70,7 +98,7 @@
   }
   ::-webkit-scrollbar-track  { background: rgb(var(--pv-scroll-track)); }
   ::-webkit-scrollbar-thumb  { background: rgb(var(--pv-scroll-thumb)); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #f97316; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--pv-focus)); }
 
   /* Foco visible consistente para navegación por teclado.
      Solo botones/links/tabs: los inputs ya tienen su propio anillo en .input */
@@ -80,7 +108,7 @@
   [tabindex]:focus-visible {
     outline: 2px solid rgb(var(--pv-focus));
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 8px;
   }
 
   /* iOS Safari hace zoom al enfocar un campo con fuente < 16px (p. ej. el
@@ -121,12 +149,14 @@
     @apply mx-auto w-full max-w-content px-gutter;
   }
 
-  /* Jerarquía tipográfica: página > sección > panel > eyebrow */
+  /* Jerarquía tipográfica VENDRA: pantalla (Space Grotesk Bold 36px) >
+     sección (Space Grotesk SemiBold 22px) > panel > eyebrow. En teléfono el
+     título baja un paso para no partir en tres líneas. */
   .page-title {
-    @apply flex items-center gap-2 font-syne text-xl font-bold tracking-tight text-white sm:text-2xl;
+    @apply flex items-center gap-2 font-display text-2xl font-bold tracking-tight text-white sm:text-screen;
   }
   .section-title {
-    @apply flex items-center gap-2 font-syne text-base font-semibold text-white;
+    @apply flex items-center gap-2 font-display text-lg font-semibold text-white sm:text-section;
   }
   .panel-title {
     @apply text-sm font-semibold text-white;
@@ -144,7 +174,7 @@
   /* Contenedor de listas: una sola superficie con filas divididas, en vez
      de una card por fila (menos bordes, lectura más rápida) */
   .panel {
-    @apply rounded-xl border border-white/5 bg-surface-300;
+    @apply rounded-lg border border-white/5 bg-surface-300;
   }
   .panel-header {
     @apply flex items-center justify-between gap-3 px-4 pb-3 pt-4 sm:px-5;
@@ -154,19 +184,18 @@
   }
 
   /* ================================================================
-     CONTROLES — todos comparten --control-h (40px mouse / 44px táctil)
+     CONTROLES — todos comparten --control-h (48px, plano, radio 8px)
      ================================================================ */
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-150 cursor-pointer select-none;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors duration-150 cursor-pointer select-none;
     @apply disabled:opacity-40 disabled:cursor-not-allowed;
     min-height: var(--control-h);
   }
-  /* Texto oscuro sobre naranja: blanco sobre brand-500 da 2.80:1 (falla AA).
-     Oscurecer el texto en vez del fondo conserva el naranja de marca a pleno
-     brillo — 7.06:1 en reposo, 5.56:1 en hover, ambos AA. */
+  /* Acción principal: relleno Voltaje con texto Noche en los dos temas
+     (12.8:1 en reposo, 9.8:1 en hover). Voltaje nunca es texto sobre claro. */
   .btn-primary {
-    @apply btn bg-brand-500 text-surface-700 hover:bg-brand-600 active:scale-[0.98];
+    @apply btn bg-brand-500 font-semibold text-surface-700 hover:bg-brand-600;
   }
   .btn-ghost {
     @apply btn bg-transparent text-gray-300 hover:bg-surface-50 hover:text-white;
@@ -177,20 +206,20 @@
     @apply btn border border-white/10 bg-transparent text-gray-300 hover:border-white/20 hover:bg-surface-50 hover:text-white;
   }
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700 active:scale-[0.98];
+    @apply btn bg-red-600 text-white hover:bg-red-700;
   }
   /* green-600 con blanco da 3.30:1 (falla AA en texto normal); un tono más
      oscuro en reposo y hover mantiene el texto blanco y pasa AA (5.02 / 7.13). */
   .btn-success {
-    @apply btn bg-green-700 text-white hover:bg-green-800 active:scale-[0.98];
+    @apply btn bg-green-700 text-white hover:bg-green-800;
   }
   .btn-sm {
-    @apply px-3 py-1 text-xs rounded-md;
+    @apply px-3 py-1 text-xs rounded-lg;
     min-height: var(--control-h-sm);
   }
   .btn-lg {
-    @apply px-6 py-3 text-base rounded-xl;
-    min-height: 3rem;
+    @apply px-6 py-3 text-base rounded-lg;
+    min-height: 3.5rem;
   }
   /* Botón cuadrado de solo ícono; combinar con btn-ghost / btn-outline */
   .btn-icon {
@@ -201,7 +230,7 @@
     width: var(--control-h-sm);
   }
 
-  /* Área táctil mínima: 40px con mouse, 44px con dedo (vía --control-h) */
+  /* Área táctil mínima: 48px (vía --control-h) */
   .btn-touch-safe {
     min-height: var(--control-h);
     min-width: var(--control-h);
@@ -221,7 +250,7 @@
 
   /* Chip de filtro (categorías, estados) */
   .chip {
-    @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-white/10 bg-surface-300 px-3 text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white;
+    @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-white/10 bg-surface-300 px-3 text-xs font-medium text-gray-300 transition-colors hover:border-white/20 hover:text-white;
     min-height: var(--control-h-sm);
   }
   .chip[aria-pressed="true"] {
@@ -230,10 +259,10 @@
 
   /* Cards: el padding crece un paso en pantallas medianas */
   .card {
-    @apply bg-surface-400 border border-white/5 rounded-xl p-4 sm:p-5;
+    @apply bg-surface-300 border border-white/5 rounded-lg p-4 sm:p-5;
   }
   .card-hover {
-    @apply card transition-all duration-150 hover:border-brand-500/40 hover:bg-surface-300 cursor-pointer;
+    @apply card transition-colors duration-150 hover:border-brand-500/40 hover:bg-surface-300 cursor-pointer;
   }
 
   /* Inputs */
@@ -247,8 +276,8 @@
   }
   /* Formularios de acceso (login): un paso más grande y legible */
   .input-lg {
-    @apply rounded-xl px-4 text-base;
-    min-height: 3rem;
+    @apply rounded-lg px-4 text-base;
+    min-height: 3.5rem;
   }
   .field-label {
     @apply mb-1.5 block text-xs font-medium text-gray-400;
@@ -264,9 +293,25 @@
     @apply border-red-500/70 focus:border-red-500 focus:ring-red-500/30;
   }
 
-  /* Tecla de atajo (<Kbd>): solo con puntero fino, donde hay teclado físico */
+  /* Tecla de atajo (<Kbd>): JetBrains Mono Medium 13px, solo con puntero
+     fino, donde hay teclado físico */
   .kbd {
-    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-white/15 bg-surface-500/60 px-1 font-mono text-2xs font-medium leading-none text-gray-400;
+    @apply inline-flex h-6 min-w-6 items-center justify-center rounded border border-white/15 bg-surface-500/60 px-1.5 font-mono text-kbd font-medium text-gray-300;
+  }
+  /* Sobre un botón con relleno (Voltaje, verde): hereda la tinta del botón */
+  .kbd-on-fill {
+    border-color: color-mix(in srgb, currentColor 35%, transparent);
+    background-color: rgb(0 0 0 / 0.1);
+    color: inherit;
+  }
+
+  /* Total grande del POS: JetBrains Mono Bold 48px, en Voltaje (oscuro) o
+     Azul Vuelo (claro). Se encoge con el ancho de su contenedor (.cq) para
+     que un monto largo nunca desborde. */
+  .total-display {
+    @apply font-mono font-bold leading-none tracking-tight;
+    color: rgb(var(--pv-total));
+    font-size: min(3rem, 13cqi);
   }
   @media (pointer: coarse) {
     .kbd { display: none; }
@@ -283,28 +328,29 @@
     @apply fixed inset-0 z-50 flex flex-col items-center overflow-y-auto overscroll-contain bg-black/70 backdrop-blur-sm animate-fade-in sm:px-6 sm:py-10;
   }
   .modal-panel {
-    @apply relative mt-auto w-full rounded-t-2xl border border-white/10 bg-surface-200 shadow-2xl animate-slide-up
-           sm:my-auto sm:rounded-2xl sm:animate-scale-in;
+    @apply relative mt-auto w-full rounded-t-lg border border-white/10 bg-surface-200 animate-slide-up
+           sm:my-auto sm:rounded-lg sm:animate-scale-in;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .modal-header {
-    @apply sticky top-0 z-10 flex items-start justify-between gap-3 rounded-t-2xl bg-surface-200 px-5 pb-3 pt-5;
+    @apply sticky top-0 z-10 flex items-start justify-between gap-3 rounded-t-lg bg-surface-200 px-5 pb-3 pt-5;
   }
   .modal-title {
-    @apply flex items-center gap-2 font-syne text-lg font-semibold text-white;
+    @apply flex items-center gap-2 font-display text-lg font-semibold text-white;
   }
   .modal-body {
     @apply space-y-4 px-5 pb-5;
   }
   .modal-footer {
     @apply sticky bottom-0 z-10 flex flex-col-reverse gap-2 border-t border-white/5 bg-surface-200 px-5 py-4
-           sm:flex-row sm:items-center sm:justify-end sm:rounded-b-2xl;
+           sm:flex-row sm:items-center sm:justify-end sm:rounded-b-lg;
   }
 
   /* Badges de estado */
-  .badge-pending   { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400; }
-  .badge-paid      { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20  text-green-400; }
-  .badge-cancelled { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20    text-red-400; }
+  /* Estados VENDRA: Atención (pendiente), Correcto (pagado), Error (anulado) */
+  .badge-pending   { @apply inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-yellow-400/15 text-yellow-400; }
+  .badge-paid      { @apply inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-green-400/15  text-green-400; }
+  .badge-cancelled { @apply inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-red-400/15    text-red-400; }
 
   /* Skeleton loader */
   .skeleton {
@@ -387,13 +433,13 @@
 
 /* Teclado numérico — teclas */
 .numpad-key {
-  @apply flex items-center justify-center w-full aspect-square rounded-xl text-2xl font-semibold font-mono
-         bg-surface-50 hover:bg-surface-100 active:scale-95 cursor-pointer transition-all duration-100
+  @apply flex items-center justify-center w-full aspect-square rounded-lg text-2xl font-semibold font-mono
+         bg-surface-50 hover:bg-surface-100 cursor-pointer transition-colors duration-100
          border border-white/5 select-none;
 }
 .numpad-key:active {
-  background-color: rgba(249, 115, 22, 0.15);
-  border-color: rgba(249, 115, 22, 0.4);
+  background-color: rgba(180, 232, 84, 0.15);
+  border-color: rgba(180, 232, 84, 0.4);
 }
 
 /* ================================================================
@@ -406,7 +452,7 @@
    alcanza a su text-white y al de sus hijos. */
 [data-theme="light"] :is(
   .btn-success, .btn-danger,
-  .bg-green-700, .bg-blue-700, .bg-pink-700,
+  .bg-green-700, .bg-blue-700, .bg-pink-700, .bg-green-800,
   .bg-red-600, .bg-red-700, .bg-yellow-700
 ) {
   --pv-white: 255 255 255;
@@ -422,9 +468,21 @@
 /* Placeholder: con el remapeo quedaría tan oscuro como el texto escrito */
 [data-theme="light"] .input::placeholder,
 [data-theme="light"] .placeholder-gray-400::placeholder {
-  color: rgb(107 114 128); /* gray-500: 4.8:1 */
+  color: #556274; /* --vd-text-muted (claro): 6.2:1 */
 }
 
-/* Naranja de marca como texto (logo, íconos de rol): brand-500 da 2.8:1
-   sobre blanco; brand-700 conserva el tono y pasa AA. */
-[data-theme="light"] .text-brand-500 { color: #c2410c; }
+/* Voltaje como texto (íconos de rol, acentos): prohibido sobre fondo claro.
+   Pasa al verde profundo de la marca (--vd-ok-ink, 6.3:1). */
+[data-theme="light"] .text-brand-500,
+[data-theme="light"] .text-brand-600,
+[data-theme="light"] .text-brand-700 { color: #3F6B0F; } /* --vd-ok-ink */
+
+/* ================================================================
+   FILA ACTIVA — línea vertical en Voltaje a la izquierda (ticket,
+   pendientes, menú). Al final y sin capa: tiene que ganarle al color de
+   borde de las utilidades (border-white/10…) y a sus ajustes del tema claro.
+   ================================================================ */
+.row-active.row-active {
+  border-left-width: 3px;
+  border-left-color: rgb(var(--pv-accent-line));
+}

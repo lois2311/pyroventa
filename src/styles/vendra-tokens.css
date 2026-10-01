@@ -1,0 +1,47 @@
+/* VENDRA · tokens de diseño. Referencia: docs/VENDRA_BRAND_SYSTEM.md
+   Importar en src/styles/index.css antes de @tailwind base. */
+:root,
+[data-theme="dark"] {
+  /* Marca */
+  --vd-voltaje: #B4E854;
+  --vd-voltaje-profundo: #7FB52E;
+  --vd-on-voltaje: #0A1428;
+
+  /* Interfaz · oscuro (predeterminado en caja) */
+  --vd-bg: #0A1428;          /* Noche */
+  --vd-surface: #10243F;     /* Superficie */
+  --vd-surface-2: #152A47;
+  --vd-border: #22406A;
+  --vd-text: #EEF2F7;        /* Hueso */
+  --vd-text-muted: #93A4BD;  /* texto secundario legible */
+  --vd-text-subtle: #586686; /* Pista: solo íconos, bordes y texto ≥ 18 px */
+  --vd-link: #2F8CFF;        /* Azul Cielo */
+
+  /* Estados */
+  --vd-ok: #B4E854;
+  --vd-warn: #FFB547;
+  --vd-error: #FF7A66;
+
+  /* Forma y tipografía */
+  --vd-radius: 8px;
+  --vd-font-display: "Space Grotesk", Arial, sans-serif;
+  --vd-font-ui: "Figtree", "Segoe UI", sans-serif;
+  --vd-font-num: "JetBrains Mono", Consolas, monospace;
+  --vd-focus: 0 0 0 2px var(--vd-bg), 0 0 0 4px var(--vd-link);
+}
+
+[data-theme="light"] {
+  --vd-bg: #F6F8FB;          /* Nube */
+  --vd-surface: #FFFFFF;
+  --vd-surface-2: #EEF2F7;
+  --vd-border: #DDE3EB;
+  --vd-text: #0D2348;        /* Azul Vuelo */
+  --vd-text-muted: #556274;
+  --vd-text-subtle: #586686;
+  --vd-selection: #DCEBFF;   /* Horizonte */
+  --vd-link: #1C63C4;        /* Azul Cielo oscurecido: 5.8:1 sobre blanco */
+  /* Voltaje y estados nunca como texto sobre claro: usar estas tintas */
+  --vd-ok-ink: #3F6B0F;
+  --vd-warn-ink: #8A5200;
+  --vd-error-ink: #B02A1C;
+}

@@ -17,7 +17,7 @@ import { useAuthStore } from '../store/authStore.js'
 import { useToast } from './Toast.jsx'
 import PageHeader from './PageHeader.jsx'
 import { formatCOP } from '../lib/format.js'
-import { printBrowserFallback, generatePDF } from '../lib/printService.js'
+import { printBrowserFallback, generatePDF, RECEIPT_ENDORSEMENT } from '../lib/printService.js'
 
 export default function PrinterConfigTab({ locations = [], isOwner = false }) {
   const { location: authLocation, updatePrinterConfig } = useAuthStore()
@@ -264,7 +264,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
             {/* Zona de previsualización o carga */}
             {logoUrl ? (
               <div className="bg-surface-400 rounded-xl p-4 border border-white/10 flex flex-col sm:flex-row items-center gap-4">
-                <div className="w-32 h-20 bg-white rounded-lg p-2 flex items-center justify-center shadow-inner overflow-hidden shrink-0 border border-gray-300">
+                <div className="w-32 h-20 bg-white rounded-lg p-2 flex items-center justify-center overflow-hidden shrink-0 border border-gray-300">
                   <img
                     src={logoUrl}
                     alt="Logo actual"
@@ -481,7 +481,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
           <div className="flex justify-center p-4 bg-surface-500/80 rounded-2xl border border-white/10 overflow-hidden">
             <div
               data-theme="dark"
-              className="bg-[#fcfbf9] text-gray-900 shadow-2xl p-5 transition-all duration-300 rounded-sm relative selection:bg-gray-300 selection:text-black"
+              className="bg-[#fcfbf9] text-gray-900 p-5 transition-all duration-300 rounded-sm relative selection:bg-gray-300 selection:text-black"
               style={{
                 width: paperWidth === '80mm' ? '320px' : '250px',
                 fontFamily: '"Courier New", Courier, monospace',
@@ -570,6 +570,8 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
                 {footerLines.filter(Boolean).map((f, i) => (
                   <div key={i}>{f}</div>
                 ))}
+                {/* Respaldo de marca: siempre al pie, más chico que todo lo demás */}
+                <div className="pt-1.5 text-2xs text-gray-600">{RECEIPT_ENDORSEMENT}</div>
               </div>
 
               {/* Borde dentado inferior simulado */}

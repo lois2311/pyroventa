@@ -165,7 +165,7 @@ function ClosuresSection({ locations }) {
           compact
           icon={Receipt}
           title="Sin cierres en el rango"
-          description="La cajera cierra su caja desde la pantalla de Caja (botón Cerrar caja)."
+          description="La cajera hace el corte desde la pantalla de caja (botón Corte de caja, F3)."
         />
       ) : (
         <ul className={`panel divide-y divide-white/5 overflow-hidden transition-opacity ${closuresQ.loading ? 'opacity-60' : ''}`}>

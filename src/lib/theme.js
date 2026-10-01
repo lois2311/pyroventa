@@ -1,14 +1,15 @@
 // =====================================================================
-// Tema de la interfaz: 'dark' (por defecto) o 'light' (claro de alto
-// contraste, para stands al aire libre con mucha luz).
-// El atributo <html data-theme> lo fija un script en index.html ANTES de
-// pintar (sin parpadeo); aquí se cambia, se guarda y se expone a React.
+// Tema de la interfaz: 'dark' (por defecto en caja) o 'light' (oficina,
+// reportes, stands con mucha luz). El atributo <html data-theme> lo fija un
+// script en index.html ANTES de pintar; aquí se cambia, se guarda y se
+// expone a React. La clave pv_theme se conserva para no perder la
+// preferencia de los equipos ya instalados.
 // =====================================================================
 import { useSyncExternalStore } from 'react'
 
 export const THEME_KEY = 'pv_theme'
-// Color de la barra del navegador / PWA: el fondo de la página de cada tema
-const THEME_COLOR = { dark: '#111111', light: '#e9e9ec' }
+// Color de la barra del navegador / PWA: Noche y Nube
+const THEME_COLOR = { dark: '#0A1428', light: '#F6F8FB' }
 
 export function getTheme() {
   if (typeof document === 'undefined') return 'dark'
@@ -31,7 +32,6 @@ export function toggleTheme() {
 
 function subscribe(fn) {
   listeners.add(fn)
-  // Otra pestaña cambió el tema: seguirla
   const onStorage = (e) => { if (e.key === THEME_KEY && e.newValue) setTheme(e.newValue) }
   window.addEventListener('storage', onStorage)
   return () => { listeners.delete(fn); window.removeEventListener('storage', onStorage) }

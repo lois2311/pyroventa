@@ -16,5 +16,5 @@ test('el tema claro se activa, se nota y se recuerda al recargar', async ({ page
 
   await page.reload()
   await expect(html).toHaveAttribute('data-theme', 'light')
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#e9e9ec')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#F6F8FB')
 })

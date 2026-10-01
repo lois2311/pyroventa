@@ -29,7 +29,7 @@ export default function HourlyBarChart({ data }) {
   const renderPeakLabel = ({ x, y, width, index, value }) => (index === peakIndex
     ? (
       <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={11} fontWeight={600}
-        fill={CHART.label} fontFamily='"DM Mono", ui-monospace, monospace'>
+        fill={CHART.label} fontFamily='"JetBrains Mono", Consolas, ui-monospace, monospace'>
         {value}
       </text>
     )

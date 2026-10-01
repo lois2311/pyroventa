@@ -176,9 +176,9 @@ export default function VendedorPage() {
         setCartOpen(false)
         clear()
 
-        toastError(`Sin conexión — Factura ${offlineCode} guardada localmente. Se sincronizará al reconectar.`)
+        toastError(`Sin conexión. Factura ${offlineCode} guardada en este equipo; se envía al volver la red.`)
       } else {
-        toastError(err.message || 'Error al crear la factura')
+        toastError(err.message || 'No se pudo generar la factura. Intenta de nuevo.')
       }
     } finally {
       setSubmitting(false)
@@ -214,12 +214,12 @@ export default function VendedorPage() {
               <input
                 ref={searchRef}
                 type="search"
-                placeholder="Buscar producto..."
-                aria-label="Buscar producto"
+                placeholder="> escanea o escribe"
+                aria-label="Buscar producto: escanea o escribe"
                 aria-keyshortcuts="/"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                className="input pl-9 pr-10"
+                className="input pl-9 pr-12 placeholder:font-mono"
               />
               {!query && (
                 <Kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">/</Kbd>
@@ -262,8 +262,8 @@ export default function VendedorPage() {
             ) : filtered.length === 0 ? (
               <EmptyState
                 icon={Search}
-                title={query.trim() ? `Sin resultados para "${query.trim()}"` : 'No hay productos en esta categoría'}
-                description={query.trim() ? 'Revisa la ortografía o busca por otra palabra.' : undefined}
+                title={query.trim() ? `Nada con "${query.trim()}".` : 'Sin productos en esta categoría.'}
+                description={query.trim() ? 'Prueba otra palabra o escanea el código.' : undefined}
                 className="mx-auto mt-6 max-w-md"
               />
             ) : (
@@ -281,7 +281,7 @@ export default function VendedorPage() {
           {showCode && lastCreated ? (
             <CodeDisplay invoice={lastCreated} onNewSale={handleNewSale} />
           ) : (
-            <CartPanel onCheckout={handleCheckout} loading={submitting} />
+            <CartPanel onCheckout={handleCheckout} loading={submitting} shortcuts />
           )}
         </aside>
 
@@ -292,19 +292,19 @@ export default function VendedorPage() {
         <button
           onClick={() => setCartOpen(true)}
           aria-label={cartCount > 0 ? `Ver carrito: ${cartCount} productos, ${formatCOP(total())}` : 'Ver carrito'}
-          className="fixed right-4 z-40 flex min-h-[3.25rem] items-center gap-2 rounded-full bg-brand-500 px-5 text-surface-700 shadow-lg shadow-black/40 transition-transform active:scale-95 md:hidden"
+          className="fixed right-4 z-40 flex min-h-[3.5rem] items-center gap-2 rounded-lg bg-brand-500 px-5 text-surface-700 md:hidden"
           style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
           <ShoppingCart className="w-5 h-5" />
           {cartCount > 0 && (
-            <span data-theme="dark" className="flex h-6 min-w-6 items-center justify-center rounded-full bg-surface-700 px-1.5 text-xs font-bold text-brand-300">
+            <span data-theme="dark" className="flex h-6 min-w-6 items-center justify-center rounded-lg bg-surface-700 px-1.5 font-mono text-xs font-bold text-brand-300">
               {cartCount}
             </span>
           )}
           {cartCount > 0 && (
-            <span className="font-semibold text-sm">{formatCOP(total())}</span>
+            <span className="font-mono font-bold text-sm">{formatCOP(total())}</span>
           )}
-          {!cartCount && <span className="text-sm font-medium">Carrito</span>}
+          {!cartCount && <span className="text-sm font-medium">Ticket</span>}
         </button>
       )}
 
@@ -334,7 +334,7 @@ export default function VendedorPage() {
           {/* Sheet */}
           <div
             ref={cartPanelRef} role="dialog" aria-modal="true" aria-label="Carrito de compra" tabIndex={-1}
-            className="safe-area-pb absolute bottom-0 left-0 right-0 bg-surface-500 border-t border-white/10 rounded-t-2xl max-h-[85dvh] flex flex-col animate-slide-up"
+            className="safe-area-pb absolute bottom-0 left-0 right-0 bg-surface-500 border-t border-white/10 rounded-t-lg max-h-[85dvh] flex flex-col animate-slide-up"
           >
             {/* Handle */}
             <div className="flex justify-center py-2">

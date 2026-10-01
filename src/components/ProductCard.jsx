@@ -36,8 +36,8 @@ export default function ProductCard({ product }) {
     })
     if (!added) {
       warn(stockQty <= 0
-        ? `${product.name} está agotado`
-        : `Solo hay ${stockQty} de ${product.name} y ya están en el carrito`)
+        ? `Sin existencia. Quedan 0 de ${product.name}.`
+        : `Quedan ${stockQty} de ${product.name} y ya están en el ticket.`)
     }
   }
 
@@ -73,16 +73,16 @@ export default function ProductCard({ product }) {
 
         {hasInventory && (
           <span
-            className={`text-2xs px-2 py-0.5 rounded-full font-mono font-medium shrink-0 flex items-center gap-1 ${
+            className={`text-2xs px-2 py-0.5 rounded-lg font-mono font-medium shrink-0 flex items-center gap-1 ${
               stockQty <= 0
-                ? 'bg-red-500/15 text-red-400 border border-red-500/20'
+                ? 'bg-red-400/15 text-red-400 border border-red-400/20'
                 : stockQty <= 5
-                ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20'
+                ? 'bg-yellow-400/15 text-yellow-400 border border-yellow-400/20'
                 : 'bg-surface-50 text-gray-400'
             }`}
           >
             <Package className="w-2.5 h-2.5" />
-            {stockQty <= 0 ? 'Agotado' : `Stock: ${stockQty}`}
+            {stockQty <= 0 ? 'Sin existencia' : `Quedan ${stockQty}`}
           </span>
         )}
       </div>
@@ -105,8 +105,8 @@ export default function ProductCard({ product }) {
                 ${outOfStock
                   ? 'cursor-not-allowed border-white/5 bg-surface-400/60 text-gray-500'
                   : active
-                  ? 'cursor-pointer active:scale-[0.99] bg-brand-500/20 border-brand-500/60 text-brand-300'
-                  : 'cursor-pointer active:scale-[0.99] bg-surface-400 border-white/5 text-gray-300 hover:bg-surface-200 hover:border-white/10 hover:text-white'
+                  ? 'cursor-pointer bg-brand-500/15 border-brand-500/60 text-brand-300'
+                  : 'cursor-pointer bg-surface-400 border-white/5 text-gray-300 hover:bg-surface-200 hover:border-white/10 hover:text-white'
                 }
                 ${atCap ? 'opacity-70' : ''}
               `}
@@ -130,7 +130,7 @@ export default function ProductCard({ product }) {
                   {formatCOP(pres.price)}
                 </span>
                 <span className={`
-                  min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-xs font-bold font-mono
+                  min-w-6 h-6 px-1 rounded flex items-center justify-center text-xs font-bold font-mono
                   ${active ? 'bg-brand-500 text-surface-700' : 'bg-surface-50 text-gray-400'}
                 `}>
                   {active ? `×${qty}` : outOfStock ? '–' : '+'}
@@ -143,7 +143,7 @@ export default function ProductCard({ product }) {
 
       {atCap && (
         <p className="mt-2 text-2xs text-amber-300">
-          Todo el stock ({stockQty}) ya está en el carrito
+          Las {stockQty} que quedan ya están en el ticket.
         </p>
       )}
     </div>

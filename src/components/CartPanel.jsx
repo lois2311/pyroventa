@@ -1,27 +1,39 @@
-import { useState, useId } from 'react'
+import { useState, useId, useEffect, useRef } from 'react'
 import { AlertTriangle, ShoppingCart, Ticket, X, Pencil, RotateCcw, MapPin } from 'lucide-react'
 import { useCartStore, productQtyInCart, overStockItems } from '../store/cartStore.js'
 import { useAuthStore }    from '../store/authStore.js'
 import { formatCOP }       from '../lib/format.js'
 import { useConfirm }      from './ConfirmDialog.jsx'
 import Modal               from './Modal.jsx'
+import Kbd                 from './Kbd.jsx'
 
-export default function CartPanel({ onCheckout, loading }) {
+/**
+ * Ticket de la venta en curso.
+ * `shortcuts`: esta instancia escucha F12 (generar factura) y Esc (cancelar
+ * venta). Solo una a la vez: la del panel de escritorio.
+ */
+export default function CartPanel({ onCheckout, loading, shortcuts = false }) {
   const { items, updateQty, updatePrice, resetPrice, removeItem, total, clear } = useCartStore()
   const cartTotal = total()
   const [editingItem, setEditingItem] = useState(null)
+  const activeId = useActiveItem(items)
   const isOwner = useAuthStore(s => s.seller?.role === 'owner')
   const confirm = useConfirm()
   // El stock pudo bajar después de agregar (otro vendedor cobró y el
   // catálogo se refrescó): no se factura más de lo que hay.
   const overStock = overStockItems(items)
 
-  const handleClear = async () => {
-    if (items.length > 1) {
+  // Desde el teclado (Esc) siempre se confirma: una tecla suelta no debe
+  // borrar una venta sin aviso, aunque tenga un solo producto.
+  const handleClear = async ({ alwaysConfirm = false } = {}) => {
+    if (items.length > 1 || alwaysConfirm) {
       const ok = await confirm({
-        title: '¿Vaciar el carrito?',
-        description: `Se quitan los ${items.length} ítems de esta venta.`,
-        confirmLabel: 'Vaciar',
+        title: '¿Cancelar la venta?',
+        description: items.length > 1
+          ? `Se quitan los ${items.length} productos del ticket.`
+          : 'Se quita el producto del ticket.',
+        confirmLabel: 'Cancelar venta',
+        cancelLabel: 'Seguir vendiendo',
         tone: 'danger',
       })
       if (!ok) return
@@ -29,14 +41,39 @@ export default function CartPanel({ onCheckout, loading }) {
     clear()
   }
 
+  const canCheckout = !loading && items.length > 0 && overStock.length === 0
+
+  // F12 genera la factura · Esc cancela la venta. No actúan mientras se
+  // escribe en un campo ni con un diálogo abierto. Estado leído por ref.
+  const keys = useRef(null)
+  keys.current = { canCheckout, onCheckout, handleClear, hasItems: items.length > 0 }
+  useEffect(() => {
+    if (!shortcuts) return
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
+      if (document.querySelector('[role="dialog"]')) return
+      const k = keys.current
+      if (e.key === 'F12') {
+        e.preventDefault()
+        if (!e.repeat && k.canCheckout) k.onCheckout()
+      } else if (e.key === 'Escape' && k.hasItems) {
+        if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')) return
+        e.preventDefault()
+        k.handleClear({ alwaysConfirm: true })
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [shortcuts])
+
   if (!items.length) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-gray-400">
         <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-surface-300">
           <ShoppingCart className="h-6 w-6" />
         </span>
-        <p className="text-sm font-medium text-gray-200">Carrito vacío</p>
-        <p className="mt-1 text-xs">Toca una presentación del catálogo para agregarla</p>
+        <p className="text-sm font-medium text-gray-200">Ticket vacío</p>
+        <p className="mt-1 text-xs">Escanea o toca un producto para empezar.</p>
       </div>
     )
   }
@@ -46,14 +83,15 @@ export default function CartPanel({ onCheckout, loading }) {
       {/* Header */}
       <div className="flex items-center justify-between gap-2 border-b border-white/5 px-4 py-2.5">
         <h2 className="text-sm font-semibold text-white">
-          Carrito <span className="font-normal text-gray-400">({items.length} ítem{items.length !== 1 ? 's' : ''})</span>
+          Ticket <span className="font-mono font-normal text-gray-400">({items.length})</span>
         </h2>
         <button
           type="button"
-          onClick={handleClear}
+          onClick={() => handleClear()}
+          aria-keyshortcuts="Escape"
           className="btn-ghost btn-sm -mr-2 text-gray-400 hover:text-red-400"
         >
-          Limpiar
+          Cancelar venta <Kbd>Esc</Kbd>
         </button>
       </div>
 
@@ -64,6 +102,7 @@ export default function CartPanel({ onCheckout, loading }) {
             key={item.presentationId}
             item={item}
             productQty={productQtyInCart(items, item.productId)}
+            active={item.presentationId === activeId}
             canEditPrice={isOwner}
             onUpdateQty={(qty) => updateQty(item.presentationId, qty)}
             onEditPrice={() => setEditingItem(item)}
@@ -75,23 +114,24 @@ export default function CartPanel({ onCheckout, loading }) {
       {/* Total + botón */}
       <div className="flex flex-col gap-3 border-t border-white/5 bg-surface-500 p-4">
         {overStock.length > 0 && (
-          <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+          <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-400/25 bg-red-400/10 px-3 py-2 text-xs text-red-300">
             <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <p>
-              Ajusta las cantidades: {overStock.map(p => `${p.productName} (quedan ${p.stock})`).join(', ')}.
+              Sin existencia suficiente. {overStock.map(p => `Quedan ${p.stock} de ${p.productName}`).join('. ')}.
             </p>
           </div>
         )}
-        <div className="flex items-baseline justify-between">
-          <span className="text-sm text-gray-400">Total</span>
-          <span className="font-mono text-2xl font-bold tabular-nums text-white">
+        <div className="cq">
+          <span className="eyebrow">Total</span>
+          <p className="total-display mt-1 text-right" aria-live="polite">
             {formatCOP(cartTotal)}
-          </span>
+          </p>
         </div>
         <button
           type="button"
           onClick={onCheckout}
-          disabled={loading || !items.length || overStock.length > 0}
+          disabled={!canCheckout}
+          aria-keyshortcuts="F12"
           className="btn-primary btn-lg w-full"
         >
           {loading ? (
@@ -100,11 +140,12 @@ export default function CartPanel({ onCheckout, loading }) {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
               </svg>
-              Generando...
+              Generando…
             </span>
           ) : (
             <span className="inline-flex items-center gap-2">
-              <Ticket className="w-4 h-4" /> Generar Factura
+              <Ticket className="w-4 h-4" /> Generar factura
+              <Kbd className="kbd-on-fill">F12</Kbd>
             </span>
           )}
         </button>
@@ -133,21 +174,25 @@ export default function CartPanel({ onCheckout, loading }) {
 // Dos filas: nombre + subtotal arriba (el nombre ya no se corta a 12
 // caracteres), detalle + controles abajo. Los botones de cantidad miden
 // 32px (antes 24px), cómodos para el dedo en tablet.
-function CartItem({ item, productQty, onUpdateQty, onEditPrice, canEditPrice, onRemove }) {
+// La fila activa (la última agregada o modificada) lleva la línea Voltaje.
+function CartItem({ item, productQty, active, onUpdateQty, onEditPrice, canEditPrice, onRemove }) {
   const hasStock = item.stock !== null && item.stock !== undefined
   const atCap = hasStock && productQty >= item.stock
   return (
-    <div className="rounded-lg border border-white/5 bg-surface-400 px-3 py-2.5">
+    <div
+      aria-current={active ? 'true' : undefined}
+      className={`rounded-lg border px-3 py-2.5 transition-colors ${active ? 'row-active border-white/10 bg-surface-300' : 'border-white/5 bg-surface-400'}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 text-sm font-medium leading-snug text-white">{item.productName}</p>
-        <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-brand-400">
+        <span className={`shrink-0 font-mono text-sm font-semibold tabular-nums ${active ? 'text-brand-400' : 'text-white'}`}>
           {formatCOP(item.subtotal)}
         </span>
       </div>
 
       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
         <p className="text-xs text-gray-400">
-          {item.label} · {formatCOP(item.price)}
+          {item.label} · <span className="font-mono">{formatCOP(item.price)}</span>
         </p>
         {item.is_price_edited && (
           <span className="rounded border border-amber-500/30 bg-amber-500/20 px-1.5 py-px text-2xs font-medium text-amber-300">
@@ -176,7 +221,7 @@ function CartItem({ item, productQty, onUpdateQty, onEditPrice, canEditPrice, on
             type="button"
             onClick={() => onUpdateQty(item.qty - 1)}
             aria-label={`Quitar una unidad de ${item.productName}`}
-            className="flex h-8 w-8 items-center justify-center rounded-l-lg text-lg text-gray-300 transition-colors hover:bg-surface-50 hover:text-white"
+            className="flex h-[var(--control-h-sm)] w-10 items-center justify-center rounded-l-lg text-lg text-gray-300 transition-colors hover:bg-surface-50 hover:text-white"
           >
             −
           </button>
@@ -186,7 +231,7 @@ function CartItem({ item, productQty, onUpdateQty, onEditPrice, canEditPrice, on
             onClick={() => onUpdateQty(item.qty + 1)}
             disabled={atCap}
             aria-label={`Agregar una unidad de ${item.productName}`}
-            className="flex h-8 w-8 items-center justify-center rounded-r-lg text-lg text-gray-300 transition-colors hover:bg-brand-500/20 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-300"
+            className="flex h-[var(--control-h-sm)] w-10 items-center justify-center rounded-r-lg text-lg text-gray-300 transition-colors hover:bg-brand-500/20 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-300"
           >
             +
           </button>
@@ -194,7 +239,7 @@ function CartItem({ item, productQty, onUpdateQty, onEditPrice, canEditPrice, on
 
         {atCap && (
           <span className={`ml-2 text-2xs ${productQty > item.stock ? 'text-red-400' : 'text-amber-300'}`}>
-            {item.stock <= 0 ? 'Agotado' : `Solo quedan ${item.stock}`}
+            {item.stock <= 0 ? 'Sin existencia' : `Quedan ${item.stock}`}
           </span>
         )}
 
@@ -225,6 +270,23 @@ function CartItem({ item, productQty, onUpdateQty, onEditPrice, canEditPrice, on
       </div>
     </div>
   )
+}
+
+// ---- Fila activa ------------------------------------------
+// La última presentación agregada o cuya cantidad cambió; si se quita, la
+// última del ticket. Solo presentación: no toca el carrito.
+function useActiveItem(items) {
+  // Patrón "guardar el valor anterior en estado" (sin efecto ni ref en render)
+  const [prevItems, setPrevItems] = useState(items)
+  const [touched, setTouched] = useState(null)
+  if (items !== prevItems) {
+    const prevQty = new Map(prevItems.map(i => [i.presentationId, i.qty]))
+    const changed = items.find(i => prevQty.get(i.presentationId) !== i.qty)
+    setPrevItems(items)
+    if (changed) setTouched(changed.presentationId)
+  }
+  if (touched && items.some(i => i.presentationId === touched)) return touched
+  return items[items.length - 1]?.presentationId ?? null
 }
 
 // ---- Modal de Edición de Precio ----
@@ -297,7 +359,7 @@ function EditPriceModal({ item, onClose, onSave, onReset }) {
           onChange={e => { setPriceStr(e.target.value); setError('') }}
           placeholder="0"
           autoFocus
-          className="input font-mono text-lg font-bold text-brand-400"
+          className="input font-mono text-lg font-bold"
         />
         {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
       </div>

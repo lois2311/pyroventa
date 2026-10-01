@@ -105,7 +105,7 @@ export default function RefundModal({ location, onClose }) {
       {step === 'done' ? (
         <div className="space-y-3 py-2 text-center" role="status">
           <CheckCircle2 className="mx-auto h-10 w-10 text-green-400" />
-          <p className="font-syne text-lg font-bold text-white">Devolución registrada</p>
+          <p className="font-display text-lg font-bold text-white">Devolución registrada</p>
           <p className="text-sm text-gray-300">
             Factura <span className="font-mono text-brand-400">#{done.code}</span> por {formatCOP(done.total)}
           </p>

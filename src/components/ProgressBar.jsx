@@ -1,7 +1,7 @@
 // Métodos de pago con los tokens de chartTheme.js (bg-pay-*): la barra, el
 // chip y el gráfico de un mismo método son exactamente del mismo color.
 const COLOR_CLASSES = {
-  brand:    'bg-gradient-to-r from-brand-600 to-brand-400',
+  brand:    'bg-brand-500',
   cash:     'bg-pay-cash',
   transfer: 'bg-pay-transfer',
   card:     'bg-pay-card',

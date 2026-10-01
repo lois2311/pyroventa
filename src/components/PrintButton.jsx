@@ -77,7 +77,7 @@ export default function PrintButton({ invoice }) {
         <div
           role="group"
           aria-label="Opciones de impresión"
-          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 bg-surface-200 border border-white/10 rounded-xl shadow-2xl overflow-hidden z-[60] animate-slide-up"
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 bg-surface-200 border border-white/10 rounded-xl overflow-hidden z-[60] animate-slide-up"
         >
           <PrintOption
             Icon={Printer}

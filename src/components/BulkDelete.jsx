@@ -136,7 +136,7 @@ export default function BulkDelete({ onChanged }) {
       <div className="card bg-surface-400 border-dashed border-red-500/20 py-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
           <div>
-            <h3 className="font-syne font-semibold text-white text-sm">Eliminar productos</h3>
+            <h3 className="font-display font-semibold text-white text-sm">Eliminar productos</h3>
             <p className="text-2xs text-gray-400">
               Borra productos en bloque o vacía el catálogo antes de volver a importarlo.
             </p>
@@ -155,7 +155,7 @@ export default function BulkDelete({ onChanged }) {
   return (
     <div className="card bg-surface-400 border-red-500/20 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-syne font-semibold text-white text-sm">Eliminar productos</h3>
+        <h3 className="font-display font-semibold text-white text-sm">Eliminar productos</h3>
         <button onClick={() => { setOpen(false); cancelConfirm() }} disabled={busy} className="btn btn-ghost btn-sm btn-touch-safe text-xs">
           Cerrar
         </button>

@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Delete, Flame, KeyRound, Loader2, Monitor, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Delete, KeyRound, Loader2, Monitor, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '../store/authStore.js'
 import { api } from '../lib/api.js'
 import { classifyBootstrapError } from '../lib/bootstrapError.js'
 import { useApi } from '../hooks/useApi.js'
 import LocationSelector from '../components/LocationSelector.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
+import VendraLogo from '../components/VendraLogo.jsx'
+import { VENDRA_TAGLINE, VENDRA_SLOGAN } from '../lib/brand.js'
+import { useTheme } from '../lib/theme.js'
 import ErrorNotice from '../components/ErrorNotice.jsx'
 import { useToast } from '../components/Toast.jsx'
 
@@ -123,6 +126,7 @@ function RegisterSelector({ locationId, value, onChange }) {
 
 // ---- LoginPage ------------------------------------------
 export default function LoginPage() {
+  const theme = useTheme()
   const navigate = useNavigate()
   const { login, setRegister } = useAuthStore()
   const { error: toastError } = useToast()
@@ -258,24 +262,24 @@ export default function LoginPage() {
     <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-surface-600 px-gutter py-10">
       {/* Halo de marca, solo decorativo. Gradiente radial en vez de
           filter: blur — más barato de pintar en tablets modestas. */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(ellipse_60%_55%_at_50%_0%,rgba(249,115,22,0.13),transparent)]" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(ellipse_60%_55%_at_50%_0%,rgba(180,232,84,0.10),transparent)]" />
       {/* El tema se elige antes de entrar: queda guardado en este equipo */}
       <ThemeToggle className="absolute right-3 top-3 sm:right-5 sm:top-5" />
       <div className="relative w-full max-w-lg">
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-500/15 border border-brand-500/30 mb-3">
-            <Flame className="w-8 h-8 text-brand-500" />
-          </div>
-          <h1 className="font-syne text-3xl font-bold text-white tracking-tight">PyroVenta</h1>
-          <p className="text-gray-400 text-sm mt-1">
-            {tenant ? tenant.name : 'Sistema de control de ventas'}
+          <h1 className="flex justify-center">
+            {/* Login: logo con respaldo "by flightdev" (Manual VENDRA §6) */}
+            <VendraLogo variant="endorsement" size={72} theme={theme} title="VENDRA POS by flightdev" />
+          </h1>
+          <p className="text-gray-400 text-sm mt-3">
+            {tenant ? tenant.name : `${VENDRA_TAGLINE}. ${VENDRA_SLOGAN}`}
           </p>
         </div>
 
         {/* Card principal */}
-        <div className="card bg-surface-300 border-white/8 p-6 shadow-2xl shadow-black/40 sm:p-8">
+        <div className="card bg-surface-300 border-white/8 p-6 sm:p-8">
 
           {bootLoading && (
             <div className="py-10 text-center">
@@ -286,7 +290,7 @@ export default function LoginPage() {
 
           {!bootLoading && step === 'company' && (
             <form onSubmit={handleCompanySubmit} className="animate-fade-in">
-              <h2 className="font-syne text-lg font-semibold text-white mb-1">
+              <h2 className="font-display text-lg font-semibold text-white mb-1">
                 Código de empresa
               </h2>
               <p className="text-gray-400 text-sm mb-4">
@@ -315,7 +319,7 @@ export default function LoginPage() {
           {/* ---- Paso 1: Seleccionar punto de venta ---- */}
           {!bootLoading && step === 'location' && (
             <div className="animate-fade-in">
-              <h2 className="font-syne text-lg font-semibold text-white mb-1">
+              <h2 className="font-display text-lg font-semibold text-white mb-1">
                 Selecciona tu punto de venta
               </h2>
               <p className="text-gray-400 text-sm mb-4">¿En cuál estación vas a trabajar hoy?</p>
@@ -359,7 +363,7 @@ export default function LoginPage() {
                 <ArrowLeft className="w-4 h-4" /> <span>{location?.name}</span>
               </button>
 
-              <h2 className="font-syne text-lg font-semibold text-white mb-1 text-center">
+              <h2 className="font-display text-lg font-semibold text-white mb-1 text-center">
                 Ingresa tu PIN
               </h2>
               <p className="text-gray-400 text-sm mb-5 text-center">4 dígitos</p>
@@ -399,7 +403,7 @@ export default function LoginPage() {
                 <ArrowLeft className="w-4 h-4" /> <span>Volver</span>
               </button>
               <div>
-                <h2 className="font-syne text-lg font-semibold text-white mb-1">Ingreso administrativo</h2>
+                <h2 className="font-display text-lg font-semibold text-white mb-1">Ingreso administrativo</h2>
                 <p className="text-gray-400 text-sm">Para administradores y superadministradores.</p>
               </div>
               <div>
@@ -426,7 +430,7 @@ export default function LoginPage() {
           {!bootLoading && step === 'admin-location' && adminData && (
             <div className="animate-fade-in space-y-4">
               <div>
-                <h2 className="font-syne text-lg font-semibold text-white mb-1">Hola, {adminData.seller.name}</h2>
+                <h2 className="font-display text-lg font-semibold text-white mb-1">Hola, {adminData.seller.name}</h2>
                 <p className="text-gray-400 text-sm">Administra toda la empresa o elige un punto para vender y cobrar.</p>
               </div>
               <button onClick={() => handleOwnerEnter(null)} className="btn btn-primary btn-lg w-full">
@@ -446,7 +450,7 @@ export default function LoginPage() {
                 <ArrowLeft className="w-4 h-4" /> <span>Cambiar PIN</span>
               </button>
 
-              <h2 className="font-syne text-lg font-semibold text-white mb-1 text-center">
+              <h2 className="font-display text-lg font-semibold text-white mb-1 text-center">
                 Selecciona tu caja
               </h2>
               <p className="text-gray-400 text-sm mb-4 text-center">
@@ -479,9 +483,6 @@ export default function LoginPage() {
 
         </div>
 
-        <p className="text-center text-gray-400 text-xs mt-4">
-          PyroVenta · Multitenant
-        </p>
       </div>
     </div>
   )

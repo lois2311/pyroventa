@@ -27,7 +27,7 @@ export default function LicenseBlock() {
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-500/15 border border-red-500/30 mb-4">
           <ShieldAlert className="w-7 h-7 text-red-400" />
         </div>
-        <h2 className="font-syne text-xl font-bold text-white mb-2">Acceso suspendido</h2>
+        <h2 className="font-display text-xl font-bold text-white mb-2">Acceso suspendido</h2>
         <p className="text-gray-400 text-sm mb-6">{error.message}</p>
         <button onClick={handleLogout} className="btn btn-primary w-full">
           Cerrar sesión

@@ -27,7 +27,7 @@ export default function ChartTooltip({
   const heading = title ? title(label, datum) : label
 
   return (
-    <div className="min-w-[10rem] max-w-[16rem] rounded-lg border border-white/10 bg-surface-100/95 px-3 py-2.5 text-left shadow-xl shadow-black/40 backdrop-blur-sm">
+    <div className="min-w-[10rem] max-w-[16rem] rounded-lg border border-white/10 bg-surface-100/95 px-3 py-2.5 text-left backdrop-blur-sm">
       {heading && <p className="mb-1.5 text-2xs font-medium text-gray-400">{heading}</p>}
 
       {showTotal && entries.length > 1 && (

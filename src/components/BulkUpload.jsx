@@ -10,7 +10,7 @@ import BulkDelete from './BulkDelete.jsx'
 const loadXLSX = () => import('xlsx')
 
 /**
- * Formato del Excel (plantilla_productos_pyroventa.xlsx):
+ * Formato del Excel (plantilla_productos_vendra.xlsx):
  *
  * | Producto        | Categoría   | Descripción | Presentación | Precio | Imagen              |
  * |-----------------|-------------|-------------|--------------|--------|---------------------|
@@ -40,7 +40,7 @@ async function downloadTemplate() {
 
   const wb = utils.book_new()
   utils.book_append_sheet(wb, ws, 'Productos')
-  writeFile(wb, 'plantilla_productos_pyroventa.xlsx')
+  writeFile(wb, 'plantilla_productos_vendra.xlsx')
 }
 
 const keyOf = (product) => product.name.toLowerCase()
@@ -242,7 +242,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
     return (
       <div className="space-y-4">
         <div className="card bg-surface-400 border-dashed border-brand-500/30">
-          <h3 className="font-syne font-semibold text-white mb-2">Carga masiva de productos</h3>
+          <h3 className="font-display font-semibold text-white mb-2">Carga masiva de productos</h3>
           <p className="text-xs text-gray-400 mb-4">
             Sube un archivo Excel (.xlsx) con tus productos. Cada fila es una presentación.
             Un producto puede tener múltiples filas (una por cada presentación/precio).
@@ -324,7 +324,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h3 className="font-syne font-semibold text-white">Vista previa de importación</h3>
+            <h3 className="font-display font-semibold text-white">Vista previa de importación</h3>
             <p className="text-xs text-gray-400">{fileName}</p>
           </div>
           <div className="flex gap-2">
@@ -495,7 +495,7 @@ export default function BulkUpload({ onDone, onProductsChanged }) {
       <div className="space-y-4">
         <div className="card bg-surface-400 border-green-500/20 text-center py-6">
           <div className="text-4xl mb-3">✅</div>
-          <h3 className="font-syne font-bold text-xl text-green-400 mb-2">Importación completada</h3>
+          <h3 className="font-display font-bold text-xl text-green-400 mb-2">Importación completada</h3>
           <p className="text-sm text-gray-300">{result?.message}</p>
 
           <div className="grid grid-cols-3 gap-3 mt-4 max-w-sm mx-auto">

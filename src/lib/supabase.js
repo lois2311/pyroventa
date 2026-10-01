@@ -4,7 +4,7 @@ const supabaseUrl    = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('[PyroVenta] Variables VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY no configuradas.')
+  console.warn('[VENDRA POS] Variables VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY no configuradas.')
 }
 
 export const supabase = createClient(

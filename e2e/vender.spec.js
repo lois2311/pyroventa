@@ -20,12 +20,12 @@ test('agotados bloqueados, tope de stock y factura generada', async ({ page, api
   await bengala.getByRole('button', { name: /Unidad/ }).click()
   await bengala.getByRole('button', { name: /Paquete x12/ }).click()
   await bengala.getByRole('button', { name: /Unidad/ }).click({ force: true }) // aria-disabled: avisa por qué
-  await expect(page.getByText('Solo hay 2 de Bengala dorada x10 y ya están en el carrito')).toBeVisible()
+  await expect(page.getByText('Quedan 2 de Bengala dorada x10 y ya están en el ticket.')).toBeVisible()
 
   await card(page, 'Volcán mágico').getByRole('button', { name: /Unidad/ }).click()
 
   const cart = page.getByRole('complementary', { name: 'Carrito' })
-  await cart.getByRole('button', { name: /Generar Factura/ }).click()
+  await cart.getByRole('button', { name: /Generar factura/ }).click()
 
   await expect(page.getByText('¡Factura creada!')).toBeVisible()
   const [sent] = api.calls('POST', '/invoices')

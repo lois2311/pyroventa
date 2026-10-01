@@ -1,5 +1,5 @@
 // =====================================================
-// PyroVenta — Servicio de impresión
+// VENDRA POS — Servicio de impresión
 // 3 capas: QZ Tray → window.print() → jsPDF
 // =====================================================
 
@@ -8,6 +8,10 @@ import { formatCOP, formatDate, payMethodLabel } from './format.js'
 // ---- Constantes de formato --------------------------
 const LINE_58 = 32 // chars por línea a 58mm
 const LINE_80 = 48 // chars por línea a 80mm
+
+// Respaldo de marca al pie del ticket (Manual VENDRA v1: el ticket impreso es
+// uno de los lugares permitidos). Arriba va siempre la cabecera del negocio.
+export const RECEIPT_ENDORSEMENT = 'VENDRA by flightdev'
 
 // =====================================================
 // CAPA 1 — QZ Tray (impresora USB/WiFi real)
@@ -172,6 +176,7 @@ export async function generatePDF(invoice, config) {
 
   const footers = config?.footer_lines || ['¡Gracias por su compra!', 'Manipule con responsabilidad']
   footers.forEach(line => addLine(line, { align: 'center' }))
+  addLine(RECEIPT_ENDORSEMENT, { align: 'center', size: 7 })
 
   doc.save(`factura-${invoice.code}.pdf`)
 }
@@ -278,6 +283,8 @@ export function formatReceiptText(invoice, config) {
 
   const footers = config?.footer_lines || ['¡Gracias por su compra!', 'Manipule con responsabilidad']
   footers.forEach(f => lines.push(center(f)))
+  lines.push('')
+  lines.push(center(RECEIPT_ENDORSEMENT))
 
   return lines.join('\n')
 }
@@ -341,6 +348,7 @@ export function buildHTMLReceipt(invoice, config) {
   .receipt-row   { display: flex; justify-content: space-between; }
   .receipt-item  { margin-bottom: 1mm; }
   .total-row     { display: flex; justify-content: space-between; font-weight: bold; font-size: 11pt; }
+  .endorsement   { margin-top: 2mm; font-size: 7pt; }
   @media print {
     @page { margin: 0; }
     body { margin: 0; }
@@ -375,6 +383,7 @@ export function buildHTMLReceipt(invoice, config) {
   ` : ''}
   <div class="divider"></div>
   ${footers.map(f => `<div class="center">${escHtml(f)}</div>`).join('')}
+  <div class="center endorsement">${RECEIPT_ENDORSEMENT}</div>
 </div>
 <script>
   window.onload = function() {

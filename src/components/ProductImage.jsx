@@ -80,7 +80,7 @@ export default function ProductImage({ src, name, className = 'w-9 h-9', fit = '
               type="button"
               onClick={(e) => { e.stopPropagation(); setZoomed(false) }}
               aria-label="Cerrar foto"
-              className="pointer-events-auto absolute -right-2 -top-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface-300 text-gray-300 shadow-lg hover:text-white"
+              className="pointer-events-auto absolute -right-2 -top-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface-300 text-gray-300 hover:text-white"
             >
               <X className="h-4 w-4" />
             </button>

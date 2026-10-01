@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Flame, LogOut, MapPin, Menu, ShoppingCart, Shield, X } from 'lucide-react'
+import { LogOut, MapPin, Menu, ShoppingCart, Shield, X } from 'lucide-react'
 import ThemeToggle from './ThemeToggle.jsx'
+import VendraLogo from './VendraLogo.jsx'
+import { useTheme } from '../lib/theme.js'
+import Kbd from './Kbd.jsx'
 import { useAuthStore } from '../store/authStore.js'
 import { useCartStore }  from '../store/cartStore.js'
 import { can, ROLE_LABELS } from '../../api/_lib/roles.js'
@@ -9,10 +12,11 @@ import { can, ROLE_LABELS } from '../../api/_lib/roles.js'
 export default function Topbar({ title }) {
   const navigate = useNavigate()
   const route = useLocation()
-  const { seller, location, locations, register, logout, setLocation } = useAuthStore()
+  const { seller, location, locations, register, tenant, logout, setLocation } = useAuthStore()
   const cartCount = useCartStore(s => s.count())
   const clearCart = useCartStore(s => s.clear)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const theme = useTheme()
 
   const handleLogout = () => {
     logout()
@@ -27,15 +31,43 @@ export default function Topbar({ title }) {
     if (!next && route.pathname !== '/admin') navigate('/admin')
   }
 
+  // Módulos VENDRA con su tecla de función: F1 Vender · F2 Inventario ·
+  // F3 Corte (caja: cobro y cierre) · F4 Reportes. Cada uno aparece solo si
+  // el rol puede usarlo; Vender y Corte necesitan un punto elegido.
+  const hasInventory = Boolean(tenant?.has_inventory)
   const navLinks = useMemo(() => {
     const role = seller?.role
     const links = []
-    if (can(role, 'view_reports')) links.push({ label: 'Admin', path: '/admin' })
-    // Vender y Caja necesitan un punto elegido
-    if (location && can(role, 'sell'))   links.push({ label: 'Vender', path: '/vender' })
-    if (location && can(role, 'charge')) links.push({ label: 'Caja', path: '/caja' })
+    if (location && can(role, 'sell'))   links.push({ key: 'F1', label: 'Vender', path: '/vender' })
+    if (can(role, 'manage_catalog'))     links.push({ key: 'F2', label: 'Inventario', path: '/admin', tab: hasInventory ? 'inventario' : 'productos' })
+    if (location && can(role, 'charge')) links.push({ key: 'F3', label: 'Corte', path: '/caja' })
+    if (can(role, 'view_reports'))       links.push({ key: 'F4', label: 'Reportes', path: '/admin', tab: 'resumen' })
     return links
-  }, [seller?.role, location])
+  }, [seller?.role, location, hasInventory])
+
+  const currentTab = new URLSearchParams(route.search).get('tab')
+  const isActive = (link) => {
+    if (route.pathname !== link.path) return false
+    if (!link.tab) return true
+    // En /admin, Inventario marca sus pestañas y Reportes todas las demás
+    const catalogTab = ['inventario', 'productos'].includes(currentTab)
+    return link.label === 'Inventario' ? catalogTab : !catalogTab
+  }
+  const go = (link) => navigate(link.tab ? `${link.path}?tab=${link.tab}` : link.path)
+
+  // Teclas de función: navegan desde cualquier pantalla salvo con un diálogo
+  // abierto (F1 ya no abre la ayuda del navegador dentro de la app).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
+      const link = navLinks.find(l => l.key === e.key)
+      if (!link || document.querySelector('[role="dialog"]')) return
+      e.preventDefault()
+      go(link)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   useEffect(() => {
     setDrawerOpen(false)
@@ -61,12 +93,13 @@ export default function Topbar({ title }) {
         </button>
 
         <div className="flex items-center gap-2 shrink-0 min-w-0">
-          <Flame className="w-5 h-5 text-brand-500" />
-          <span className="font-syne font-bold text-brand-500 text-base hidden sm:block">PyroVenta</span>
+          {/* Menú de la caja: con distintivo POS y sin "by flightdev" */}
+          <VendraLogo variant="pos" size="sm" theme={theme} title="VENDRA POS" className="hidden sm:block" />
+          <VendraLogo variant="symbol" size={24} theme={theme} title="VENDRA POS" className="sm:hidden" />
         </div>
 
         {title && (
-          <span className="font-syne text-white font-semibold text-sm ml-1 truncate">{title}</span>
+          <span className="ml-1 truncate border-l border-white/10 pl-3 font-display text-sm font-semibold text-white">{title}</span>
         )}
 
         {cartCount > 0 && (
@@ -78,17 +111,21 @@ export default function Topbar({ title }) {
 
         <div className="flex-1" />
 
-        <nav aria-label="Módulos" className="hidden md:flex items-center gap-1">
+        <nav aria-label="Módulos" className="hidden md:flex items-stretch gap-1 self-stretch">
           {navLinks.map(link => {
-            const active = route.pathname === link.path
+            const active = isActive(link)
             return (
               <button
-                key={link.path}
-                onClick={() => navigate(link.path)}
+                key={link.key}
+                onClick={() => go(link)}
                 aria-current={active ? 'page' : undefined}
-                className={`inline-flex min-h-[var(--control-h-sm)] items-center rounded-lg px-3 text-sm transition-colors ${active ? 'text-white bg-surface-50' : 'text-gray-400 hover:text-white hover:bg-surface-50'}`}
+                aria-keyshortcuts={link.key}
+                className={`relative inline-flex items-center gap-2 px-3 text-sm font-medium transition-colors ${active ? 'text-white' : 'text-gray-400 hover:text-white'}`}
               >
+                <Kbd className={active ? 'border-brand-500/50 text-brand-400' : ''}>{link.key}</Kbd>
                 {link.label}
+                {/* Indicador activo: línea Voltaje */}
+                {active && <span aria-hidden="true" className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-brand-500" />}
               </button>
             )
           })}
@@ -151,10 +188,7 @@ export default function Topbar({ title }) {
           />
           <aside className="absolute left-0 top-0 h-full w-72 max-w-[85vw] bg-surface-300 border-r border-white/10 p-4 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Flame className="w-5 h-5 text-brand-500" />
-                <span className="font-syne font-bold text-brand-500">PyroVenta</span>
-              </div>
+              <VendraLogo variant="pos" size="sm" theme={theme} title="VENDRA POS" />
               <button
                 onClick={() => setDrawerOpen(false)}
                 className="btn-touch-safe inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-surface-50 px-2"
@@ -189,13 +223,15 @@ export default function Topbar({ title }) {
 
             <nav className="flex flex-col gap-2">
               {navLinks.map(link => {
-                const active = route.pathname === link.path
+                const active = isActive(link)
                 return (
                   <button
-                    key={link.path}
-                    onClick={() => navigate(link.path)}
-                    className={`text-left rounded-lg px-3 py-2.5 text-sm border transition-colors ${active ? 'bg-brand-500/20 border-brand-500/40 text-brand-300' : 'bg-surface-400 border-white/5 text-gray-300 hover:text-white hover:border-white/20'}`}
+                    key={link.key}
+                    onClick={() => go(link)}
+                    aria-current={active ? 'page' : undefined}
+                    className={`flex min-h-[var(--control-h)] items-center gap-2 text-left rounded-lg px-3 text-sm font-medium border transition-colors ${active ? 'row-active bg-brand-500/15 border-brand-500/40 text-brand-300' : 'bg-surface-400 border-white/5 text-gray-300 hover:text-white hover:border-white/20'}`}
                   >
+                    <span className="font-mono text-kbd text-gray-400">{link.key}</span>
                     {link.label}
                   </button>
                 )

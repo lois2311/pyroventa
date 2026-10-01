@@ -42,8 +42,9 @@ export function useNetworkStatus() {
       if (!active) return
       const start = performance.now()
       try {
-        // Usamos un endpoint de Supabase o un recurso estático pequeño
-        await fetch('/manifest.json', { cache: 'no-store', signal: AbortSignal.timeout(5000) })
+        // Recurso estático pequeño: el manifest que genera vite-plugin-pwa
+        // (public/manifest.json ya no existe)
+        await fetch('/manifest.webmanifest', { cache: 'no-store', signal: AbortSignal.timeout(5000) })
         if (active) setLatency(Math.round(performance.now() - start))
       } catch {
         // Si no puede alcanzar ni un recurso local, probablemente está offline real

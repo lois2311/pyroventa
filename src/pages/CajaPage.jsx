@@ -27,7 +27,10 @@ import Kbd             from '../components/Kbd.jsx'
 
 // Enfoca el campo de código visible (desktop y móvil tienen el suyo)
 function focusCodeInput() {
-  const el = [...document.querySelectorAll('[data-code-input]')].find(x => x.offsetParent !== null)
+  focusVisible('[data-code-input]')
+}
+function focusVisible(selector) {
+  const el = [...document.querySelectorAll(selector)].find(x => x.offsetParent !== null)
   el?.focus()
   el?.select?.()
 }
@@ -76,17 +79,17 @@ function PaidOverlay({ invoice, onDone }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="bg-surface-300 border border-green-500/30 rounded-2xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl animate-scale-in">
+        className="cq bg-surface-300 border border-green-400/30 rounded-lg p-6 sm:p-8 max-w-sm w-full text-center animate-scale-in">
         <CheckCircle2 className="w-14 h-14 sm:w-16 sm:h-16 text-green-400 mx-auto mb-4" />
-        <h2 id={titleId} className="font-syne font-bold text-xl sm:text-2xl text-green-400 mb-2">¡Cobrado!</h2>
+        <h2 id={titleId} className="font-display font-bold text-xl sm:text-2xl text-green-400 mb-2">¡Cobrado!</h2>
         <div className="font-mono font-bold text-brand-400 text-3xl sm:text-5xl tracking-[0.2em] mb-2">
           {invoice?.code}
         </div>
-        <p className="font-mono font-bold text-xl sm:text-3xl text-white mb-2">{formatCOP(invoice?.total)}</p>
+        <p className="total-display mb-3">{formatCOP(invoice?.total)}</p>
 
         {Number(invoice?.discount) > 0 && (
           <p className="text-xs text-amber-400 mb-2 inline-flex items-center gap-1.5">
-            <Tag className="w-3.5 h-3.5" /> Descuento aplicado: −{formatCOP(invoice.discount)}
+            <Tag className="w-3.5 h-3.5" /> Descuento: <span className="font-mono">−{formatCOP(invoice.discount)}</span>
           </p>
         )}
 
@@ -108,7 +111,7 @@ function PaidOverlay({ invoice, onDone }) {
 
         {/* data-autofocus: Enter tras cobrar continúa (no reimprime) */}
         <button type="button" onClick={onDone} data-autofocus className="btn-outline w-full">
-          Continuar →
+          Siguiente cliente <Kbd>Enter</Kbd>
         </button>
       </div>
     </div>
@@ -150,9 +153,9 @@ function RegisterGate({ locationId, onSelect }) {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center max-w-sm">
           <Monitor className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h2 className="font-syne font-bold text-xl text-white mb-2">No hay cajas registradas</h2>
+          <h2 className="font-display font-bold text-xl text-white mb-2">Este punto no tiene cajas.</h2>
           <p className="text-gray-400 text-sm mb-4">
-            Un administrador debe crear cajas para este punto de venta desde el panel de Administración → Cajas.
+            Pide a un administrador que las cree en Reportes → Cajas.
           </p>
           <button
             onClick={() => onSelect(null)}
@@ -169,15 +172,15 @@ function RegisterGate({ locationId, onSelect }) {
     <div className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-md text-center">
         <Monitor className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-        <h2 className="font-syne font-bold text-xl text-white mb-1">Selecciona tu caja</h2>
-        <p className="text-gray-400 text-sm mb-6">¿En cuál caja vas a cobrar hoy?</p>
+        <h2 className="font-display font-bold text-xl text-white mb-1">Elige tu caja</h2>
+        <p className="text-gray-400 text-sm mb-6">¿Dónde cobras hoy?</p>
 
         <div className="grid grid-cols-2 gap-3">
           {registers.map(reg => (
             <button
               key={reg.id}
               onClick={() => onSelect(reg)}
-              className="card-hover bg-surface-300 flex flex-col items-center gap-2 py-5 transition-all hover:scale-[1.02]"
+              className="card-hover flex min-h-[var(--control-h)] flex-col items-center gap-2 py-5"
             >
               <Monitor className="w-7 h-7 text-gray-400" />
               <span className="font-semibold text-white">{reg.name}</span>
@@ -264,6 +267,7 @@ export default function CajaPage() {
   const handleRegisterSelect = (reg) => {
     setRegister(reg)
     setChangingReg(false)
+    if (reg) toastSuccess(`${reg.name} lista.`)
   }
 
   // ---- Cargar pendientes al montar ----------------------
@@ -370,9 +374,11 @@ export default function CajaPage() {
       setPaidInv(paid)
       setInvoice(null); setCode(''); setPayMethod(null); setTransferProv(null); setObservations(''); setMobileTab('cobrar')
       setDiscountStr(''); setCashReceived('')
-      toastSuccess(`Factura #${paid.code} cobrada · ${register?.name || 'Sin caja'}`)
+      toastSuccess(`Cobrado. #${paid.code} · ${register?.name || 'Sin caja'}`)
     } catch (err) {
-      toastError(err.message || 'Error al cobrar la factura')
+      toastError(err.message || (payMethod === 'card'
+        ? 'Tarjeta rechazada. Intenta otra forma de pago.'
+        : 'No se pudo cobrar. Intenta otra forma de pago.'))
     } finally { setPaying(false); payingRef.current = false }
   }
 
@@ -380,9 +386,9 @@ export default function CajaPage() {
   const handleCancel = async () => {
     if (!invoice) return
     const ok = await confirm({
-      title: `¿Cancelar la factura #${invoice.code}?`,
-      description: `Sale de pendientes y ya no se podrá cobrar (${formatCOP(invoice.total)}). Para venderla de nuevo, el vendedor genera otra factura.`,
-      confirmLabel: 'Cancelar factura',
+      title: `¿Cancelar la venta #${invoice.code}?`,
+      description: `Sale de pendientes y ya no se cobra (${formatCOP(invoice.total)}). Para venderla otra vez, el vendedor genera una factura nueva.`,
+      confirmLabel: 'Cancelar venta',
       cancelLabel: 'Volver',
       tone: 'danger',
     })
@@ -391,21 +397,23 @@ export default function CajaPage() {
       await api.post(`/invoices/${invoice.code}/cancel`, { location_id: location.id })
       removePending(invoice.id)
       setInvoice(null); setCode(''); setPayMethod(null); setTransferProv(null); setObservations(''); setMobileTab('cobrar')
-      toastSuccess('Factura cancelada')
-    } catch (err) { toastError(err.message || 'Error al cancelar') }
+      toastSuccess(`Venta #${invoice.code} cancelada.`)
+    } catch (err) { toastError(err.message || 'No se pudo cancelar. Intenta de nuevo.') }
   }
 
   // ---- Atajos de teclado (cajeros con teclado físico) ----
   //   /        enfoca el código de factura
   //   1 2 3    Efectivo / Transferencia / Datáfono
   //   N D B    Nequi / Daviplata / Bancolombia (con Transferencia)
-  //   Enter    cobra (desde cualquier lugar salvo botones, enlaces y el código)
+  //   F12      cobra (también Enter, salvo en botones, enlaces y el código)
+  //   F6       enfoca el descuento
+  //   Esc      cancela la venta (pide confirmación)
   // Los números no actúan mientras se escribe en un campo (descuento, efectivo)
   // ni con un diálogo abierto. El listener lee el estado por ref para no
   // re-suscribirse en cada render.
   const shortcuts = useRef(null)
   shortcuts.current = {
-    invoice, payMethod, payBlocked, handlePay, selectPayMethod, setTransferProv,
+    invoice, payMethod, payBlocked, handlePay, handleCancel, selectPayMethod, setTransferProv, canEdit,
     busy: editing || closingReg || refunding || Boolean(paidInv),
   }
   useEffect(() => {
@@ -418,6 +426,14 @@ export default function CajaPage() {
 
       if (e.key === '/' && !typing) { e.preventDefault(); focusCodeInput(); return }
       if (!st.invoice) return
+
+      if (e.key === 'F12') {
+        e.preventDefault()
+        if (!e.repeat && !st.payBlocked) st.handlePay()
+        return
+      }
+      if (e.key === 'F6') { e.preventDefault(); focusVisible('[data-discount-input]'); return }
+      if (e.key === 'Escape' && !typing && st.canEdit) { e.preventDefault(); st.handleCancel(); return }
 
       if (e.key === 'Enter') {
         if (e.repeat || target?.closest('button, a, textarea, select, [data-code-input]')) return
@@ -493,7 +509,7 @@ export default function CajaPage() {
         )}
         {canEdit && (
           <button type="button" onClick={() => setClosingReg(true)} className="btn-outline btn-sm btn-touch-safe">
-            <Receipt className="h-3.5 w-3.5" /> Cerrar caja
+            <Receipt className="h-3.5 w-3.5" /> Corte de caja
           </button>
         )}
       </div>
@@ -505,7 +521,7 @@ export default function CajaPage() {
         <CodeInput id={`${prefix}-code`} value={code} onChange={setCode} onSearch={handleSearch} loading={searching} />
         {notFound && !invoice && (
           <p className="mt-2 text-sm text-red-400" role="alert">
-            No hay factura pendiente con el código <strong>{code}</strong>
+            Sin factura pendiente con el código <strong className="font-mono">{code}</strong>.
           </p>
         )}
       </div>
@@ -534,8 +550,8 @@ export default function CajaPage() {
               <button type="button" onClick={() => setEditing(true)} className="btn-ghost btn-sm text-brand-400 hover:text-brand-300">
                 <Pencil className="h-3.5 w-3.5" /> Editar factura
               </button>
-              <button type="button" onClick={handleCancel} className="btn-ghost btn-sm text-gray-400 hover:text-red-400">
-                <X className="h-3.5 w-3.5" /> Cancelar factura
+              <button type="button" onClick={handleCancel} aria-keyshortcuts="Escape" className="btn-ghost btn-sm text-gray-400 hover:text-red-400">
+                <X className="h-3.5 w-3.5" /> Cancelar venta <Kbd>Esc</Kbd>
               </button>
             </div>
           )}
@@ -543,8 +559,8 @@ export default function CajaPage() {
       ) : !notFound ? (
         <EmptyState
           icon={Hash}
-          title="Ingresa un código de 4 dígitos"
-          description="O elige una factura de la lista de pendientes."
+          title="Escribe el código de 4 dígitos."
+          description="O toca una factura pendiente."
         />
       ) : null}
     </div>
@@ -553,9 +569,9 @@ export default function CajaPage() {
   // ---- Cobro: total, ajustes opcionales y método de pago ----------------
   const renderPayForm = (prefix) => (
     <div className="space-y-5">
-      <div className="rounded-xl border border-white/5 bg-surface-300 p-4 text-center">
+      <div className="cq rounded-lg border border-white/5 bg-surface-300 p-4 text-center">
         <p className="eyebrow">Total a cobrar</p>
-        <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-white">{formatCOP(totalToPay)}</p>
+        <p className="total-display mt-2" aria-live="polite">{formatCOP(totalToPay)}</p>
         {discountNum > 0 && !invalidDiscount && (
           <p className="mt-0.5 text-xs text-gray-400">
             <span className="line-through">{formatCOP(invoice.total)}</span> · descuento {formatCOP(discountNum)}
@@ -573,8 +589,8 @@ export default function CajaPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
         <div>
-          <label htmlFor={`${prefix}-discount`} className="field-label">Descuento en $ <span className="font-normal">(opcional)</span></label>
-          <input id={`${prefix}-discount`} type="number" inputMode="numeric" min="0" value={discountStr}
+          <label htmlFor={`${prefix}-discount`} className="field-label flex items-center gap-2">Descuento en $ <span className="font-normal">(opcional)</span> <Kbd>F6</Kbd></label>
+          <input id={`${prefix}-discount`} data-discount-input aria-keyshortcuts="F6" type="number" inputMode="numeric" min="0" value={discountStr}
             onChange={e => setDiscountStr(e.target.value)}
             placeholder="0" className="input font-mono" />
           {invalidDiscount && <p className="mt-1 text-xs text-red-400">No puede superar {formatCOP(invoice.total)}</p>}
@@ -627,7 +643,7 @@ export default function CajaPage() {
           {invoice ? (
             <div className="mx-auto max-w-2xl lg:max-w-none">{renderPayForm('d')}</div>
           ) : (
-            <EmptyState compact icon={CreditCard} title="Busca una factura para cobrar" className="mt-8" />
+            <EmptyState compact icon={CreditCard} title="Busca una factura para cobrar." className="mt-8" />
           )}
         </aside>
       </div>
@@ -657,7 +673,7 @@ export default function CajaPage() {
         {mobileTab === 'pagar' && (
           <div className="p-4">
             {invoice ? renderPayForm('m') : (
-              <EmptyState icon={CreditCard} title="Busca una factura para cobrar" description="Ingresa el código en la pestaña Cobrar." />
+              <EmptyState icon={CreditCard} title="Busca una factura para cobrar." description="Escribe el código en la pestaña Cobrar." />
             )}
           </div>
         )}

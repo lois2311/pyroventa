@@ -1,5 +1,5 @@
 // =====================================================
-// PyroVenta — Cliente HTTP con retry, timeout y offline
+// VENDRA POS — Cliente HTTP con retry, timeout y offline
 // =====================================================
 
 const BASE = '/api'

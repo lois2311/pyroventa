@@ -46,16 +46,16 @@ test('transferencia exige proveedor: 2 y luego N', async ({ page }) => {
 test('cancelar una factura pide confirmación', async ({ page, api }) => {
   await page.goto('/caja')
   await page.getByRole('button', { name: /4821/ }).first().click()
-  await page.getByRole('button', { name: 'Cancelar factura' }).click()
+  await page.getByRole('button', { name: 'Cancelar venta' }).click()
 
-  const dialog = page.getByRole('dialog', { name: '¿Cancelar la factura #4821?' })
+  const dialog = page.getByRole('dialog', { name: '¿Cancelar la venta #4821?' })
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Volver' }).click()
   await expect(dialog).toBeHidden()
   expect(api.calls('POST', '/invoices/4821/cancel')).toHaveLength(0)
 
-  await page.getByRole('button', { name: 'Cancelar factura' }).click()
-  await dialog.getByRole('button', { name: 'Cancelar factura' }).click()
-  await expect(page.getByText('Factura cancelada')).toBeVisible()
+  await page.getByRole('button', { name: 'Cancelar venta' }).click()
+  await dialog.getByRole('button', { name: 'Cancelar venta' }).click()
+  await expect(page.getByText('Venta #4821 cancelada.')).toBeVisible()
   expect(api.calls('POST', '/invoices/4821/cancel')).toHaveLength(1)
 })

@@ -44,7 +44,7 @@ export default function CategoryBreakdown({ data, loading, className = '' }) {
     const r = rows[index]
     if (!r) return null
     return (
-      <text x={x + width + 8} y={y + height / 2} dy="0.35em" fontSize={11} fontFamily='"DM Mono", ui-monospace, monospace'>
+      <text x={x + width + 8} y={y + height / 2} dy="0.35em" fontSize={11} fontFamily='"JetBrains Mono", Consolas, ui-monospace, monospace'>
         <tspan fill={CHART.label} fontWeight={600}>{formatCOPShort(r.total_revenue)}</tspan>
         <tspan fill={CHART.axis} dx={6}>{share(r.total_revenue).toFixed(0)}%</tspan>
       </text>
@@ -98,7 +98,7 @@ export default function CategoryBreakdown({ data, loading, className = '' }) {
                   isAnimationActive={!reducedMotion}
                   animationDuration={600}
                 >
-                  {rows.map(r => <Cell key={r.label} fill={r.isOther ? CHART.other : CHART.brand} />)}
+                  {rows.map(r => <Cell key={r.label} fill={r.isOther ? CHART.other : CHART.bar} />)}
                   <LabelList dataKey="total_revenue" content={renderTipLabel} />
                 </Bar>
               </BarChart>

@@ -1,5 +1,5 @@
 // =====================================================
-// PyroVenta — Cola offline persistente
+// VENDRA POS — Cola offline persistente
 // Encola operaciones cuando no hay red y las sincroniza
 // cuando vuelve la conectividad.
 // =====================================================

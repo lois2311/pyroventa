@@ -63,7 +63,7 @@ export default function ResumenTab({ from, to, setRange, locationId, setLocation
       { name: 'Productos', rows: list(topProds).flatMap(p => p.presentations.map(pr => ({
           Producto: p.product_name, Presentación: pr.label, Cantidad: pr.qty, Total: pr.revenue }))) },
     ]
-    exportToExcel(sheets, `pyroventa_${from}_${to}.xlsx`)
+    exportToExcel(sheets, `vendra_${from}_${to}.xlsx`)
   }
 
   const scopeLabel = locationId

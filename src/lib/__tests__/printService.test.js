@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { buildHTMLReceipt, formatReceiptText, withTimeout } from '../printService.js'
+import { buildHTMLReceipt, formatReceiptText, withTimeout, RECEIPT_ENDORSEMENT } from '../printService.js'
 
 describe('printService — buildHTMLReceipt', () => {
   const sampleInvoice = {
@@ -62,6 +62,28 @@ describe('printService — formatReceiptText', () => {
     expect(text).toContain('Chispitas')
     expect(text).toContain('TOTAL')
     expect(text).toContain('Nequi')
+  })
+})
+
+describe('printService — marca VENDRA en el ticket', () => {
+  const invoice = {
+    code: '4821', created_at: '2026-09-30T12:00:00Z', seller_name: 'Ana', pay_method: 'cash', total: 1000,
+    items: [{ product_name: 'Chispitas', label: 'Unidad', qty: 1, subtotal: 1000 }],
+  }
+  const config = { paper_width: '58mm', header_lines: ['MI NEGOCIO'], footer_lines: ['¡Gracias!'] }
+
+  it('pone la cabecera del negocio arriba y "VENDRA by flightdev" al final (texto)', () => {
+    const lines = formatReceiptText(invoice, config).split('\n').map(l => l.trim())
+    expect(RECEIPT_ENDORSEMENT).toBe('VENDRA by flightdev')
+    expect(lines[0]).toBe('MI NEGOCIO')
+    expect(lines.at(-1)).toBe(RECEIPT_ENDORSEMENT)
+    expect(lines.indexOf('¡Gracias!')).toBeLessThan(lines.indexOf(RECEIPT_ENDORSEMENT))
+  })
+
+  it('incluye el respaldo después del pie en el HTML de impresión', () => {
+    const html = buildHTMLReceipt(invoice, config)
+    expect(html.indexOf('MI NEGOCIO')).toBeLessThan(html.indexOf('¡Gracias!'))
+    expect(html.indexOf('¡Gracias!')).toBeLessThan(html.indexOf(RECEIPT_ENDORSEMENT))
   })
 })
 

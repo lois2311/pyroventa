@@ -1,6 +1,6 @@
-# 🎆 PyroVenta
+# VENDRA POS
 
-Sistema de control de ventas para establecimientos pirotécnicos con múltiples puntos de venta.
+Punto de venta y caja, con múltiples puntos de venta. **Cobra en segundos.** Una línea de producto de flightdev (antes PyroVenta).
 
 **Stack:** React + Vite · Node.js Serverless Functions (Vercel) · Supabase (PostgreSQL + Realtime) · Tailwind CSS v3 · Zustand · QZ Tray + jsPDF
 

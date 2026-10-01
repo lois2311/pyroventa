@@ -1,14 +1,21 @@
-/* Fuentes alojadas con la app (@fontsource), solo el subconjunto latino y los
-   pesos que se usan. Antes venían de Google Fonts: una petición a otro dominio
-   antes del primer render, sin fuentes en la primera carga sin conexión, y un
-   tercero viendo cada apertura de la app. El subconjunto latin cubre español
-   (á é ñ ¿ ¡), comillas tipográficas, rayas y el signo menos. */
-@import '@fontsource/syne/latin-600.css';
-@import '@fontsource/syne/latin-700.css';
-@import '@fontsource/syne/latin-800.css';
-@import '@fontsource/dm-sans/latin-400.css';
-@import '@fontsource/dm-sans/latin-400-italic.css';
-@import '@fontsource/dm-sans/latin-500.css';
-@import '@fontsource/dm-sans/latin-600.css';
-@import '@fontsource/dm-mono/latin-400.css';
-@import '@fontsource/dm-mono/latin-500.css';
+/* Tipografía VENDRA (Manual de marca v1), alojada con la app (@fontsource):
+   solo el subconjunto latino y los pesos que se usan. Sin Google Fonts: sin
+   petición a otro dominio antes del primer render y con fuentes en la primera
+   carga sin conexión. El subconjunto latin cubre español (á é ñ ¿ ¡).
+     Space Grotesk  → marca y títulos (Regular, Medium, SemiBold, Bold)
+     Figtree        → interfaz y cuerpo (Regular, Medium, SemiBold, Bold)
+     JetBrains Mono → montos, SKU, códigos y atajos (Regular, Medium, Bold)
+   Mismo set que vendra-brand-kit/src/styles/fonts.css más Space Grotesk 400 y
+   Figtree 400 itálica, que la app usa (observaciones, notas de precio). */
+@import '@fontsource/space-grotesk/latin-400.css';
+@import '@fontsource/space-grotesk/latin-500.css';
+@import '@fontsource/space-grotesk/latin-600.css';
+@import '@fontsource/space-grotesk/latin-700.css';
+@import '@fontsource/figtree/latin-400.css';
+@import '@fontsource/figtree/latin-400-italic.css';
+@import '@fontsource/figtree/latin-500.css';
+@import '@fontsource/figtree/latin-600.css';
+@import '@fontsource/figtree/latin-700.css';
+@import '@fontsource/jetbrains-mono/latin-400.css';
+@import '@fontsource/jetbrains-mono/latin-500.css';
+@import '@fontsource/jetbrains-mono/latin-700.css';

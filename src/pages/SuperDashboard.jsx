@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  BarChart3, Building2, CalendarClock, CheckCircle2, Copy, Flame, Loader2, LogOut, MapPin, Package,
+  BarChart3, Building2, CalendarClock, CheckCircle2, Copy, Loader2, LogOut, MapPin, Package,
   Pause, Play, Plus, RefreshCw, ShieldCheck, Users, Wallet,
 } from 'lucide-react'
 import { superApi } from '../lib/superApi.js'
@@ -10,6 +10,8 @@ import DateRangeBar, { toISO } from '../components/DateRangeBar.jsx'
 import Modal from '../components/Modal.jsx'
 import PageHeader, { SectionHeader } from '../components/PageHeader.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
+import VendraLogo from '../components/VendraLogo.jsx'
+import { useTheme } from '../lib/theme.js'
 import EmptyState from '../components/EmptyState.jsx'
 import MetricTile from '../components/MetricTile.jsx'
 
@@ -489,6 +491,7 @@ function PlatformSummary({ tenants }) {
 
 // ---- Dashboard -------------------------------------------
 export default function SuperDashboard() {
+  const theme = useTheme()
   const navigate = useNavigate()
   const [tenants, setTenants] = useState(null)
   const [showNew, setShowNew] = useState(false)
@@ -533,13 +536,13 @@ export default function SuperDashboard() {
     <div className="min-h-[100dvh] bg-surface-600">
       <div className="mx-auto w-full max-w-6xl space-y-8 px-gutter py-8 sm:py-10">
         <div className="space-y-2">
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-500">
-            <Flame className="h-4 w-4" /> <span className="font-syne">PyroVenta</span>
+          <p className="flex items-center gap-2 text-sm">
+            <VendraLogo variant="horizontal" size="sm" theme={theme} title="VENDRA POS" />
             <span className="font-normal text-gray-400">· Plataforma</span>
           </p>
           <PageHeader
             title="Clientes"
-            description={tenants ? `${tenants.length} empresa${tenants.length !== 1 ? 's' : ''} registrada${tenants.length !== 1 ? 's' : ''}` : 'Panel de plataforma PyroVenta'}
+            description={tenants ? `${tenants.length} empresa${tenants.length !== 1 ? 's' : ''} registrada${tenants.length !== 1 ? 's' : ''}` : 'Panel de plataforma VENDRA POS'}
             actions={<>
               <button type="button" onClick={load} className="btn-outline btn-icon" aria-label="Actualizar lista" title="Actualizar">
                 <RefreshCw className="h-4 w-4" />

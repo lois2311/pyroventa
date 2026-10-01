@@ -78,18 +78,22 @@ export default defineConfig({
           },
         ],
       },
+      // Manifest único de la PWA (public/manifest.json se eliminó: apuntaba a
+      // PNG inexistentes). Íconos SVG de vendra-brand-kit, sin radio: el
+      // sistema aplica la máscara.
       manifest: {
-        name: 'PyroVenta',
-        short_name: 'PyroVenta',
-        description: 'Sistema de control de ventas pirotécnico',
+        name: 'VENDRA POS',
+        short_name: 'VENDRA',
+        description: 'Punto de venta para cualquier negocio. By flightdev.',
+        lang: 'es',
         start_url: '/login',
         display: 'standalone',
         orientation: 'any',
-        background_color: '#111111',
-        theme_color: '#111111',
+        background_color: '#0A1428', // Noche
+        theme_color: '#0A1428',
         icons: [
-          { src: '/icon-192.svg', sizes: '192x192', type: 'image/svg+xml' },
-          { src: '/icon-512.svg', sizes: '512x512', type: 'image/svg+xml' },
+          { src: '/icon-192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: '/icon-512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' },
         ],
       },
     }),

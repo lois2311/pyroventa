@@ -1,5 +1,5 @@
 // =====================================================
-// PyroVenta — Parser de la plantilla Excel de productos
+// VENDRA POS — Parser de la plantilla Excel de productos
 // Columnas: Producto | Categoría | Descripción | Presentación | Precio | Imagen
 // Un producto puede tener múltiples filas (una por presentación).
 // "Imagen" (opcional) es el nombre del archivo de foto que acompaña al Excel.

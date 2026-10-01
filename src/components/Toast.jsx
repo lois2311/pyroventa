@@ -62,7 +62,7 @@ function ToastContainer({ toasts, onDismiss }) {
         return (
           <div
             key={t.id}
-            className={`${s.bg} border rounded-xl px-4 py-3 flex items-start gap-3 shadow-2xl animate-slide-left pointer-events-auto`}
+            className={`${s.bg} border rounded-xl px-4 py-3 flex items-start gap-3 animate-slide-left pointer-events-auto`}
           >
             <span className={`${s.text} font-bold mt-0.5 shrink-0`}>{s.icon}</span>
             <span className="text-sm text-white/90 flex-1 leading-snug">{t.message}</span>

@@ -24,7 +24,7 @@ export default function SuccessAnimation({ invoice, onDone }) {
       />
       <div
         ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        className="relative bg-surface-300 border border-green-500/30 rounded-2xl p-8 max-w-xs w-full text-center shadow-2xl animate-scale-in"
+        className="relative bg-surface-300 border border-green-500/30 rounded-2xl p-8 max-w-xs w-full text-center animate-scale-in"
       >
         {/* Checkmark SVG animado */}
         <div className="flex justify-center mb-4">
@@ -52,7 +52,7 @@ export default function SuccessAnimation({ invoice, onDone }) {
           </svg>
         </div>
 
-        <h2 id={titleId} className="font-syne font-bold text-xl text-green-400 mb-1">¡Factura creada!</h2>
+        <h2 id={titleId} className="font-display font-bold text-xl text-green-400 mb-1">¡Factura creada!</h2>
 
         {/* Código grande */}
         {invoice?.code && (
