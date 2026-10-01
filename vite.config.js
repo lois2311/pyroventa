@@ -56,14 +56,17 @@ export default defineConfig({
             },
           },
           {
-            // API de productos — stale-while-revalidate
-            // (subir la versión fuerza un refetch en todos los equipos tras el
-            //  deploy; v3 = tras la purga de productos y sus fotos)
+            // API de productos — red primero, cache sin conexión. Antes era
+            // stale-while-revalidate: cada consulta devolvía la respuesta
+            // anterior y el catálogo en vivo (useCatalogRefresh) llegaba una
+            // vuelta tarde. La primera pintura sigue siendo instantánea por el
+            // cache de localStorage de la pantalla de Vender.
             urlPattern: /\/api\/products/,
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'api-products-v3',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 4 }, // 4 horas
+              networkTimeoutSeconds: 8,
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 }, // 24 h sin conexión
             },
           },
           {

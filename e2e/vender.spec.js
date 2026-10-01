@@ -1,4 +1,4 @@
-import { test, expect, signIn } from './fixtures.js'
+import { test, expect, signIn, PRODUCTS } from './fixtures.js'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, 'seller')
@@ -52,4 +52,22 @@ test('si el catálogo no carga (sin caché) se ve el error con reintento', async
   api.on('GET', '/products', () => [{ id: 'p1', name: 'Volcán mágico', stock_quantity: 5, presentations: [{ id: 'p1-u', label: 'Unidad', price: 3000 }] }])
   await page.getByRole('button', { name: 'Reintentar' }).click()
   await expect(card(page, 'Volcán mágico')).toBeVisible()
+})
+
+test('el catálogo se actualiza solo cuando cambia en otro equipo', async ({ page, api }) => {
+  await page.clock.install()
+  await page.goto('/vender')
+  await expect(card(page, 'Volcán mágico')).toBeVisible()
+  await expect(card(page, 'Volcán mágico')).toContainText('$3.000')
+
+  // Otro equipo cambia un precio y crea un producto
+  api.on('GET', '/products', () => [
+    ...PRODUCTS.map(p => p.id === 'p1'
+      ? { ...p, presentations: p.presentations.map(pr => ({ ...pr, price: 3500 })) }
+      : p),
+    { id: 'p9', name: 'Cohete nuevo', active: true, stock_quantity: 10, presentations: [{ id: 'p9-u', label: 'Unidad', price: 2000 }] },
+  ])
+  await page.clock.fastForward('00:31')
+  await expect(card(page, 'Cohete nuevo')).toBeVisible()
+  await expect(card(page, 'Volcán mágico')).toContainText('$3.500')
 })

@@ -19,6 +19,7 @@ import SuccessAnimation from '../components/SuccessAnimation.jsx'
 import { useToast }    from '../components/Toast.jsx'
 import { useModalA11y } from '../hooks/useModalA11y.js'
 import { useSlashFocus } from '../hooks/useSlashFocus.js'
+import { useCatalogRefresh } from '../hooks/useCatalogRefresh.js'
 import EmptyState      from '../components/EmptyState.jsx'
 import ErrorNotice     from '../components/ErrorNotice.jsx'
 import Kbd             from '../components/Kbd.jsx'
@@ -103,6 +104,9 @@ export default function VendedorPage() {
       return () => controller.abort()
     }
   }, [location?.id, reloadKey])
+
+  // Catálogo en vivo: lo que cambia en otro equipo llega solo (cada 30 s)
+  useCatalogRefresh(location?.id, setProducts)
 
   // El stock del carrito se refresca con cada catálogo nuevo
   useEffect(() => {
