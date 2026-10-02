@@ -182,8 +182,10 @@ export default function Topbar({ title }) {
 
         {seller && (
           <div className="hidden md:flex items-center gap-2 text-xs text-gray-400">
-            <span className="hidden lg:block">
-              <span className="inline-flex items-center gap-1.5">
+            {/* Desde 1280px: en un equipo de 12" (1024px) el nombre + rol del
+                superadministrador empujaba "Salir" fuera de la pantalla */}
+            <span className="hidden xl:block">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                 {can(seller.role, 'view_reports') && <Shield className="w-3.5 h-3.5 text-brand-500" />}
                 {seller.name} · <span className="text-gray-400">{ROLE_LABELS[seller.role]}</span>
               </span>

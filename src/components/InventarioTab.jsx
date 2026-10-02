@@ -21,6 +21,7 @@ import FieldError from './FieldError.jsx'
 import FormError from './FormError.jsx'
 import { useToast } from './Toast.jsx'
 import PageHeader from './PageHeader.jsx'
+import ProductThumb from './ProductThumb.jsx'
 
 export default function InventarioTab({ locations = [], isOwner = false }) {
   const { error: toastError } = useToast()
@@ -243,17 +244,16 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
                     <tr key={item.id} className="hover:bg-surface-400/50 transition-colors">
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-2.5">
-                          {item.image_url ? (
-                            <img
-                              src={item.image_url}
-                              alt={item.name}
-                              className="w-8 h-8 rounded-lg object-cover border border-white/10 shrink-0"
-                            />
-                          ) : (
-                            <span className="w-8 h-8 rounded-lg bg-surface-200 flex items-center justify-center text-sm shrink-0">
-                              🎆
-                            </span>
-                          )}
+                          <ProductThumb
+                            src={item.image_url}
+                            alt={item.name}
+                            className="w-8 h-8 rounded-lg"
+                            fallback={
+                              <span className="w-8 h-8 rounded-lg bg-surface-200 flex items-center justify-center text-sm shrink-0">
+                                🎆
+                              </span>
+                            }
+                          />
                           <div className="min-w-0">
                             <p className="font-medium text-white truncate">{item.name}</p>
                             {item.description && (

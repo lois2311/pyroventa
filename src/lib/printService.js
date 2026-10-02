@@ -4,6 +4,7 @@
 // =====================================================
 
 import { formatCOP, formatDate, payMethodLabel } from './format.js'
+import { THERMAL_VIEWBOX, thermalLogoSvg } from './vendraMark.js'
 
 // ---- Constantes de formato --------------------------
 const LINE_58 = 32 // chars por línea a 58mm
@@ -12,6 +13,75 @@ const LINE_80 = 48 // chars por línea a 80mm
 // Respaldo de marca al pie del ticket (Manual VENDRA v1: el ticket impreso es
 // uno de los lugares permitidos). Arriba va siempre la cabecera del negocio.
 export const RECEIPT_ENDORSEMENT = 'VENDRA by flightdev'
+// Con el logotipo impreso encima, el texto solo completa el respaldo
+export const RECEIPT_BYLINE = 'by flightdev'
+
+// Ancho del logotipo en el ticket: 40 mm (Manual VENDRA). En puntos a 203 ppp:
+// 320 en papel de 58 mm y 448 en 80 mm. Umbral recomendado: luminancia < 140 → negro.
+const LOGO_DOTS_58 = 320
+const LOGO_DOTS_80 = 448
+const LOGO_THRESHOLD = 140
+const LOGO_MM = 40
+
+/**
+ * Convierte píxeles RGBA a la imagen raster de ESC/POS (GS v 0), 1 bit por
+ * punto, el bit más significativo a la izquierda. Pura: se prueba sin canvas.
+ * @param {{width:number,height:number,data:ArrayLike<number>}} img RGBA
+ * @returns {Uint8Array} comando completo listo para enviar a la impresora
+ */
+export function encodeEscPosRaster({ width, height, data }, threshold = LOGO_THRESHOLD) {
+  const bytesPerRow = Math.ceil(width / 8)
+  const out = new Uint8Array(8 + bytesPerRow * height)
+  out.set([0x1D, 0x76, 0x30, 0x00, bytesPerRow & 255, bytesPerRow >> 8, height & 255, height >> 8])
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4
+      const alpha = data[i + 3] / 255
+      // Sobre papel blanco: lo transparente cuenta como blanco
+      const lum = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) * alpha + 255 * (1 - alpha)
+      if (lum < threshold) out[8 + y * bytesPerRow + (x >> 3)] |= 0x80 >> (x & 7)
+    }
+  }
+  return out
+}
+
+/**
+ * Dibuja el logotipo térmico en un canvas del ancho pedido (fondo blanco).
+ * null si no hay DOM o el navegador no pudo cargar el SVG: el ticket sale igual,
+ * con el respaldo en texto.
+ */
+async function renderThermalLogoCanvas(widthPx) {
+  if (typeof document === 'undefined' || typeof Image === 'undefined') return null
+  try {
+    const img = await withTimeout(new Promise((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('no se pudo cargar el logotipo'))
+      el.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(thermalLogoSvg())}`
+    }), 3000, 'el logotipo tardó demasiado')
+    const [, , vw, vh] = THERMAL_VIEWBOX
+    const canvas = document.createElement('canvas')
+    canvas.width = widthPx
+    canvas.height = Math.round(widthPx * vh / vw)
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    return canvas
+  } catch {
+    return null
+  }
+}
+
+/** Logotipo como comando ESC/POS en base64 (para QZ Tray), o null. */
+async function logoEscPosBase64(isWide) {
+  const canvas = await renderThermalLogoCanvas(isWide ? LOGO_DOTS_80 : LOGO_DOTS_58)
+  if (!canvas) return null
+  const bytes = encodeEscPosRaster(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height))
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(bin)
+}
 
 // =====================================================
 // CAPA 1 — QZ Tray (impresora USB/WiFi real)
@@ -63,7 +133,7 @@ async function printViaQZ(invoice, config) {
 
     const printerName = config?.printer_name || null
     const qzConfig = qz.configs.create(printerName)
-    const commands = buildEscPosCommands(invoice, config)
+    const commands = await buildEscPosCommands(invoice, config)
 
     await withTimeout(qz.print(qzConfig, commands), QZ_PRINT_TIMEOUT, 'la impresora no confirmó el trabajo')
   } catch (err) {
@@ -176,7 +246,19 @@ export async function generatePDF(invoice, config) {
 
   const footers = config?.footer_lines || ['¡Gracias por su compra!', 'Manipule con responsabilidad']
   footers.forEach(line => addLine(line, { align: 'center' }))
-  addLine(RECEIPT_ENDORSEMENT, { align: 'center', size: 7 })
+
+  // Pie de marca: logotipo VENDRA (40 mm, solo negro) + "by flightdev"
+  const logo = await renderThermalLogoCanvas(LOGO_DOTS_80)
+  if (logo) {
+    const logoW = Math.min(LOGO_MM, pageWidth - 2 * margin)
+    const logoH = logoW * logo.height / logo.width
+    y += 1
+    doc.addImage(logo.toDataURL('image/png'), 'PNG', (pageWidth - logoW) / 2, y, logoW, logoH)
+    y += logoH + 2
+    addLine(RECEIPT_BYLINE, { align: 'center', size: 7 })
+  } else {
+    addLine(RECEIPT_ENDORSEMENT, { align: 'center', size: 7 })
+  }
 
   doc.save(`factura-${invoice.code}.pdf`)
 }
@@ -229,7 +311,7 @@ function padLeft(str, len) {
  * Genera texto plano en formato ESC/POS-like para el recibo.
  * Útil como preview y para escpos-buffer.
  */
-export function formatReceiptText(invoice, config) {
+export function formatReceiptText(invoice, config, { endorsement = true } = {}) {
   const isWide    = config?.paper_width === '80mm'
   const lineWidth = isWide ? LINE_80 : LINE_58
   const sep       = '-'.repeat(lineWidth)
@@ -283,8 +365,11 @@ export function formatReceiptText(invoice, config) {
 
   const footers = config?.footer_lines || ['¡Gracias por su compra!', 'Manipule con responsabilidad']
   footers.forEach(f => lines.push(center(f)))
-  lines.push('')
-  lines.push(center(RECEIPT_ENDORSEMENT))
+  // Sin respaldo: el llamador imprime el logotipo y el texto por su cuenta
+  if (endorsement) {
+    lines.push('')
+    lines.push(center(RECEIPT_ENDORSEMENT))
+  }
 
   return lines.join('\n')
 }
@@ -292,13 +377,20 @@ export function formatReceiptText(invoice, config) {
 /**
  * Genera comandos ESC/POS para QZ Tray.
  */
-function buildEscPosCommands(invoice, config) {
-  const text = formatReceiptText(invoice, config)
-  // ESC/POS básico: inicializar impresora, imprimir texto, cortar papel
+async function buildEscPosCommands(invoice, config) {
+  const logo = await logoEscPosBase64(config?.paper_width === '80mm')
+  // Sin logotipo (sin DOM, SVG no cargó): el respaldo va en texto como siempre
+  const text = formatReceiptText(invoice, config, { endorsement: !logo })
+  // ESC/POS básico: inicializar impresora, imprimir texto, logotipo, cortar papel
   return [
     '\x1B\x40',        // ESC @ — init
     '\x1B\x61\x01',    // ESC a 1 — center alignment
     text,
+    ...(logo ? [
+      '\n',
+      { type: 'raw', format: 'command', flavor: 'base64', data: logo }, // GS v 0 — logotipo
+      '\n' + RECEIPT_BYLINE,
+    ] : []),
     '\n\n\n',
     '\x1D\x56\x41\x00' // GS V A — partial cut
   ]
@@ -349,6 +441,9 @@ export function buildHTMLReceipt(invoice, config) {
   .receipt-item  { margin-bottom: 1mm; }
   .total-row     { display: flex; justify-content: space-between; font-weight: bold; font-size: 11pt; }
   .endorsement   { margin-top: 2mm; font-size: 7pt; }
+  .brand-logo    { margin-top: 3mm; }
+  .brand-logo svg { display: block; width: 40mm; height: auto; margin: 0 auto; }
+  .brand-logo + .endorsement { margin-top: 1mm; }
   @media print {
     @page { margin: 0; }
     body { margin: 0; }
@@ -383,7 +478,8 @@ export function buildHTMLReceipt(invoice, config) {
   ` : ''}
   <div class="divider"></div>
   ${footers.map(f => `<div class="center">${escHtml(f)}</div>`).join('')}
-  <div class="center endorsement">${RECEIPT_ENDORSEMENT}</div>
+  <div class="brand-logo" role="img" aria-label="vendra.">${thermalLogoSvg()}</div>
+  <div class="center endorsement">${RECEIPT_BYLINE}</div>
 </div>
 <script>
   window.onload = function() {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { buildHTMLReceipt, formatReceiptText, withTimeout, RECEIPT_ENDORSEMENT } from '../printService.js'
+import { buildHTMLReceipt, formatReceiptText, withTimeout, encodeEscPosRaster, RECEIPT_ENDORSEMENT, RECEIPT_BYLINE } from '../printService.js'
 
 describe('printService — buildHTMLReceipt', () => {
   const sampleInvoice = {
@@ -80,10 +80,47 @@ describe('printService — marca VENDRA en el ticket', () => {
     expect(lines.indexOf('¡Gracias!')).toBeLessThan(lines.indexOf(RECEIPT_ENDORSEMENT))
   })
 
-  it('incluye el respaldo después del pie en el HTML de impresión', () => {
+  it('imprime el logotipo VENDRA (40 mm, solo negro) y "by flightdev" después del pie en el HTML', () => {
+    for (const paper_width of ['58mm', '80mm']) {
+      const html = buildHTMLReceipt(invoice, { ...config, paper_width })
+      expect(html).toContain('class="brand-logo"')
+      expect(html).toContain('<svg')
+      expect(html).toContain('width: 40mm')
+      expect(html.indexOf('MI NEGOCIO')).toBeLessThan(html.indexOf('¡Gracias!'))
+      expect(html.indexOf('¡Gracias!')).toBeLessThan(html.indexOf('brand-logo"'))
+      expect(html.indexOf('brand-logo"')).toBeLessThan(html.lastIndexOf(RECEIPT_BYLINE))
+    }
+  })
+
+  it('el logotipo del ticket no usa colores ni grises (1 bit)', () => {
     const html = buildHTMLReceipt(invoice, config)
-    expect(html.indexOf('MI NEGOCIO')).toBeLessThan(html.indexOf('¡Gracias!'))
-    expect(html.indexOf('¡Gracias!')).toBeLessThan(html.indexOf(RECEIPT_ENDORSEMENT))
+    const svg = html.slice(html.indexOf('<svg'), html.indexOf('</svg>'))
+    expect(svg).not.toMatch(/#B4E854|#7FB52E|#EEF2F7|opacity/i)
+  })
+
+  it('formatReceiptText sin respaldo omite la línea de marca (la imprime el logotipo)', () => {
+    const lines = formatReceiptText(invoice, config, { endorsement: false }).split('\n').map(l => l.trim())
+    expect(lines).not.toContain(RECEIPT_ENDORSEMENT)
+    expect(lines.at(-1)).toBe('¡Gracias!')
+  })
+})
+
+describe('encodeEscPosRaster', () => {
+  const px = (v) => [v, v, v, 255]
+
+  it('arma GS v 0 con cabecera y filas empaquetadas a 1 bit (MSB a la izquierda)', () => {
+    // 10 px de ancho x 2 de alto: fila 0 = negro,blanco alternados; fila 1 = todo negro
+    const row0 = Array.from({ length: 10 }, (_, x) => px(x % 2 === 0 ? 0 : 255)).flat()
+    const row1 = Array.from({ length: 10 }, () => px(0)).flat()
+    const out = encodeEscPosRaster({ width: 10, height: 2, data: [...row0, ...row1] })
+    expect([...out.slice(0, 8)]).toEqual([0x1D, 0x76, 0x30, 0x00, 2, 0, 2, 0])
+    expect([...out.slice(8)]).toEqual([0b10101010, 0b10000000, 0b11111111, 0b11000000])
+  })
+
+  it('aplica el umbral de luminancia < 140 y trata lo transparente como blanco', () => {
+    const data = [...px(139), ...px(140), 0, 0, 0, 0, ...px(0)]
+    const out = encodeEscPosRaster({ width: 4, height: 1, data })
+    expect(out[8]).toBe(0b10010000)
   })
 })
 

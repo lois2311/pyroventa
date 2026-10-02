@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { api, clearProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useToast } from './Toast.jsx'
+import ProductThumb from './ProductThumb.jsx'
 
 // Debe coincidir con MAX_BULK_DELETE del backend
 const MAX_PER_REQUEST = 500
@@ -226,14 +227,15 @@ export default function BulkDelete({ onChanged }) {
                 disabled={busy}
                 className="accent-red-500 shrink-0"
               />
-              {p.image_url ? (
-                <img src={p.image_url} alt="" loading="lazy"
-                     className="w-8 h-8 rounded object-cover border border-white/10 shrink-0" />
-              ) : (
-                <span className="w-8 h-8 rounded bg-surface-50 flex items-center justify-center text-xs shrink-0">
-                  {p.categories?.icon || '🎆'}
-                </span>
-              )}
+              <ProductThumb
+                src={p.image_url}
+                className="w-8 h-8 rounded"
+                fallback={
+                  <span className="w-8 h-8 rounded bg-surface-50 flex items-center justify-center text-xs shrink-0">
+                    {p.categories?.icon || '🎆'}
+                  </span>
+                }
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white truncate">
                   {p.name}

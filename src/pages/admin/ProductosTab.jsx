@@ -15,6 +15,7 @@ import EmptyState from '../../components/EmptyState.jsx'
 import ErrorNotice from '../../components/ErrorNotice.jsx'
 import FieldError from '../../components/FieldError.jsx'
 import Kbd from '../../components/Kbd.jsx'
+import PhotoThumb from '../../components/ProductThumb.jsx'
 import BulkUpload from '../../components/BulkUpload.jsx'
 import { useConfirm } from '../../components/ConfirmDialog.jsx'
 import { useToast } from '../../components/Toast.jsx'
@@ -306,12 +307,16 @@ function FilterButton({ pressed, onClick, count, title, children }) {
 }
 
 function ProductThumb({ product, size = 'h-12 w-12 text-xl' }) {
-  return product.image_url ? (
-    <img src={product.image_url} alt="" loading="lazy" className={`${size} shrink-0 rounded-lg border border-white/10 object-cover`} />
-  ) : (
-    <span aria-hidden="true" className={`${size} flex shrink-0 items-center justify-center rounded-lg bg-surface-50`}>
-      {product.categories?.icon || '🎆'}
-    </span>
+  return (
+    <PhotoThumb
+      src={product.image_url}
+      className={`${size} rounded-lg`}
+      fallback={
+        <span aria-hidden="true" className={`${size} flex shrink-0 items-center justify-center rounded-lg bg-surface-50`}>
+          {product.categories?.icon || '🎆'}
+        </span>
+      }
+    />
   )
 }
 
