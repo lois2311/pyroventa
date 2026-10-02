@@ -35,7 +35,7 @@ describe('printService — buildHTMLReceipt', () => {
     }
     const html = buildHTMLReceipt(sampleInvoice, configWithLogo)
     expect(html).toContain('<img src="https://example.com/storage/logos/empresa_logo.png"')
-    expect(html).toContain('filter: grayscale(100%) contrast(150%)')
+    expect(html).toContain('filter: grayscale(100%) contrast(200%) brightness(0.85)')
   })
 
   it('no incluye etiqueta img cuando no hay logo_url', () => {
@@ -105,7 +105,26 @@ describe('printService — marca VENDRA en el ticket', () => {
   })
 })
 
+describe('printService — impresión legible', () => {
+  const invoice = { code: '9', created_at: '2026-09-30T12:00:00Z', pay_method: 'cash', total: 1, items: [] }
+
+  it('el texto sale en negrita y el logo del negocio espera a cargar antes de imprimir', () => {
+    const html = buildHTMLReceipt(invoice, { paper_width: '80mm', logo_url: 'https://x.supabase.co/l.png' })
+    expect(html).toMatch(/font-weight: 700/)
+    expect(html).toContain('document.images')
+    expect(html).toContain("addEventListener('load'")
+  })
+})
+
 describe('encodeEscPosRaster', () => {
+  it('con dither conserva los grises medios como puntos alternados', () => {
+    const gray = Array.from({ length: 8 * 2 }, () => [128, 128, 128, 255]).flat()
+    const out = encodeEscPosRaster({ width: 8, height: 2, data: gray }, 150, { dither: true })
+    const blacks = [...out.slice(8)].reduce((a, b) => a + b.toString(2).replace(/0/g, '').length, 0)
+    expect(blacks).toBeGreaterThan(4)
+    expect(blacks).toBeLessThan(16)
+  })
+
   const px = (v) => [v, v, v, 255]
 
   it('arma GS v 0 con cabecera y filas empaquetadas a 1 bit (MSB a la izquierda)', () => {

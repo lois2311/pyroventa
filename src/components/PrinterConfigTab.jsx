@@ -485,6 +485,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
               style={{
                 width: paperWidth === '80mm' ? '320px' : '250px',
                 fontFamily: '"Courier New", Courier, monospace',
+                fontWeight: 700,
                 fontSize: paperWidth === '80mm' ? '12px' : '11px',
                 lineHeight: '1.35',
               }}
@@ -510,7 +511,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
               {/* Encabezados */}
               <div className="text-center space-y-0.5 mb-2">
                 {headerLines.filter(Boolean).map((h, i) => (
-                  <div key={i} className={i === 0 ? 'font-bold text-sm text-black tracking-tight' : 'text-gray-700'}>
+                  <div key={i} className={i === 0 ? 'font-bold text-sm text-black tracking-tight' : 'text-black'}>
                     {h}
                   </div>
                 ))}
@@ -519,7 +520,7 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
               <div className="border-t border-dashed border-gray-400 my-2"></div>
 
               {/* Info Factura */}
-              <div className="text-2xs space-y-0.5 text-gray-700">
+              <div className="text-2xs space-y-0.5 text-black">
                 <div className="flex justify-between">
                   <span>Factura:</span>
                   <span className="font-bold text-black">#TEST-001</span>
@@ -539,9 +540,9 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
               {/* Items */}
               <div className="space-y-2 mb-2">
                 {sampleInvoice.items.map((item, i) => (
-                  <div key={i} className="text-gray-800">
+                  <div key={i} className="text-black">
                     <div className="font-medium text-black truncate">{item.productName}</div>
-                    <div className="flex justify-between text-2xs text-gray-600">
+                    <div className="flex justify-between text-2xs text-black">
                       <span>&nbsp;&nbsp;{item.label}</span>
                       <span>x{item.qty}&nbsp;&nbsp;{formatCOP(item.subtotal)}</span>
                     </div>

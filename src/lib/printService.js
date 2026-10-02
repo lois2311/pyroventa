@@ -29,20 +29,82 @@ const LOGO_MM = 40
  * @param {{width:number,height:number,data:ArrayLike<number>}} img RGBA
  * @returns {Uint8Array} comando completo listo para enviar a la impresora
  */
-export function encodeEscPosRaster({ width, height, data }, threshold = LOGO_THRESHOLD) {
+export function encodeEscPosRaster({ width, height, data }, threshold = LOGO_THRESHOLD, { dither = false } = {}) {
   const bytesPerRow = Math.ceil(width / 8)
   const out = new Uint8Array(8 + bytesPerRow * height)
   out.set([0x1D, 0x76, 0x30, 0x00, bytesPerRow & 255, bytesPerRow >> 8, height & 255, height >> 8])
+  // Luminancia sobre papel blanco: lo transparente cuenta como blanco
+  const lum = new Float32Array(width * height)
+  for (let p = 0; p < lum.length; p++) {
+    const i = p * 4
+    const alpha = data[i + 3] / 255
+    lum[p] = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) * alpha + 255 * (1 - alpha)
+  }
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4
-      const alpha = data[i + 3] / 255
-      // Sobre papel blanco: lo transparente cuenta como blanco
-      const lum = (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]) * alpha + 255 * (1 - alpha)
-      if (lum < threshold) out[8 + y * bytesPerRow + (x >> 3)] |= 0x80 >> (x & 7)
+      const p = y * width + x
+      const black = lum[p] < threshold
+      if (black) out[8 + y * bytesPerRow + (x >> 3)] |= 0x80 >> (x & 7)
+      if (dither) {
+        // Floyd–Steinberg: los logos con grises y sellos (no solo trazos) conservan el detalle
+        const err = lum[p] - (black ? 0 : 255)
+        if (x + 1 < width) lum[p + 1] += err * 7 / 16
+        if (y + 1 < height) {
+          if (x > 0) lum[p + width - 1] += err * 3 / 16
+          lum[p + width] += err * 5 / 16
+          if (x + 1 < width) lum[p + width + 1] += err / 16
+        }
+      }
     }
   }
   return out
+}
+
+// Logo del negocio (configurable por empresa): ancho máximo y alto máximo en puntos
+const TENANT_LOGO_DOTS_58 = 256
+const TENANT_LOGO_DOTS_80 = 384
+const TENANT_LOGO_MAX_H = 200
+
+/**
+ * Descarga el logo del negocio y lo dibuja en un canvas con fondo blanco, sin
+ * pasar por <img crossOrigin>: el service worker guarda las fotos como
+ * respuestas opacas y una petición CORS contra esa copia falla. Con fetch + un
+ * parámetro propio se pide (y cachea) aparte, y el canvas nunca queda "tainted".
+ * null si no se pudo (sin red, URL caída): el ticket sale sin logo.
+ */
+async function renderTenantLogoCanvas(url, maxWidth, maxHeight) {
+  if (!url || typeof document === 'undefined') return null
+  try {
+    const sep = url.includes('?') ? '&' : '?'
+    const res = await withTimeout(fetch(`${url}${sep}print=1`, { mode: 'cors' }), 6000, 'el logo tardó demasiado')
+    if (!res.ok) return null
+    const bmp = await createImageBitmap(await res.blob())
+    const scale = Math.min(maxWidth / bmp.width, maxHeight / bmp.height)
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bmp.width * scale))
+    canvas.height = Math.max(1, Math.round(bmp.height * scale))
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height)
+    return canvas
+  } catch {
+    return null
+  }
+}
+
+/** Logo del negocio como comando ESC/POS en base64 (para QZ Tray), o null. */
+async function tenantLogoEscPosBase64(url, isWide) {
+  const canvas = await renderTenantLogoCanvas(url, isWide ? TENANT_LOGO_DOTS_80 : TENANT_LOGO_DOTS_58, TENANT_LOGO_MAX_H)
+  if (!canvas) return null
+  const bytes = encodeEscPosRaster(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height), 150, { dither: true })
+  return bytesToBase64(bytes)
+}
+
+function bytesToBase64(bytes) {
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(bin)
 }
 
 /**
@@ -153,10 +215,7 @@ export function printBrowserFallback(invoice, config) {
   win.document.write(html)
   win.document.close()
   win.focus()
-  setTimeout(() => {
-    win.print()
-    setTimeout(() => win.close(), 1000)
-  }, 500)
+  // La impresión la dispara el propio documento al cargar el logo (ver buildHTMLReceipt)
 }
 
 // =====================================================
@@ -189,25 +248,13 @@ export async function generatePDF(invoice, config) {
     addLine(char.repeat(chars))
   }
 
-  // Logo
-  if (config?.logo_url && typeof window !== 'undefined') {
-    try {
-      const img = await new Promise((resolve, reject) => {
-        const el = new Image()
-        el.crossOrigin = 'anonymous'
-        el.onload = () => resolve(el)
-        el.onerror = reject
-        el.src = config.logo_url
-      })
-      const logoW = isWide ? 30 : 22
-      const aspect = (img.naturalHeight || img.height || 1) / (img.naturalWidth || img.width || 1)
-      const logoH = Math.min(logoW * aspect, 18)
-      const logoX = (pageWidth - logoW) / 2
-      doc.addImage(img, 'PNG', logoX, y, logoW, logoH)
-      y += logoH + 2
-    } catch {
-      // Continuar sin logo si hay error de carga
-    }
+  // Logo del negocio
+  const tenantLogo = await renderTenantLogoCanvas(config?.logo_url, 600, 360)
+  if (tenantLogo) {
+    const logoW = isWide ? 30 : 22
+    const logoH = Math.min(logoW * tenantLogo.height / tenantLogo.width, 18)
+    doc.addImage(tenantLogo.toDataURL('image/png'), 'PNG', (pageWidth - logoW) / 2, y, logoW, logoH)
+    y += logoH + 2
   }
 
   // Cabecera
@@ -378,13 +425,21 @@ export function formatReceiptText(invoice, config, { endorsement = true } = {}) 
  * Genera comandos ESC/POS para QZ Tray.
  */
 async function buildEscPosCommands(invoice, config) {
-  const logo = await logoEscPosBase64(config?.paper_width === '80mm')
+  const isWide = config?.paper_width === '80mm'
+  const [tenantLogo, logo] = await Promise.all([tenantLogoEscPosBase64(config?.logo_url, isWide), logoEscPosBase64(isWide)])
   // Sin logotipo (sin DOM, SVG no cargó): el respaldo va en texto como siempre
   const text = formatReceiptText(invoice, config, { endorsement: !logo })
   // ESC/POS básico: inicializar impresora, imprimir texto, logotipo, cortar papel
   return [
     '\x1B\x40',        // ESC @ — init
     '\x1B\x61\x01',    // ESC a 1 — center alignment
+    // Más oscuro: negrita (ESC E) + doble pasada (ESC G). Sin esto la fuente
+    // térmica estándar sale tenue en papel y cabezales ya algo gastados.
+    '\x1B\x45\x01\x1B\x47\x01',
+    ...(tenantLogo ? [
+      { type: 'raw', format: 'command', flavor: 'base64', data: tenantLogo }, // GS v 0 — logo del negocio
+      '\n',
+    ] : []),
     text,
     ...(logo ? [
       '\n',
@@ -427,10 +482,12 @@ export function buildHTMLReceipt(invoice, config) {
   .${widthClass} {
     width: ${isWide ? '80mm' : '58mm'};
     font-family: 'Courier New', Courier, monospace;
-    font-size: 9pt;
+    font-size: 9.5pt;
+    font-weight: 700;
     line-height: 1.4;
     color: #000;
     padding: 4mm 3mm;
+    -webkit-text-stroke: 0.25px #000;
   }
   .center    { text-align: center; }
   .bold      { font-weight: bold; }
@@ -454,7 +511,7 @@ export function buildHTMLReceipt(invoice, config) {
 <div class="${widthClass}">
   ${config?.logo_url ? `
   <div class="center" style="margin-bottom: 2.5mm;">
-    <img src="${escHtml(config.logo_url)}" alt="Logo" style="max-width: ${isWide ? '55mm' : '38mm'}; max-height: 25mm; object-fit: contain; filter: grayscale(100%) contrast(150%);" />
+    <img src="${escHtml(config.logo_url)}" alt="Logo" style="max-width: ${isWide ? '55mm' : '38mm'}; max-height: 25mm; object-fit: contain; filter: grayscale(100%) contrast(200%) brightness(0.85);" />
   </div>
   ` : ''}
   ${headers.map((h, i) => `<div class="center${i === 0 ? ' bold big' : ''}">${escHtml(h)}</div>`).join('')}
@@ -482,9 +539,19 @@ export function buildHTMLReceipt(invoice, config) {
   <div class="center endorsement">${RECEIPT_BYLINE}</div>
 </div>
 <script>
+  // Imprime cuando el logo ya cargó (antes se imprimía a ciegas a los 500 ms y
+  // en conexiones lentas el logo salía en blanco)
   window.onload = function() {
-    setTimeout(function() { window.print(); }, 300);
+    var imgs = Array.prototype.slice.call(document.images);
+    var done = function() { setTimeout(function() { window.print(); }, 200); };
+    var pending = imgs.filter(function(i) { return !i.complete; });
+    if (!pending.length) return done();
+    var left = pending.length, fired = false;
+    var fin = function() { if (!fired && --left <= 0) { fired = true; done(); } };
+    pending.forEach(function(i) { i.addEventListener('load', fin); i.addEventListener('error', fin); });
+    setTimeout(function() { if (!fired) { fired = true; done(); } }, 5000);
   };
+  window.onafterprint = function() { window.close(); };
 </script>
 </body>
 </html>`
