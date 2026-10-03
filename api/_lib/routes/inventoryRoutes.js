@@ -8,13 +8,17 @@ import { scopedLocation, denyOutOfScope } from '../scopedLocation.js'
 import { tenantOwns } from '../tenantOwns.js'
 import {
   adjustStock, stockFields, loadStockPolicy, fetchProductTracking, isTracked,
-  validateReceiveItems, validateWaste, receiveStock, wasteStock, movementFlag,
+  validateReceiveItems, validateWaste, receiveStock, wasteStock, movementFlag, inventoryLocationIds, locationTrackingRules,
 } from '../services/stockService.js'
 
 export async function inventoryGet(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
   const location_id = scopedLocation(auth, req.query.location_id, res, { allowAll: true })
   if (location_id === undefined) return
+
+  // Solo puntos con inventario configurado: un punto sin control no aporta filas ni al consolidado
+  const active = await inventoryLocationIds(auth.tenantId, auth.tenant)
+  if (location_id && !active.has(location_id)) return res.status(200).json([])
 
   // 1. Obtener productos activos
   const { data: products, error: pErr } = await supabaseAdmin
@@ -32,9 +36,7 @@ export async function inventoryGet(req, res) {
     .select('product_id, location_id, quantity, updated_at')
     .eq('tenant_id', auth.tenantId)
   
-  if (location_id) {
-    stockQuery = stockQuery.eq('location_id', location_id)
-  }
+  stockQuery = location_id ? stockQuery.eq('location_id', location_id) : stockQuery.in('location_id', [...active])
 
   const [{ data: stockRows, error: sErr }, policy, tracking] = await Promise.all([
     stockQuery,
@@ -44,8 +46,16 @@ export async function inventoryGet(req, res) {
 
   if (sErr) return res.status(500).json({ error: sErr.message })
 
+  // Consolidado: cada fila cuenta solo si el producto se controla en ESE punto (regla del punto + excepción)
+  const rules = location_id ? null : await locationTrackingRules(auth.tenantId)
+  const trackedAt = (locId, productId) => {
+    const t = tracking.get(productId)
+    return t?.track_stock !== false && (rules.overrides.get(`${locId}:${productId}`) ?? rules.locTracks.get(locId) !== false)
+  }
+
   const stockMap = new Map()
   for (const row of stockRows || []) {
+    if (rules && !trackedAt(row.location_id, row.product_id)) continue
     const current = stockMap.get(row.product_id) || { quantity: 0, updated_at: row.updated_at }
     stockMap.set(row.product_id, {
       quantity: current.quantity + Number(row.quantity || 0),
@@ -62,7 +72,9 @@ export async function inventoryGet(req, res) {
       ...p,
       track_stock: t?.track_stock !== false,
       min_stock: t?.min_stock ?? null,
-      ...stockFields(t, s?.quantity, { tenant: auth.tenant, location: policy.location, threshold: policy.threshold }),
+      // Consolidado: controlado si algún punto activo lo controla
+      ...stockFields(rules ? { ...t, location_track: [...active].some(l => trackedAt(l, p.id)) } : t, s?.quantity,
+        { tenant: auth.tenant, location: policy.location, threshold: policy.threshold }),
       stock_updated_at: s ? s.updated_at : null,
     }
   })

@@ -101,6 +101,33 @@ export async function fetchProductTracking(tenantId, productIds = null, location
   return map
 }
 
+/**
+ * Puntos que participan del inventario: el punto lo controla (tracks_inventory) o
+ * tiene al menos un producto con excepción "sí controlar". Una sola regla para el
+ * selector de la página de inventario y para el consolidado.
+ * Con tenants.has_inventory apagado no hay ninguno.
+ */
+export async function inventoryLocationIds(tenantId, tenant = null) {
+  if (tenant && !tenant.has_inventory) return new Set()
+  const { locTracks, overrides } = await locationTrackingRules(tenantId)
+  const withException = new Set([...overrides].filter(([, v]) => v).map(([k]) => k.split(':')[0]))
+  return new Set([...locTracks].filter(([id, on]) => on || withException.has(id)).map(([id]) => id))
+}
+
+/** Reglas por punto: locTracks (id -> bool) y overrides ("locId:productId" -> bool). */
+export async function locationTrackingRules(tenantId) {
+  const [locs, exc] = await Promise.all([
+    supabaseAdmin.from('locations').select('id, tracks_inventory').eq('tenant_id', tenantId),
+    supabaseAdmin.from('location_products').select('location_id, product_id, track_stock')
+      .eq('tenant_id', tenantId).not('track_stock', 'is', null),
+  ])
+  if (exc.error && !isMissingColumn(exc.error)) console.error('[StockService] Error leyendo excepciones de inventario:', exc.error)
+  return {
+    locTracks: new Map((locs.data || []).map(l => [l.id, l.tracks_inventory !== false])),
+    overrides: new Map((exc.data || []).map(r => [`${r.location_id}:${r.product_id}`, r.track_stock])),
+  }
+}
+
 /** Unidades por producto que sí se controlan: Map productId -> qty. */
 async function trackedQuantities(tenantId, locationId, items) {
   const all = groupItemsByProduct(items)

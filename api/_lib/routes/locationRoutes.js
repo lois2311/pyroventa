@@ -4,6 +4,7 @@ import { requireAuth, requireCan } from '../auth.js'
 import { can } from '../roles.js'
 import { defaultPrinterConfig } from '../printerConfig.js'
 import { denyOutOfScope } from '../scopedLocation.js'
+import { inventoryLocationIds } from '../services/stockService.js'
 import { parseImageDataUrl, ensureProductImagesBucket, PRODUCT_IMAGES_BUCKET } from '../productImages.js'
 
 export async function locationsGet(req, res) {
@@ -12,7 +13,8 @@ export async function locationsGet(req, res) {
     .select('id, name, address, printer_config, active, tracks_inventory')
     .eq('tenant_id', auth.tenantId).in('id', auth.scope.locationIds).order('name')
   if (error) return res.status(500).json({ error: error.message })
-  return res.status(200).json(data)
+  const active = await inventoryLocationIds(auth.tenantId, auth.tenant)
+  return res.status(200).json(data.map(l => ({ ...l, inventory_active: active.has(l.id) })))
 }
 
 export async function locationsCreate(req, res) {

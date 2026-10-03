@@ -34,13 +34,17 @@ import { getStockStatus, STOCK_STATUS } from '../lib/stockStatus.js'
 
 const STATUS_ICON = { untracked: Package, out_of_stock: XCircle, low_stock: AlertTriangle, in_stock: CheckCircle2 }
 
-export default function InventarioTab({ locations = [], isOwner = false }) {
+export default function InventarioTab({ locations: allLocations = [], isOwner = false }) {
   const { error: toastError } = useToast()
   const authLocation = useAuthStore(s => s.location)
 
+  // Solo los puntos con inventario configurado (Locaciones → Inventario); el resto no tiene qué mostrar aquí
+  const locations = useMemo(() => allLocations.filter(l => l.inventory_active), [allLocations])
+  const adminPointOff = !isOwner && allLocations.length > 0 && locations.length === 0
+
   // Admin: fijo en su punto (sin selector). Owner: el punto elegido ('' = consolidado).
   const [pickedLocationId, setPickedLocationId] = useState('')
-  const locationId = isOwner ? pickedLocationId : (authLocation?.id || locations[0]?.id || '')
+  const locationId = isOwner ? (locations.some(l => l.id === pickedLocationId) ? pickedLocationId : '') :(authLocation?.id || locations[0]?.id || '')
   const activeLocation = locations.find(l => l.id === locationId)
 
   const [view, setView] = useState('stock') // 'stock' | 'movements'
@@ -118,6 +122,18 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
       {label} <span className="ml-1 font-mono tabular-nums opacity-80">{count}</span>
     </button>
   )
+
+  if (adminPointOff || (isOwner && allLocations.length > 0 && locations.length === 0)) {
+    return (
+      <div className="card bg-surface-400 text-center py-10">
+        <Package className="w-10 h-10 text-gray-500 mx-auto mb-2" />
+        <p className="text-sm text-gray-300">Ningún punto controla inventario</p>
+        <p className="text-xs text-gray-500 mt-1">
+          {isOwner ? 'Actívalo en Locaciones → editar punto → Inventario.' : 'Pídele al propietario que active el inventario en tu punto.'}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">

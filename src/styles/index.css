@@ -67,6 +67,12 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* Hardware POS 1024×768 (4:3): todo el diseño es rem, así que bajar la raíz
+     equivale al ~87% de zoom del navegador sin tocar layouts ni lógica. */
+  @media (min-width: 900px) and (max-width: 1100px) {
+    html { font-size: 14px; }
+  }
+
   body {
     @apply bg-surface-500;
     color: rgb(var(--pv-gray-100));
