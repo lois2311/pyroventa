@@ -2,12 +2,12 @@ import { useEffect, useRef } from 'react'
 import { api, getProductsCache, setProductsCache } from '../lib/api.js'
 
 /** Cada cuánto se revisa el catálogo con la pantalla visible. */
-export const CATALOG_REFRESH_MS = 30_000
+export const CATALOG_REFRESH_MS = 15_000
 
 /**
  * Catálogo en vivo en todos los equipos: precios, productos nuevos, fotos y
  * existencias que cambian en otro equipo (o tras una venta en otra caja)
- * llegan solos, sin recargar. Revisa cada 30 s con la pantalla visible, al
+ * llegan solos, sin recargar. Revisa cada 15 s con la pantalla visible, al
  * volver a ella y al recuperar la conexión; solo avisa (onChange) si algo
  * cambió, para no re-renderizar la grilla en cada revisión.
  *
@@ -30,7 +30,8 @@ export function useCatalogRefresh(locationId, onChange) {
       controller = new AbortController()
       api.get(`/products?location_id=${locationId}`, { signal: controller.signal, retries: 0 })
         .then(data => {
-          if (!data?.length) return
+          // Lista vacía es válida: se deshabilitaron todos los productos del punto
+          if (!Array.isArray(data)) return
           const next = JSON.stringify(data)
           if (next === last) return
           last = next

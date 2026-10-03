@@ -136,7 +136,8 @@ export async function productsGet(req, res) {
   result.sort(compareProducts)
   // Respuesta por-tenant en URL compartida: private evita CDNs compartidos y
   // Vary: Authorization separa las entradas por token (HTTP y Cache API del SW).
-  res.setHeader('Cache-Control', includeInactive ? 'private, no-store' : 'private, max-age=300')
+  // Siempre revalidar: con max-age el navegador servía el catálogo viejo hasta 5 min y el refresco en vivo no veía los cambios
+  res.setHeader('Cache-Control', includeInactive ? 'private, no-store' : 'private, no-cache')
   res.setHeader('Vary', 'Authorization')
   return res.status(200).json(result)
 }

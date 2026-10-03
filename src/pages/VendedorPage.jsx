@@ -90,7 +90,7 @@ export default function VendedorPage() {
       setLoadError(null)
       api.get(`/products?location_id=${location.id}`, { signal: controller.signal })
         .then(data => {
-          if (data?.length) {
+          if (Array.isArray(data)) {
             setProducts(data)
             setProductsCache(location.id, data)
           }
@@ -107,7 +107,7 @@ export default function VendedorPage() {
     }
   }, [location?.id, reloadKey])
 
-  // Catálogo en vivo: lo que cambia en otro equipo llega solo (cada 30 s)
+  // Catálogo en vivo: lo que cambia en otro equipo llega solo (cada 15 s)
   useCatalogRefresh(location?.id, setProducts)
 
   // El stock del carrito se refresca con cada catálogo nuevo
