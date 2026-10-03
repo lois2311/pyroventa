@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useId } from 'react'
+import { Fragment, useState, useEffect, useCallback, useId, useMemo } from 'react'
 import {
   Package,
   Search,
@@ -9,12 +9,16 @@ import {
   Edit3,
   FileSpreadsheet,
   MapPin,
-  Tag,
   Loader2,
   Check,
+  Plus,
+  PackagePlus,
 } from 'lucide-react'
 import { api, clearProductsCache } from '../lib/api.js'
 import { exportToExcel } from '../lib/exportExcel.js'
+import { matchesQuery } from '../lib/search.js'
+import { needsRestock, sortByUrgency } from '../lib/inventoryUi.js'
+import { useAuthStore } from '../store/authStore.js'
 import { useFieldErrors } from '../hooks/useFieldErrors.js'
 import Modal from './Modal.jsx'
 import FieldError from './FieldError.jsx'
@@ -23,285 +27,287 @@ import { useToast } from './Toast.jsx'
 import PageHeader from './PageHeader.jsx'
 import ProductThumb from './ProductThumb.jsx'
 import Select from './Select.jsx'
+import StockEntryRow from './inventory/StockEntryRow.jsx'
+import ReceiveDrawer from './inventory/ReceiveDrawer.jsx'
+import MovementsLog from './inventory/MovementsLog.jsx'
 import { getStockStatus, STOCK_STATUS } from '../lib/stockStatus.js'
 
 const STATUS_ICON = { untracked: Package, out_of_stock: XCircle, low_stock: AlertTriangle, in_stock: CheckCircle2 }
 
 export default function InventarioTab({ locations = [], isOwner = false }) {
   const { error: toastError } = useToast()
+  const authLocation = useAuthStore(s => s.location)
 
-  const [locationId, setLocationId] = useState('')
+  // Admin: fijo en su punto (sin selector). Owner: el punto elegido ('' = consolidado).
+  const [pickedLocationId, setPickedLocationId] = useState('')
+  const locationId = isOwner ? pickedLocationId : (authLocation?.id || locations[0]?.id || '')
+  const activeLocation = locations.find(l => l.id === locationId)
+
+  const [view, setView] = useState('stock') // 'stock' | 'movements'
   const [query, setQuery] = useState('')
-  const [filterType, setFilterType] = useState('all') // 'all' | 'low' | 'out' | 'in_stock'
+  const [filterType, setFilterType] = useState(null) // null = elegir al cargar: 'restock' si hay pendientes, si no 'all'
   const [inventory, setInventory] = useState([])
   const [loading, setLoading] = useState(true)
   const [adjustItem, setAdjustItem] = useState(null)
+  const [entryId, setEntryId] = useState(null)   // fila con el panel de reposición/merma abierto
+  const [receiving, setReceiving] = useState(false)
 
   const fetchInventory = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams()
     if (locationId) params.set('location_id', locationId)
 
-    api.get(`/inventory?${params.toString()}`)
+    return api.get(`/inventory?${params.toString()}`)
       .then(res => setInventory(res || []))
       .catch(err => toastError(err.message || 'Error cargando inventario'))
       .finally(() => setLoading(false))
   }, [locationId, toastError])
 
+  useEffect(() => { fetchInventory() }, [fetchInventory])
+
+  // La primera vez que llegan datos, la cola "Por reponer" es la vista inicial si tiene algo
   useEffect(() => {
-    fetchInventory()
-  }, [fetchInventory])
+    if (!loading && filterType === null) setFilterType(inventory.some(needsRestock) ? 'restock' : 'all')
+  }, [loading, filterType, inventory])
 
-  // Filtrado local por búsqueda y estado
-  const filtered = inventory.filter(item => {
-    if (query.trim()) {
-      const q = query.toLowerCase().trim()
-      const matchName = item.name?.toLowerCase().includes(q)
-      const matchCat = item.categories?.name?.toLowerCase().includes(q)
-      if (!matchName && !matchCat) return false
-    }
+  const canRestockHere = Boolean(locationId)
 
-    const status = getStockStatus(item)
-    if (filterType === 'low') return status === 'low_stock'
-    if (filterType === 'out') return status === 'out_of_stock'
-    if (filterType === 'in_stock') return status === 'in_stock' || status === 'low_stock'
-    return true
-  })
+  const counts = useMemo(() => ({
+    total: inventory.length,
+    units: inventory.reduce((sum, i) => sum + Number(i.stock_quantity || 0), 0),
+    restock: inventory.filter(needsRestock).length,
+    low: inventory.filter(i => getStockStatus(i) === 'low_stock').length,
+    out: inventory.filter(i => getStockStatus(i) === 'out_of_stock').length,
+    available: inventory.filter(i => ['in_stock', 'low_stock'].includes(getStockStatus(i))).length,
+  }), [inventory])
 
-  // Totales de métricas
-  const totalProducts = inventory.length
-  const totalUnits = inventory.reduce((sum, i) => sum + Number(i.stock_quantity || 0), 0)
-  const lowStockCount = inventory.filter(i => getStockStatus(i) === 'low_stock').length
-  const outOfStockCount = inventory.filter(i => getStockStatus(i) === 'out_of_stock').length
-  const availableCount = inventory.filter(i => ['in_stock', 'low_stock'].includes(getStockStatus(i))).length
+  // Filtrado y orden: agotados y con stock bajo siempre arriba
+  const filtered = useMemo(() => {
+    const active = filterType ?? 'all'
+    return sortByUrgency(inventory.filter(item => {
+      if (query.trim() && !matchesQuery([item.name, item.categories?.name], query)) return false
+      const status = getStockStatus(item)
+      if (active === 'restock') return needsRestock(item)
+      if (active === 'low') return status === 'low_stock'
+      if (active === 'out') return status === 'out_of_stock'
+      if (active === 'in_stock') return status === 'in_stock' || status === 'low_stock'
+      return true
+    }))
+  }, [inventory, query, filterType])
 
   const handleExport = () => {
     if (inventory.length === 0) return
-    const exportData = filtered.map(item => ({
+    const rows = filtered.map(item => ({
       Producto: item.name,
       Categoría: item.categories?.name || 'Sin categoría',
       'Stock Actual': Number(item.stock_quantity || 0),
       Estado: STOCK_STATUS[getStockStatus(item)].label,
       'Última Actualización': item.stock_updated_at ? new Date(item.stock_updated_at).toLocaleString('es-CO') : 'Sin registro'
     }))
-
-    const activeLoc = locations.find(l => l.id === locationId)
-    const locSuffix = activeLoc ? `_${activeLoc.name.toLowerCase().replace(/\s+/g, '_')}` : '_consolidado'
-    exportToExcel(exportData, `inventario${locSuffix}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    const suffix = activeLocation ? `_${activeLocation.name.toLowerCase().replace(/\s+/g, '_')}` : '_consolidado'
+    exportToExcel([{ name: 'Inventario', rows }], `inventario${suffix}_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
+  const afterMovement = () => { setEntryId(null); fetchInventory() }
+
+  const filterBtn = (id, label, count, tone) => (
+    <button
+      key={id} type="button" onClick={() => setFilterType(id)} aria-pressed={(filterType ?? 'all') === id}
+      className={`btn btn-sm text-xs py-1 px-3 ${(filterType ?? 'all') === id ? tone.on : 'btn-ghost text-gray-400'}`}
+    >
+      {label} <span className="ml-1 font-mono tabular-nums opacity-80">{count}</span>
+    </button>
+  )
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         title="Control de inventario"
         icon={Package}
-        description="Existencias en tiempo real con descuento automático en ventas"
+        description={activeLocation ? `${activeLocation.name} · existencias con descuento automático en ventas` : 'Existencias en tiempo real con descuento automático en ventas'}
         actions={<>
+          {view === 'stock' && (
+            <>
+              <button type="button" onClick={fetchInventory} disabled={loading} className="btn-outline" title="Refrescar existencias">
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> <span>Refrescar</span>
+              </button>
+              <button type="button" onClick={handleExport} disabled={inventory.length === 0} className="btn-outline" title="Exportar a Excel">
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" /> <span>Exportar Excel</span>
+              </button>
+            </>
+          )}
           <button
-            type="button"
-            onClick={fetchInventory}
-            disabled={loading}
-            className="btn-outline"
-            title="Refrescar existencias"
+            type="button" onClick={() => setReceiving(true)} disabled={!canRestockHere || loading}
+            title={canRestockHere ? 'Registrar una entrada de mercancía' : 'Elige un punto de venta para recibir mercancía'}
+            className="btn btn-primary"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refrescar</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={inventory.length === 0}
-            className="btn-outline"
-            title="Exportar a Excel"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>Exportar Excel</span>
+            <PackagePlus className="w-4 h-4" /> <span>Recibir mercancía</span>
           </button>
         </>}
       />
 
-      {/* Tarjetas de métricas */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="card bg-surface-400 text-center py-3">
-          <p className="font-mono font-bold text-xl text-white">{totalProducts}</p>
-          <p className="text-2xs text-gray-400">Total Productos</p>
-        </div>
-        <div className="card bg-surface-400 text-center py-3">
-          <p className="font-mono font-bold text-xl text-brand-400">{totalUnits.toLocaleString()}</p>
-          <p className="text-2xs text-gray-400">Unidades en Stock</p>
-        </div>
-        <div className="card bg-surface-400 text-center py-3 border-l-2 border-l-yellow-500">
-          <p className="font-mono font-bold text-xl text-yellow-400">{lowStockCount}</p>
-          <p className="text-2xs text-yellow-400">Stock Bajo (≤ 5)</p>
-        </div>
-        <div className="card bg-surface-400 text-center py-3 border-l-2 border-l-red-500">
-          <p className="font-mono font-bold text-xl text-red-400">{outOfStockCount}</p>
-          <p className="text-2xs text-red-400">Agotados (0)</p>
-        </div>
+      <div role="group" aria-label="Vista de inventario" className="segmented">
+        <button type="button" aria-pressed={view === 'stock'} onClick={() => setView('stock')}>Existencias</button>
+        <button type="button" aria-pressed={view === 'movements'} onClick={() => setView('movements')}>Movimientos</button>
       </div>
 
-      {/* Filtros y Selector de Punto */}
-      <div className="card bg-surface-400 p-3 space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-          {/* Búsqueda */}
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar producto o categoría..."
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              className="input pl-8 py-1.5 text-xs w-full"
-            />
+      {view === 'movements' ? (
+        <MovementsLog locations={locations} isOwner={isOwner} fixedLocationId={locationId} />
+      ) : (
+        <>
+          {/* Métricas compactas */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Metric label="Productos" value={counts.total} />
+            <Metric label="Unidades en stock" value={counts.units.toLocaleString()} tone="text-brand-400" />
+            <Metric label="Stock bajo" value={counts.low} tone="text-yellow-400" edge="border-l-yellow-400" />
+            <Metric label="Agotados" value={counts.out} tone="text-red-400" edge="border-l-red-400" />
           </div>
 
-          {/* Selector de Punto (si es owner o hay múltiples) */}
-          {isOwner && locations.length > 0 && (
-            <div className="flex items-center gap-1.5 w-full sm:w-auto">
-              <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-              <Select
-                aria-label="Punto de venta"
-                value={locationId}
-                onChange={setLocationId}
-                className="w-full py-1.5 text-xs sm:w-48"
-                options={[
-                  { value: '', label: '🏢 Todos los puntos (Consolidado)' },
-                  ...locations.map(loc => ({ value: loc.id, label: `📍 ${loc.name}` })),
-                ]}
-              />
+          {/* Búsqueda, punto (solo superadmin) y cola */}
+          <div className="card bg-surface-400 p-3 space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text" aria-label="Buscar producto o categoría" placeholder="Buscar producto o categoría..."
+                  value={query} onChange={e => setQuery(e.target.value)} className="input pl-8 py-1.5 text-xs w-full"
+                />
+              </div>
+
+              {isOwner && locations.length > 0 && (
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <Select
+                    aria-label="Punto de venta" value={pickedLocationId}
+                    onChange={(v) => { setPickedLocationId(v); setEntryId(null) }}
+                    className="w-full py-1.5 text-xs sm:w-48"
+                    options={[{ value: '', label: 'Todos los puntos (consolidado)' }, ...locations.map(loc => ({ value: loc.id, label: loc.name }))]}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 pt-1 border-t border-white/5">
+              {filterBtn('restock', 'Por reponer', counts.restock, { on: 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/30' })}
+              {filterBtn('all', 'Todos', counts.total, { on: 'btn-primary' })}
+              {filterBtn('in_stock', 'Disponibles', counts.available, { on: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' })}
+              {filterBtn('low', 'Stock bajo', counts.low, { on: 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/30' })}
+              {filterBtn('out', 'Agotados', counts.out, { on: 'bg-red-400/20 text-red-300 border border-red-400/30' })}
+            </div>
+          </div>
+
+          {!canRestockHere && (
+            <p className="rounded-lg border border-white/10 bg-surface-400 px-3 py-2 text-xs text-gray-400">
+              Estás viendo el consolidado. Elige un punto de venta para reponer o registrar mermas.
+            </p>
+          )}
+
+          {/* Tabla */}
+          {loading && inventory.length === 0 ? (
+            <div className="space-y-2">{[1, 2, 3, 4, 5].map(i => <div key={i} className="skeleton h-12 rounded-lg" />)}</div>
+          ) : filtered.length === 0 ? (
+            <div className="card bg-surface-400 text-center py-10">
+              <Package className="w-10 h-10 text-gray-500 mx-auto mb-2" />
+              <p className="text-sm text-gray-300">
+                {filterType === 'restock' && !query ? 'Nada por reponer: todo el inventario está en niveles normales' : 'No se encontraron productos en el inventario'}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {query ? 'Prueba cambiando el término de búsqueda' : filterType === 'restock' ? 'Cambia a "Todos" para ver el inventario completo' : 'Carga productos desde el catálogo o la importación Excel'}
+              </p>
+            </div>
+          ) : (
+            <div className="card bg-surface-300 p-0 overflow-hidden">
+              <div className="relative overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 bg-surface-400 text-gray-400 font-medium">
+                      <th className="py-2.5 px-3">Producto</th>
+                      <th className="py-2.5 px-3 text-right">Stock</th>
+                      <th className="py-2.5 px-3">Estado</th>
+                      <th className="py-2.5 px-3 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {filtered.map(item => {
+                      const qty = Number(item.stock_quantity || 0)
+                      const status = getStockStatus(item)
+                      const StatusIcon = STATUS_ICON[status]
+                      const tracked = status !== 'untracked'
+                      const open = entryId === item.id
+
+                      return (
+                        <Fragment key={item.id}>
+                          <tr className={`transition-colors hover:bg-surface-400/50 ${open ? 'bg-surface-400/40' : ''}`}>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center gap-2.5">
+                                <ProductThumb
+                                  src={item.image_url} alt={item.name} className="w-8 h-8 rounded-lg"
+                                  fallback={<span className="w-8 h-8 rounded-lg bg-surface-200 flex items-center justify-center text-sm shrink-0">🎆</span>}
+                                />
+                                <div className="min-w-0">
+                                  <p className="font-medium text-white truncate">{item.name}</p>
+                                  <p className="text-2xs text-gray-400 truncate">{item.categories?.name || 'Sin categoría'}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <span className="font-mono tabular-nums text-sm font-bold text-white">{tracked ? qty.toLocaleString() : '—'}</span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium ${STOCK_STATUS[status].badge}`}>
+                                <StatusIcon className="w-3 h-3" />
+                                {status === 'untracked' ? 'Sin control en este punto' : STOCK_STATUS[status].label}
+                                {status === 'low_stock' && <span className="font-mono tabular-nums">({qty} ≤ {item.low_stock_threshold})</span>}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {tracked && canRestockHere && (
+                                  <button
+                                    type="button" onClick={() => setEntryId(open ? null : item.id)} aria-expanded={open}
+                                    className="btn btn-sm text-xs py-1 px-2.5 bg-brand-500/15 text-brand-300 border border-brand-500/30 hover:bg-brand-500/25 inline-flex items-center gap-1"
+                                  >
+                                    <Plus className="w-3 h-3" /> <span>Reponer</span>
+                                  </button>
+                                )}
+                                {/* Conteo físico: solo superadministrador */}
+                                {isOwner && tracked && (
+                                  <button
+                                    type="button" onClick={() => setAdjustItem(item)}
+                                    className="btn btn-ghost btn-sm text-xs py-1 px-2.5 text-gray-300 border border-white/10 inline-flex items-center gap-1"
+                                  >
+                                    <Edit3 className="w-3 h-3" /> <span>Ajustar</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          {open && (
+                            <tr>
+                              <td colSpan={4} className="p-0">
+                                <StockEntryRow item={item} locationId={locationId} onDone={afterMovement} onCancel={() => setEntryId(null)} />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
-        </div>
-
-        {/* Botones de filtro rápido */}
-        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-white/5">
-          <button
-            onClick={() => setFilterType('all')}
-            className={`btn btn-sm text-xs py-1 px-3 ${filterType === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-          >
-            Todos ({inventory.length})
-          </button>
-          <button
-            onClick={() => setFilterType('in_stock')}
-            className={`btn btn-sm text-xs py-1 px-3 ${filterType === 'in_stock' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'btn-ghost text-gray-400'}`}
-          >
-            <CheckCircle2 className="w-3 h-3 text-emerald-400 inline mr-1" />
-            Disponibles ({availableCount})
-          </button>
-          <button
-            onClick={() => setFilterType('low')}
-            className={`btn btn-sm text-xs py-1 px-3 ${filterType === 'low' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' : 'btn-ghost text-gray-400'}`}
-          >
-            <AlertTriangle className="w-3 h-3 text-yellow-400 inline mr-1" />
-            Stock bajo ({lowStockCount})
-          </button>
-          <button
-            onClick={() => setFilterType('out')}
-            className={`btn btn-sm text-xs py-1 px-3 ${filterType === 'out' ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'btn-ghost text-gray-400'}`}
-          >
-            <XCircle className="w-3 h-3 text-red-400 inline mr-1" />
-            Agotados ({outOfStockCount})
-          </button>
-        </div>
-      </div>
-
-      {/* Lista / Tabla de Inventario */}
-      {loading ? (
-        <div className="space-y-2">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="skeleton h-14 rounded-xl" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="card bg-surface-400 text-center py-10">
-          <Package className="w-10 h-10 text-gray-500 mx-auto mb-2" />
-          <p className="text-sm text-gray-300">No se encontraron productos en el inventario</p>
-          <p className="text-xs text-gray-400 mt-1">
-            {query ? 'Prueba cambiando el término de búsqueda' : 'Carga productos desde el catálogo o la importación Excel'}
-          </p>
-        </div>
-      ) : (
-        <div className="card bg-surface-300 p-0 overflow-hidden">
-          <div className="relative overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-white/5 bg-surface-400 text-gray-400 font-medium">
-                  <th className="py-2.5 px-3">Producto</th>
-                  <th className="py-2.5 px-3">Categoría</th>
-                  <th className="py-2.5 px-3 text-center">Stock Actual</th>
-                  <th className="py-2.5 px-3 text-center">Estado</th>
-                  <th className="py-2.5 px-3 text-right">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filtered.map(item => {
-                  const qty = Number(item.stock_quantity || 0)
-                  const status = getStockStatus(item)
-                  const StatusIcon = STATUS_ICON[status]
-
-                  return (
-                    <tr key={item.id} className="hover:bg-surface-400/50 transition-colors">
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2.5">
-                          <ProductThumb
-                            src={item.image_url}
-                            alt={item.name}
-                            className="w-8 h-8 rounded-lg"
-                            fallback={
-                              <span className="w-8 h-8 rounded-lg bg-surface-200 flex items-center justify-center text-sm shrink-0">
-                                🎆
-                              </span>
-                            }
-                          />
-                          <div className="min-w-0">
-                            <p className="font-medium text-white truncate">{item.name}</p>
-                            {item.description && (
-                              <p className="text-2xs text-gray-400 truncate max-w-xs">{item.description}</p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 text-gray-400">
-                        {item.categories?.name ? (
-                          <span className="inline-flex items-center gap-1 bg-surface-200 px-2 py-0.5 rounded text-2xs">
-                            <Tag className="w-2.5 h-2.5 text-gray-500" />
-                            {item.categories.name}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 italic">—</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="font-mono text-sm font-bold text-white">
-                          {qty.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium ${STOCK_STATUS[status].badge}`}>
-                          <StatusIcon className="w-3 h-3" />
-                          {STOCK_STATUS[status].label}
-                          {status === 'low_stock' && ` (${qty} ≤ ${item.low_stock_threshold})`}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => setAdjustItem(item)}
-                          className="btn btn-ghost btn-sm text-xs py-1 px-2.5 text-brand-300 hover:text-brand-200 border border-brand-500/20 hover:bg-brand-500/10 inline-flex items-center gap-1"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          <span>Ajustar</span>
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        </>
       )}
 
-      {/* Modal de Ajuste de Stock */}
+      {receiving && (
+        <ReceiveDrawer
+          items={inventory} locationId={locationId} locationName={activeLocation?.name || 'este punto'}
+          onClose={() => setReceiving(false)}
+          onDone={(complete) => { fetchInventory(); if (complete) setReceiving(false) }}
+        />
+      )}
+
       {adjustItem && (
         <StockAdjustModal
           product={adjustItem}
@@ -315,6 +321,15 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
           }}
         />
       )}
+    </div>
+  )
+}
+
+function Metric({ label, value, tone = 'text-white', edge = '' }) {
+  return (
+    <div className={`card bg-surface-400 py-2.5 px-3 ${edge ? `border-l-2 ${edge}` : ''}`}>
+      <p className={`font-mono tabular-nums font-bold text-xl text-right ${tone}`}>{value}</p>
+      <p className="text-2xs text-gray-400">{label}</p>
     </div>
   )
 }

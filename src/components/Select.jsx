@@ -181,6 +181,8 @@ export default function Select({
           {options.map((o, i) => {
             const isSel = i === selectedIdx
             return (
+              // El teclado lo maneja el disparador (aria-activedescendant); el clic es solo para mouse/táctil
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
               <li
                 key={o.value}
                 id={`${listId}-${i}`}

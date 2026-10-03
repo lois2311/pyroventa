@@ -45,7 +45,10 @@ export default function Topbar({ title }) {
     const role = seller?.role
     const links = []
     if (location && can(role, 'sell'))   links.push({ key: 'F1', label: 'Vender', path: '/vender' })
-    if (can(role, 'manage_catalog'))     links.push({ key: 'F2', label: 'Inventario', path: '/admin', tab: hasInventory ? 'inventario' : 'productos' })
+    // Con inventario, F2 lo usan también los admins de punto (reposición); sin él, solo el catálogo del superadmin
+    if (hasInventory ? can(role, 'restock') : can(role, 'manage_catalog')) {
+      links.push({ key: 'F2', label: 'Inventario', path: '/admin', tab: hasInventory ? 'inventario' : 'productos' })
+    }
     if (location && can(role, 'charge')) links.push({ key: 'F3', label: 'Cierre', path: '/caja' })
     if (can(role, 'view_reports'))       links.push({ key: 'F4', label: 'Reportes', path: '/admin', tab: 'resumen' })
     return links
@@ -144,7 +147,7 @@ export default function Topbar({ title }) {
         </nav>
 
         {seller?.role === 'owner' && locations.length > 0 ? (
-          <label className="hidden sm:flex items-center gap-1.5 bg-brand-500/15 border border-brand-500/30 rounded-lg px-2 py-1 max-w-[240px]">
+          <div className="hidden sm:flex items-center gap-1.5 bg-brand-500/15 border border-brand-500/30 rounded-lg px-2 py-1 max-w-[240px]">
             <MapPin className="w-3.5 h-3.5 text-brand-400 shrink-0" />
             <span className="sr-only">Punto de venta</span>
             <Select
@@ -155,7 +158,7 @@ export default function Topbar({ title }) {
               className="max-w-[190px] text-xs font-medium text-brand-300"
               options={locationOptions}
             />
-          </label>
+          </div>
         ) : location && (
           <div className="hidden sm:flex items-center gap-1.5 bg-brand-500/15 border border-brand-500/30 rounded-lg px-2.5 py-1.5 max-w-[220px]">
             <MapPin className="w-3.5 h-3.5 text-brand-400 shrink-0" />
@@ -223,7 +226,7 @@ export default function Topbar({ title }) {
             </div>
 
             {seller?.role === 'owner' && locations.length > 0 ? (
-              <label className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/25 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/25 rounded-lg px-3 py-2">
                 <MapPin className="w-4 h-4 text-brand-400 shrink-0" />
                 <span className="sr-only">Punto de venta</span>
                 <Select
@@ -234,7 +237,7 @@ export default function Topbar({ title }) {
                   className="w-full text-sm text-brand-300"
                   options={locationOptions}
                 />
-              </label>
+              </div>
             ) : location && (
               <div className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/25 rounded-lg px-3 py-2">
                 <MapPin className="w-4 h-4 text-brand-400" />
