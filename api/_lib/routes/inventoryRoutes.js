@@ -5,7 +5,7 @@
 import { supabaseAdmin } from '../supabaseAdmin.js'
 import { requireAuth, requireCan } from '../auth.js'
 import { scopedLocation, denyOutOfScope } from '../scopedLocation.js'
-import { adjustStock } from '../services/stockService.js'
+import { adjustStock, stockFields, loadStockPolicy, fetchProductTracking } from '../services/stockService.js'
 
 export async function inventoryGet(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
@@ -32,7 +32,11 @@ export async function inventoryGet(req, res) {
     stockQuery = stockQuery.eq('location_id', location_id)
   }
 
-  const { data: stockRows, error: sErr } = await stockQuery
+  const [{ data: stockRows, error: sErr }, policy, tracking] = await Promise.all([
+    stockQuery,
+    loadStockPolicy(auth.tenantId, location_id || null),
+    fetchProductTracking(auth.tenantId),
+  ])
 
   if (sErr) return res.status(500).json({ error: sErr.message })
 
@@ -49,12 +53,13 @@ export async function inventoryGet(req, res) {
 
   const result = (products || []).map(p => {
     const s = stockMap.get(p.id)
+    const t = tracking.get(p.id)
     return {
       ...p,
-      stock_quantity: s ? s.quantity : 0,
+      track_stock: t?.track_stock !== false,
+      min_stock: t?.min_stock ?? null,
+      ...stockFields(t, s?.quantity, { tenant: auth.tenant, location: policy.location, threshold: policy.threshold }),
       stock_updated_at: s ? s.updated_at : null,
-      is_low_stock: s ? s.quantity <= 5 : true,
-      is_out_of_stock: s ? s.quantity <= 0 : true,
     }
   })
 

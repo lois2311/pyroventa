@@ -11,6 +11,7 @@ DROP TABLE IF EXISTS register_closures CASCADE;
 DROP TABLE IF EXISTS login_attempts   CASCADE;
 DROP TABLE IF EXISTS invoices         CASCADE;
 DROP TABLE IF EXISTS registers        CASCADE;
+DROP TABLE IF EXISTS stock_movements  CASCADE;
 DROP TABLE IF EXISTS stock            CASCADE;
 DROP TABLE IF EXISTS presentations    CASCADE;
 DROP TABLE IF EXISTS products         CASCADE;
@@ -29,6 +30,8 @@ CREATE TABLE tenants (
   active        BOOLEAN NOT NULL DEFAULT true,
   license_start DATE NOT NULL,
   license_end   DATE NOT NULL,
+  has_inventory BOOLEAN NOT NULL DEFAULT false,
+  low_stock_threshold INTEGER NOT NULL DEFAULT 5 CHECK (low_stock_threshold >= 0),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -47,6 +50,7 @@ CREATE TABLE locations (
   name           TEXT NOT NULL,
   address        TEXT,
   printer_config JSONB NOT NULL DEFAULT '{}',
+  tracks_inventory BOOLEAN NOT NULL DEFAULT true, -- efectivo: tenants.has_inventory AND esto
   active         BOOLEAN NOT NULL DEFAULT true,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -98,6 +102,8 @@ CREATE TABLE products (
   description TEXT,
   image_url   TEXT, -- foto en Storage (bucket product-images, ruta {tenant_id}/...)
   active      BOOLEAN NOT NULL DEFAULT true,
+  track_stock BOOLEAN NOT NULL DEFAULT true,  -- false = servicio / stock infinito
+  min_stock   INTEGER CHECK (min_stock IS NULL OR min_stock >= 0), -- NULL = tenants.low_stock_threshold
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -117,6 +123,7 @@ CREATE TABLE stock (
   product_id  UUID NOT NULL REFERENCES products(id)   ON DELETE CASCADE,
   location_id UUID NOT NULL REFERENCES locations(id)  ON DELETE CASCADE,
   quantity    INTEGER NOT NULL DEFAULT 0,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (product_id, location_id)
 );
 
@@ -161,6 +168,9 @@ CREATE TABLE invoices (
   seller_name   TEXT,
   total         NUMERIC(12,2) NOT NULL DEFAULT 0,
   discount      NUMERIC(12,2) NOT NULL DEFAULT 0, -- aplicado al cobrar; total ya lo descuenta
+  discount_reason  TEXT,                          -- motivo obligatorio del descuento
+  discount_by      UUID REFERENCES sellers(id),
+  discount_by_name TEXT,
   status        TEXT NOT NULL DEFAULT 'pending'
                 CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded')),
   pay_method    TEXT CHECK (pay_method IN ('cash', 'transfer', 'card')),
@@ -237,6 +247,26 @@ CREATE TABLE login_attempts (
   window_start TIMESTAMPTZ NOT NULL DEFAULT now(),
   locked_until TIMESTAMPTZ
 );
+
+-- ---- BITÁCORA DE MOVIMIENTOS DE STOCK ---------------
+CREATE TABLE stock_movements (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  location_id UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+  product_id  UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  delta       INTEGER NOT NULL,
+  final_stock INTEGER NOT NULL,
+  reason      TEXT NOT NULL
+              CHECK (reason IN ('sale', 'refund', 'manual_adjustment', 'initial_load', 'bulk_upload')),
+  invoice_id  UUID REFERENCES invoices(id) ON DELETE SET NULL,
+  user_id     UUID REFERENCES sellers(id) ON DELETE SET NULL,
+  notes       TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_stock_movements_tenant_loc ON stock_movements(tenant_id, location_id, created_at DESC);
+CREATE INDEX idx_stock_movements_prod       ON stock_movements(product_id);
+CREATE INDEX idx_stock_movements_invoice    ON stock_movements(invoice_id);
 
 -- ---- ÍNDICES ----------------------------------------
 CREATE INDEX idx_locations_tenant     ON locations(tenant_id);
@@ -598,6 +628,7 @@ ALTER TABLE categories       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE presentations    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stock            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stock_movements  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registers        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE register_closures ENABLE ROW LEVEL SECURITY;
@@ -605,3 +636,73 @@ ALTER TABLE login_attempts   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE location_prices   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE location_products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE price_audit_logs  ENABLE ROW LEVEL SECURITY;
+
+-- =====================================================
+-- FUNCIÓN: descuento atómico de stock (ver migración 2026-10-02)
+-- =====================================================
+-- Aplica un delta de stock y registra el movimiento en una sola transacción.
+-- La fila de stock se bloquea (FOR UPDATE): dos cobros simultáneos se serializan
+-- y ninguno pierde su resta. Devuelve la existencia resultante.
+--   p_allow_negative = false -> lanza INSUFFICIENT_STOCK si el saldo quedaría < 0
+--   p_allow_negative = true  -> permite saldo negativo (ventas offline sincronizadas)
+--                               y lo deja anotado en stock_movements.notes
+CREATE OR REPLACE FUNCTION apply_stock_delta(
+  p_tenant_id      UUID,
+  p_location_id    UUID,
+  p_product_id     UUID,
+  p_delta          INTEGER,
+  p_reason         TEXT,
+  p_invoice_id     UUID    DEFAULT NULL,
+  p_user_id        UUID    DEFAULT NULL,
+  p_allow_negative BOOLEAN DEFAULT true,
+  p_notes          TEXT    DEFAULT NULL
+) RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_current INTEGER;
+  v_new     INTEGER;
+BEGIN
+  -- Producto y punto deben ser del tenant (la función corre como definer)
+  IF NOT EXISTS (SELECT 1 FROM locations WHERE id = p_location_id AND tenant_id = p_tenant_id)
+     OR NOT EXISTS (SELECT 1 FROM products WHERE id = p_product_id AND tenant_id = p_tenant_id) THEN
+    RAISE EXCEPTION 'STOCK_TENANT_MISMATCH' USING ERRCODE = 'P0002';
+  END IF;
+
+  INSERT INTO stock (tenant_id, product_id, location_id, quantity)
+  VALUES (p_tenant_id, p_product_id, p_location_id, 0)
+  ON CONFLICT (product_id, location_id) DO NOTHING;
+
+  SELECT quantity INTO v_current
+    FROM stock
+   WHERE product_id = p_product_id AND location_id = p_location_id AND tenant_id = p_tenant_id
+     FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'STOCK_TENANT_MISMATCH' USING ERRCODE = 'P0002';
+  END IF;
+
+  v_new := v_current + p_delta;
+  IF v_new < 0 AND NOT p_allow_negative THEN
+    RAISE EXCEPTION 'INSUFFICIENT_STOCK' USING ERRCODE = 'P0001', DETAIL = v_current::TEXT;
+  END IF;
+
+  UPDATE stock SET quantity = v_new, updated_at = now()
+   WHERE product_id = p_product_id AND location_id = p_location_id;
+
+  INSERT INTO stock_movements
+    (tenant_id, location_id, product_id, delta, final_stock, reason, invoice_id, user_id, notes)
+  VALUES
+    (p_tenant_id, p_location_id, p_product_id, p_delta, v_new, p_reason, p_invoice_id, p_user_id,
+     COALESCE(p_notes, CASE WHEN v_new < 0 THEN 'Saldo negativo por venta' END));
+
+  RETURN v_new;
+END;
+$$;
+
+-- Solo el backend (service_role) la invoca; no exponerla por PostgREST a anon/authenticated.
+REVOKE ALL ON FUNCTION apply_stock_delta(UUID, UUID, UUID, INTEGER, TEXT, UUID, UUID, BOOLEAN, TEXT)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION apply_stock_delta(UUID, UUID, UUID, INTEGER, TEXT, UUID, UUID, BOOLEAN, TEXT)
+  TO service_role;

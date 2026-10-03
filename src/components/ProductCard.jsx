@@ -5,6 +5,7 @@ import { formatCOP }    from '../lib/format.js'
 import { useToast }     from './Toast.jsx'
 import ProductImage     from './ProductImage.jsx'
 import { buildCartItem, activePresentations, stockWarning } from '../lib/cartItem.js'
+import { getStockStatus, stockQty, STOCK_STATUS } from '../lib/stockStatus.js'
 
 /** `onAdded(event)`: después de agregar (VendedorPage devuelve el foco al escáner). */
 export default function ProductCard({ product, onAdded }) {
@@ -13,14 +14,16 @@ export default function ProductCard({ product, onAdded }) {
   const tenant  = useAuthStore(s => s.tenant)
   const { warn } = useToast()
   const hasInventory = Boolean(tenant?.has_inventory)
-  const stockQty = Number(product.stock_quantity ?? 0)
+  const stockLeft = stockQty(product)
+  const status = getStockStatus(product)
+  const tracked = hasInventory && status !== 'untracked'
 
   // Con inventario activo no se vende lo que no hay: agotado = botones
   // deshabilitados; con todo el stock ya en el carrito, tocar avisa por qué
   // no suma. (El tope es por producto: todas las presentaciones cuentan.)
   const inCart     = productQtyInCart(items, product.id)
-  const outOfStock = hasInventory && stockQty <= 0
-  const atCap      = hasInventory && !outOfStock && inCart >= stockQty
+  const outOfStock = tracked && status === 'out_of_stock'
+  const atCap      = tracked && !outOfStock && inCart >= stockLeft
 
   const presentations = activePresentations(product)
   if (!presentations.length) return null
@@ -61,18 +64,14 @@ export default function ProductCard({ product, onAdded }) {
           </div>
         </div>
 
-        {hasInventory && (
+        {tracked && (
           <span
             className={`text-2xs px-2 py-0.5 rounded-lg font-mono font-medium shrink-0 flex items-center gap-1 ${
-              stockQty <= 0
-                ? 'bg-red-400/15 text-red-400 border border-red-400/20'
-                : stockQty <= 5
-                ? 'bg-yellow-400/15 text-yellow-400 border border-yellow-400/20'
-                : 'bg-surface-50 text-gray-400'
+              status === 'in_stock' ? 'bg-surface-50 text-gray-400' : STOCK_STATUS[status].badge
             }`}
           >
             <Package className="w-2.5 h-2.5" />
-            {stockQty <= 0 ? 'Sin existencia' : `Quedan ${stockQty}`}
+            {outOfStock ? STOCK_STATUS.out_of_stock.label : `Quedan ${stockLeft}`}
           </span>
         )}
       </div>
@@ -133,7 +132,7 @@ export default function ProductCard({ product, onAdded }) {
 
       {atCap && (
         <p className="mt-2 text-2xs text-amber-300">
-          Las {stockQty} que quedan ya están en el ticket.
+          Las {stockLeft} que quedan ya están en el ticket.
         </p>
       )}
     </div>

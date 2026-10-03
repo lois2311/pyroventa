@@ -23,6 +23,9 @@ import { useToast } from './Toast.jsx'
 import PageHeader from './PageHeader.jsx'
 import ProductThumb from './ProductThumb.jsx'
 import Select from './Select.jsx'
+import { getStockStatus, STOCK_STATUS } from '../lib/stockStatus.js'
+
+const STATUS_ICON = { untracked: Package, out_of_stock: XCircle, low_stock: AlertTriangle, in_stock: CheckCircle2 }
 
 export default function InventarioTab({ locations = [], isOwner = false }) {
   const { error: toastError } = useToast()
@@ -58,18 +61,19 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
       if (!matchName && !matchCat) return false
     }
 
-    const qty = Number(item.stock_quantity || 0)
-    if (filterType === 'low') return qty > 0 && qty <= 5
-    if (filterType === 'out') return qty <= 0
-    if (filterType === 'in_stock') return qty > 0
+    const status = getStockStatus(item)
+    if (filterType === 'low') return status === 'low_stock'
+    if (filterType === 'out') return status === 'out_of_stock'
+    if (filterType === 'in_stock') return status === 'in_stock' || status === 'low_stock'
     return true
   })
 
   // Totales de métricas
   const totalProducts = inventory.length
   const totalUnits = inventory.reduce((sum, i) => sum + Number(i.stock_quantity || 0), 0)
-  const lowStockCount = inventory.filter(i => Number(i.stock_quantity || 0) > 0 && Number(i.stock_quantity || 0) <= 5).length
-  const outOfStockCount = inventory.filter(i => Number(i.stock_quantity || 0) <= 0).length
+  const lowStockCount = inventory.filter(i => getStockStatus(i) === 'low_stock').length
+  const outOfStockCount = inventory.filter(i => getStockStatus(i) === 'out_of_stock').length
+  const availableCount = inventory.filter(i => ['in_stock', 'low_stock'].includes(getStockStatus(i))).length
 
   const handleExport = () => {
     if (inventory.length === 0) return
@@ -77,11 +81,7 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
       Producto: item.name,
       Categoría: item.categories?.name || 'Sin categoría',
       'Stock Actual': Number(item.stock_quantity || 0),
-      Estado: Number(item.stock_quantity || 0) <= 0
-        ? 'Agotado'
-        : Number(item.stock_quantity || 0) <= 5
-        ? 'Stock Bajo'
-        : 'Disponible',
+      Estado: STOCK_STATUS[getStockStatus(item)].label,
       'Última Actualización': item.stock_updated_at ? new Date(item.stock_updated_at).toLocaleString('es-CO') : 'Sin registro'
     }))
 
@@ -186,7 +186,7 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
             className={`btn btn-sm text-xs py-1 px-3 ${filterType === 'in_stock' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'btn-ghost text-gray-400'}`}
           >
             <CheckCircle2 className="w-3 h-3 text-emerald-400 inline mr-1" />
-            Disponibles ({inventory.filter(i => Number(i.stock_quantity || 0) > 0).length})
+            Disponibles ({availableCount})
           </button>
           <button
             onClick={() => setFilterType('low')}
@@ -236,8 +236,8 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
               <tbody className="divide-y divide-white/5">
                 {filtered.map(item => {
                   const qty = Number(item.stock_quantity || 0)
-                  const isOut = qty <= 0
-                  const isLow = qty > 0 && qty <= 5
+                  const status = getStockStatus(item)
+                  const StatusIcon = STATUS_ICON[status]
 
                   return (
                     <tr key={item.id} className="hover:bg-surface-400/50 transition-colors">
@@ -277,22 +277,11 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center">
-                        {isOut ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-red-500/15 text-red-400 border border-red-500/20">
-                            <XCircle className="w-3 h-3" />
-                            Agotado
-                          </span>
-                        ) : isLow ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">
-                            <AlertTriangle className="w-3 h-3" />
-                            Stock Bajo ({qty})
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Disponible
-                          </span>
-                        )}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium ${STOCK_STATUS[status].badge}`}>
+                          <StatusIcon className="w-3 h-3" />
+                          {STOCK_STATUS[status].label}
+                          {status === 'low_stock' && ` (${qty} ≤ ${item.low_stock_threshold})`}
+                        </span>
                       </td>
                       <td className="py-2.5 px-3 text-right">
                         <button

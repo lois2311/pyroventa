@@ -265,6 +265,7 @@ export default function CajaPage() {
   const [closingReg,   setClosingReg]   = useState(false) // cierre de caja (arqueo)
   const [refunding,    setRefunding]    = useState(false) // devolución
   const [discountStr,  setDiscountStr]  = useState('')    // descuento al cobrar
+  const [discountReason, setDiscountReason] = useState('')  // motivo (obligatorio si hay descuento)
   const [cashReceived, setCashReceived] = useState('')    // con cuánto paga (efectivo)
   const [transferProv, setTransferProv] = useState(null)  // nequi | daviplata | bancolombia
 
@@ -364,7 +365,7 @@ export default function CajaPage() {
     if (c.length !== 4 || !location?.id) return
     const seq = ++searchSeq.current
     setSearching(true); setNotFound(false); setInvoice(null); setPayMethod(null); setTransferProv(null); setObservations('')
-    setDiscountStr(''); setCashReceived('')
+    setDiscountStr(''); setDiscountReason(''); setCashReceived('')
     try {
       const data = await api.get(`/invoices/${c}?location_id=${location.id}`)
       if (seq !== searchSeq.current) return
@@ -390,7 +391,7 @@ export default function CajaPage() {
   const handleSelectPending = (inv) => {
     setCode(inv.code); setInvoice(inv); setPayMethod(null); setTransferProv(null)
     setNotFound(false); setObservations(inv.observations || ''); setMobileTab('pagar')
-    setDiscountStr(''); setCashReceived('')
+    setDiscountStr(''); setDiscountReason(''); setCashReceived('')
     afterRender(focusPayArea)
   }
 
@@ -408,12 +409,14 @@ export default function CajaPage() {
   const receivedNum = cashReceived === '' ? null : Number(cashReceived)
   const insufficientCash = payMethod === 'cash' && receivedNum !== null && !isNaN(receivedNum) && receivedNum < totalToPay
   const missingProvider = payMethod === 'transfer' && !transferProv
-  const payBlocked = !invoice || !payMethod || paying || insufficientCash || missingProvider
+  const missingReason = discountNum > 0 && !discountReason.trim()
+  const payBlocked = !invoice || !payMethod || paying || insufficientCash || missingProvider || missingReason
 
   // ---- Cobrar --------------------------------------------
   const handlePay = async () => {
     if (!invoice || !payMethod || payingRef.current) return
     if (invalidDiscount) return toastError('El descuento no puede superar el total')
+    if (missingReason) return toastError('Escribe el motivo del descuento')
     payingRef.current = true
     setPaying(true)
     try {
@@ -424,12 +427,12 @@ export default function CajaPage() {
         observations:  observations.trim() || undefined,
         register_id:   register?.id || undefined,
         register_name: register?.name || undefined,
-        ...(discountNum > 0 ? { discount: discountNum } : {}),
+        ...(discountNum > 0 ? { discount: discountNum, discount_reason: discountReason.trim() } : {}),
       })
       removePending(paid.id)
       setPaidInv(paid)
       setInvoice(null); setCode(''); setPayMethod(null); setTransferProv(null); setObservations(''); setMobileTab('cobrar')
-      setDiscountStr(''); setCashReceived('')
+      setDiscountStr(''); setDiscountReason(''); setCashReceived('')
       toastSuccess(`Cobrado. #${paid.code} · ${register?.name || 'Sin caja'}`)
     } catch (err) {
       toastError(err.message || (payMethod === 'card'
@@ -664,6 +667,15 @@ export default function CajaPage() {
             onChange={e => setDiscountStr(e.target.value)}
             placeholder="0" className="input text-right font-mono tabular-nums" />
           {invalidDiscount && <p className="mt-1 text-xs text-red-400">No puede superar {formatCOP(invoice.total)}</p>}
+          {discountNum > 0 && !invalidDiscount && (
+            <div className="mt-2">
+              <label htmlFor={`${prefix}-discount-reason`} className="field-label">Motivo del descuento <span className="font-normal">(obligatorio)</span></label>
+              <input id={`${prefix}-discount-reason`} value={discountReason} maxLength={200} required
+                onChange={e => setDiscountReason(e.target.value)}
+                placeholder="Ej: cliente frecuente, producto con daño"
+                className="input" />
+            </div>
+          )}
         </div>
         <div>
           <label htmlFor={`${prefix}-obs`} className="field-label flex items-center gap-2">Cliente u observaciones <span className="font-normal">(opcional)</span> <Kbd>F7</Kbd></label>

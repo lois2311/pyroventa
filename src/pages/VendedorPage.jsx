@@ -8,6 +8,7 @@ import { enqueue, generateOfflineCode, saveOfflineInvoice, newOpId } from '../li
 import { formatCOP, timeAgo } from '../lib/format.js'
 import { matchesQuery, normalizeText } from '../lib/search.js'
 import { buildCartItem, activePresentations, stockWarning } from '../lib/cartItem.js'
+import { getStockStatus, stockCap } from '../lib/stockStatus.js'
 import { loadParked, parkSale, takeParked, parkedTotal, parkedCount } from '../lib/parkedSales.js'
 import { hasFinePointer } from '../lib/device.js'
 import { useMediaQuery } from '../hooks/useMediaQuery.js'
@@ -112,7 +113,7 @@ export default function VendedorPage() {
   // El stock del carrito se refresca con cada catálogo nuevo
   useEffect(() => {
     if (!hasInventory || !products.length) return
-    syncStock(new Map(products.map(p => [p.id, Number(p.stock_quantity ?? 0)])))
+    syncStock(new Map(products.map(p => [p.id, stockCap(p)])))
   }, [products, hasInventory, syncStock])
 
   // "/" enfoca el buscador (como en la mayoría de apps con teclado)
@@ -136,7 +137,7 @@ export default function VendedorPage() {
     // Con inventario, los agotados van al final (orden estable para el resto)
     if (hasInventory) {
       list = [...list].sort((a, b) =>
-        (Number(a.stock_quantity ?? 0) <= 0) - (Number(b.stock_quantity ?? 0) <= 0))
+        (getStockStatus(a) === 'out_of_stock') - (getStockStatus(b) === 'out_of_stock'))
     }
     return list
   }, [products, catFilter, query, hasInventory])
@@ -176,7 +177,7 @@ export default function VendedorPage() {
   // ---- Ventas en pausa (F8) ------------------------------
   const refreshStock = useCallback(() => {
     if (!hasInventory || !products.length) return
-    syncStock(new Map(products.map(p => [p.id, Number(p.stock_quantity ?? 0)])))
+    syncStock(new Map(products.map(p => [p.id, stockCap(p)])))
   }, [hasInventory, products, syncStock])
 
   const handlePark = () => {

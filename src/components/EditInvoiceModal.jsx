@@ -9,6 +9,7 @@ import Modal from './Modal.jsx'
 import ErrorNotice from './ErrorNotice.jsx'
 import ProductImage from './ProductImage.jsx'
 import FormError from './FormError.jsx'
+import { stockCap } from '../lib/stockStatus.js'
 
 const COMMON_REASONS = [
   'Descuento por volumen',
@@ -44,7 +45,7 @@ export default function EditInvoiceModal({ invoice, productImages = {}, onClose,
   const stockOf = (productId) => {
     if (!hasInventory) return Infinity
     const p = products.find(x => x.id === productId)
-    return p ? Number(p.stock_quantity ?? 0) : Infinity
+    return p ? (stockCap(p) ?? Infinity) : Infinity
   }
   const qtyOfProduct = (productId) => items.reduce((n, i) => (i.productId === productId ? n + i.qty : n), 0)
   const canAddUnit = (productId) => qtyOfProduct(productId) < stockOf(productId)

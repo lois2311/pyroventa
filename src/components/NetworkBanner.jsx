@@ -46,7 +46,8 @@ export default function NetworkBanner() {
           return await api.post('/invoices', op.payload, opts)
         }
         if (op.type === 'pay_invoice') {
-          return await api.post(`/invoices/${op.payload.code}/pay`, op.payload.body, opts)
+          // offline_sync: la venta ya ocurrió; el servidor la acepta aunque el stock quede negativo
+          return await api.post(`/invoices/${op.payload.code}/pay`, { ...op.payload.body, offline_sync: true }, opts)
         }
         throw new Error(`Tipo de operación desconocido: ${op.type}`)
       })

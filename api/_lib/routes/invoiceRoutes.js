@@ -5,7 +5,7 @@ import { tenantOwns } from '../tenantOwns.js'
 import { buildInvoiceItems } from '../invoiceItems.js'
 import { parseRange, bogotaDayBounds } from '../range.js'
 import { CLOSURES_MIGRATION_HINT } from './closureRoutes.js'
-import { deductStockForInvoice, restoreStockForInvoice } from '../services/stockService.js'
+import { deductStockForInvoice, restoreStockForInvoice, findStockShortages, shortageMessage } from '../services/stockService.js'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const UNIQUE_VIOLATION = '23505'
@@ -170,7 +170,7 @@ export async function invoicesGetByCode(req, res, code) {
 
 export async function invoicesPay(req, res, code) {
   const auth = await requireCan(req, res, 'charge'); if (!auth) return
-  const { pay_method, observations, register_id, register_name, discount, transfer_provider } = req.body || {}
+  const { pay_method, observations, register_id, register_name, discount, discount_reason, transfer_provider, offline_sync } = req.body || {}
   const location_id = scopedLocation(auth, req.body?.location_id, res)
   if (location_id === undefined) return
   if (!pay_method) return res.status(400).json({ error: 'location_id y pay_method requeridos' })
@@ -192,6 +192,9 @@ export async function invoicesPay(req, res, code) {
   const d = Number(discount || 0)
   if (isNaN(d) || d < 0) return res.status(400).json({ error: 'Descuento inválido' })
   const discountUpdate = {}
+  // El motivo queda en la factura. Una venta de la cola offline ya ocurrió: no se rechaza.
+  const dReason = String(discount_reason || '').trim().slice(0, 200)
+  if (d > 0 && !dReason && !offline_sync) return res.status(400).json({ error: 'El descuento requiere un motivo' })
   if (d > 0) {
     const { data: cur } = await supabaseAdmin.from('invoices')
       .select('total').eq('tenant_id', auth.tenantId).eq('code', code)
@@ -199,7 +202,27 @@ export async function invoicesPay(req, res, code) {
     if (!cur) return res.status(409).json({ error: 'Factura no existe, ya cobrada o cancelada' })
     if (d > Number(cur.total)) return res.status(400).json({ error: 'El descuento no puede superar el total' })
     discountUpdate.discount = d
+    discountUpdate.discount_reason = dReason || null
+    discountUpdate.discount_by = auth.seller.id
+    discountUpdate.discount_by_name = auth.seller.name
     discountUpdate.total = Number(cur.total) - d
+  }
+
+  // Stock: se valida antes de cobrar. Una venta de la cola offline ya ocurrió
+  // en el mostrador, así que se acepta aunque el saldo quede negativo.
+  const offline = offline_sync === true
+  if (auth.tenant?.has_inventory && !offline) {
+    const { data: pend } = await supabaseAdmin.from('invoices')
+      .select('items').eq('tenant_id', auth.tenantId).eq('code', code)
+      .eq('location_id', location_id).eq('status', 'pending').maybeSingle()
+    if (pend?.items) {
+      let shortages
+      try { shortages = await findStockShortages(auth.tenantId, location_id, pend.items) }
+      catch (e) { return res.status(500).json({ error: e.message }) }
+      if (shortages.length) {
+        return res.status(409).json({ error: shortages.map(shortageMessage).join(' '), shortages })
+      }
+    }
   }
 
   const payInvoice = (withProvider) => supabaseAdmin.from('invoices').update({
@@ -216,12 +239,15 @@ export async function invoicesPay(req, res, code) {
     invoicesHaveTransferProvider = false
     ;({ data, error } = await payInvoice(false))
   }
-  if (error) return res.status(500).json({ error: /discount/.test(error.message) ? CLOSURES_MIGRATION_HINT : error.message })
+  if (error) return res.status(500).json({ error: /discount_(reason|by)/.test(error.message) ? 'Falta la migración: ejecuta supabase/migrations/2026-10-02_discount_reason.sql en Supabase' : /discount/.test(error.message) ? CLOSURES_MIGRATION_HINT : error.message })
   if (!data) return res.status(409).json({ error: 'Factura no existe, ya cobrada o cancelada' })
 
   // Descuento automático de inventario si el tenant tiene la opción habilitada
+  // Atómico por producto (apply_stock_delta). El cobro ya quedó firme: si el
+  // descuento falla se avisa en la respuesta para que no pase desapercibido.
   if (auth.tenant?.has_inventory) {
-    deductStockForInvoice(auth.tenantId, data.id, location_id, data.items, auth.seller?.id).catch(() => {})
+    const st = await deductStockForInvoice(auth.tenantId, data.id, location_id, data.items, auth.seller?.id, { offline })
+    if (!st.ok) return res.status(200).json({ ...data, stock_warning: 'El cobro se registró pero el inventario no se actualizó. Ajusta el stock manualmente.' })
   }
 
   return res.status(200).json(data)
@@ -246,7 +272,8 @@ export async function invoicesRefund(req, res, id) {
 
   // Reintegración automática de inventario si el tenant tiene la opción habilitada
   if (auth.tenant?.has_inventory) {
-    restoreStockForInvoice(auth.tenantId, data.id, data.location_id, data.items || inv.items, auth.seller?.id).catch(() => {})
+    const st = await restoreStockForInvoice(auth.tenantId, data.id, data.location_id, data.items || inv.items, auth.seller?.id)
+    if (!st.ok) return res.status(200).json({ ...data, stock_warning: 'La devolución se registró pero el inventario no se actualizó. Ajusta el stock manualmente.' })
   }
 
   return res.status(200).json(data)

@@ -180,6 +180,9 @@ export default function HistorialTab({ locations }) {
                             <span className="font-mono text-amber-400">−{formatCOP(inv.discount)}</span>
                           </div>
                         )}
+                        {Number(inv.discount) > 0 && inv.discount_reason && (
+                          <p className="text-xs italic text-amber-300/80">“{inv.discount_reason}”{inv.discount_by_name ? ` — ${inv.discount_by_name}` : ''}</p>
+                        )}
                         <div className="mt-3 flex justify-between border-t border-white/5 pt-2">
                           <span className="text-sm font-semibold text-white">Total</span>
                           <span className="font-mono font-bold tabular-nums text-brand-400">{formatCOP(inv.total)}</span>

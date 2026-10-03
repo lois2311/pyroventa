@@ -1,9 +1,8 @@
 // Filtros, facetas y orden del catálogo en Administración → Productos.
 // Funciones puras (se prueban sin React): la pestaña solo guarda el estado.
 import { matchesQuery } from '../../lib/search.js'
+import { getStockStatus, stockQty } from '../../lib/stockStatus.js'
 
-/** Mismo umbral que el color ámbar del badge de stock. */
-export const LOW_STOCK = 5
 export const NO_CATEGORY = 'none'
 
 export const SORTS = [
@@ -21,7 +20,7 @@ const collator = new Intl.Collator('es', { sensitivity: 'base', numeric: true })
 const prices = (p) => (p.presentations || []).map(pr => Number(pr.price)).filter(Number.isFinite)
 export const minPrice = (p) => (prices(p).length ? Math.min(...prices(p)) : null)
 export const maxPrice = (p) => (prices(p).length ? Math.max(...prices(p)) : null)
-const stockOf = (p) => Number(p.stock_quantity ?? 0)
+const stockOf = stockQty
 
 /** Sin presentaciones con precio: el POS no lo muestra (ProductCard devuelve null). */
 export const isIncomplete = (p) => prices(p).length === 0
@@ -36,8 +35,8 @@ const byStatus = {
 }
 const byStock = {
   all: () => true,
-  out: (p) => stockOf(p) <= 0,
-  low: (p) => stockOf(p) > 0 && stockOf(p) <= LOW_STOCK,
+  out: (p) => getStockStatus(p) === 'out_of_stock',
+  low: (p) => getStockStatus(p) === 'low_stock',
 }
 
 const comparators = {

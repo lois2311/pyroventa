@@ -6,7 +6,7 @@ import { denyOutOfScope } from '../scopedLocation.js'
 import { tenantOwns } from '../tenantOwns.js'
 import { compareProducts } from '../productSort.js'
 import { parseImageDataUrl, isAllowedImageUrl, imagePathFromUrl, ensureProductImagesBucket, PRODUCT_IMAGES_BUCKET } from '../productImages.js'
-import { initProductStock, adjustStock } from '../services/stockService.js'
+import { initProductStock, adjustStock, stockFields, loadStockPolicy, fetchProductTracking } from '../services/stockService.js'
 
 // Segmentos de /products/* que son endpoints, no ids de producto
 export const PRODUCT_SUBROUTES = ['bulk', 'bulk-delete', 'upload-image']
@@ -21,6 +21,24 @@ const isMissingImageColumn = (e) => (e?.code === '42703' || e?.code === 'PGRST20
 const imageErrMsg = (e) => isMissingImageColumn(e) ? IMAGE_MIGRATION_HINT : e.message
 // Se degrada una vez por instancia si la columna no existe; vuelve a true al reciclar la función
 let productsHasImageColumn = true
+
+/** track_stock / min_stock tal como se editan en el formulario de producto. */
+const trackingMeta = (t) => ({ track_stock: t?.track_stock !== false, min_stock: t?.min_stock ?? null })
+
+/** Campos de seguimiento del body (solo los presentes) o { error }. */
+function parseStockSettings({ track_stock, min_stock }) {
+  const fields = {}
+  if (track_stock !== undefined) fields.track_stock = Boolean(track_stock)
+  if (min_stock !== undefined) {
+    if (min_stock === null || min_stock === '') fields.min_stock = null
+    else {
+      const n = Number(min_stock)
+      if (!Number.isInteger(n) || n < 0) return { error: 'La alerta de stock bajo debe ser un entero mayor o igual a 0' }
+      fields.min_stock = n
+    }
+  }
+  return { fields }
+}
 
 function validateImageUrl(image_url, tenantId) {
   // null = quitar foto; undefined = no tocar
@@ -54,13 +72,15 @@ export async function productsGet(req, res) {
   if (error) return res.status(500).json({ error: error.message })
   let result = products.map(p => ({ ...p, presentations: (p.presentations || []).filter(pr => pr.active) }))
   if (location_id) {
-    const [{ data: stockRows }, locPricesRes, locProdsRes] = await Promise.all([
+    const [{ data: stockRows }, locPricesRes, locProdsRes, policy, tracking] = await Promise.all([
       supabaseAdmin.from('stock')
         .select('product_id, quantity').eq('location_id', location_id).eq('tenant_id', auth.tenantId),
       supabaseAdmin.from('location_prices')
         .select('presentation_id, price').eq('location_id', location_id).eq('tenant_id', auth.tenantId),
       supabaseAdmin.from('location_products')
         .select('product_id, active').eq('location_id', location_id).eq('tenant_id', auth.tenantId),
+      loadStockPolicy(auth.tenantId, location_id),
+      fetchProductTracking(auth.tenantId),
     ])
     const locPrices = locPricesRes.data
     const locProds = locProdsRes.data
@@ -83,7 +103,8 @@ export async function productsGet(req, res) {
 
     result = result.map(p => ({
       ...p,
-      stock_quantity: sm[p.id] ?? 0,
+      ...trackingMeta(tracking.get(p.id)),
+      ...stockFields(tracking.get(p.id), sm[p.id], { tenant: auth.tenant, location: policy.location, threshold: policy.threshold }),
       presentations: (p.presentations || []).map(pr => {
         if (priceMap.has(pr.id)) {
           const diffPrice = priceMap.get(pr.id)
@@ -94,17 +115,19 @@ export async function productsGet(req, res) {
     }))
   } else if (auth.tenant?.has_inventory) {
     try {
-      const { data: stockRows } = await supabaseAdmin
-        .from('stock')
-        .select('product_id, quantity')
-        .eq('tenant_id', auth.tenantId)
+      const [{ data: stockRows }, policy, tracking] = await Promise.all([
+        supabaseAdmin.from('stock').select('product_id, quantity').eq('tenant_id', auth.tenantId),
+        loadStockPolicy(auth.tenantId),
+        fetchProductTracking(auth.tenantId),
+      ])
       const sm = {}
       ;(stockRows || []).forEach(s => {
         sm[s.product_id] = (sm[s.product_id] || 0) + Number(s.quantity || 0)
       })
       result = result.map(p => ({
         ...p,
-        stock_quantity: sm[p.id] ?? 0
+        ...trackingMeta(tracking.get(p.id)),
+        ...stockFields(tracking.get(p.id), sm[p.id], { tenant: auth.tenant, location: null, threshold: policy.threshold }),
       }))
     } catch {
       // Ignorar si la tabla stock no existe aún
@@ -120,12 +143,14 @@ export async function productsGet(req, res) {
 
 export async function productsCreate(req, res) {
   const auth = await requireCan(req, res, 'manage_catalog'); if (!auth) return
-  const { name, category_id, description, image_url, presentations = [], stock, initial_stock, location_id } = req.body || {}
+  const { name, category_id, description, image_url, presentations = [], stock, initial_stock, location_id, track_stock, min_stock } = req.body || {}
   if (!name) return res.status(400).json({ error: 'El nombre es requerido' })
   if (!(await tenantOwns('categories', category_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
   if (!validateImageUrl(image_url, auth.tenantId)) return res.status(400).json({ error: 'URL de imagen inválida' })
+  const settings = parseStockSettings({ track_stock, min_stock })
+  if (settings.error) return res.status(400).json({ error: settings.error })
   const { data: product, error: pe } = await supabaseAdmin.from('products')
-    .insert({ tenant_id: auth.tenantId, name, category_id, description, ...(image_url ? { image_url } : {}) }).select().single()
+    .insert({ tenant_id: auth.tenantId, name, category_id, description, ...(image_url ? { image_url } : {}), ...settings.fields }).select().single()
   if (pe) return res.status(500).json({ error: imageErrMsg(pe) })
   if (presentations.length > 0) {
     await supabaseAdmin.from('presentations')
@@ -145,10 +170,12 @@ export async function productsCreate(req, res) {
 
 export async function productsUpdate(req, res, id) {
   const auth = await requireCan(req, res, 'manage_catalog'); if (!auth) return
-  const { name, category_id, description, image_url, active, presentations, stock, location_id } = req.body || {}
+  const { name, category_id, description, image_url, active, presentations, stock, location_id, track_stock, min_stock } = req.body || {}
   if (category_id !== undefined && !(await tenantOwns('categories', category_id, auth.tenantId))) return res.status(403).json({ error: 'Referencia inválida para esta empresa' })
   if (!validateImageUrl(image_url, auth.tenantId)) return res.status(400).json({ error: 'URL de imagen inválida' })
-  const u = {}
+  const settings = parseStockSettings({ track_stock, min_stock })
+  if (settings.error) return res.status(400).json({ error: settings.error })
+  const u = { ...settings.fields }
   if (name !== undefined) u.name = name
   if (category_id !== undefined) u.category_id = category_id
   if (description !== undefined) u.description = description

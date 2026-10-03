@@ -1,3 +1,4 @@
+import { getStockStatus, STOCK_STATUS } from '../../lib/stockStatus.js'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -22,7 +23,7 @@ import { useConfirm } from '../../components/ConfirmDialog.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { CARD_GRID, FormError, SkeletonGrid } from './shared.jsx'
 import {
-  DEFAULT_FILTERS, LOW_STOCK, SORTS, filterProducts, hasActiveFilters, isIncomplete, productFacets,
+  DEFAULT_FILTERS, SORTS, filterProducts, hasActiveFilters, isIncomplete, productFacets,
 } from './productFilters.js'
 
 // Filtros en la URL (?q=&cat=&estado=&stock=&orden=): recargar o compartir el
@@ -34,9 +35,6 @@ function readView() {
   try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid' } catch { return 'grid' }
 }
 
-const stockClass = (qty) => (qty <= 0
-  ? 'bg-red-500/15 text-red-400'
-  : qty <= LOW_STOCK ? 'bg-yellow-500/15 text-yellow-400' : 'bg-emerald-500/15 text-emerald-400')
 
 // ===========================================================
 // TAB: Productos
@@ -218,7 +216,7 @@ export default function ProductosTab({ hasInventory = false }) {
               <div className="segmented max-w-full overflow-x-auto scrollbar-hide" role="group" aria-label="Stock">
                 <FilterButton pressed={filters.stock === 'all'} onClick={() => setFilter('stock', 'all')}>Todo el stock</FilterButton>
                 <FilterButton pressed={filters.stock === 'low'} onClick={() => setFilter('stock', 'low')} count={counts.low}
-                  title={`Entre 1 y ${LOW_STOCK} unidades`}>
+                  title="Con existencias iguales o menores a su alerta de stock bajo">
                   Stock bajo
                 </FilterButton>
                 <FilterButton pressed={filters.stock === 'out'} onClick={() => setFilter('stock', 'out')} count={counts.out}>Agotados</FilterButton>
@@ -320,10 +318,12 @@ function ProductThumb({ product, size = 'h-12 w-12 text-xl' }) {
 }
 
 function StockBadge({ product }) {
+  const status = getStockStatus(product)
   const qty = Number(product.stock_quantity ?? 0)
   return (
-    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 font-mono text-xs font-medium ${stockClass(qty)}`}>
-      <Package className="h-3 w-3" aria-hidden="true" /> {qty <= 0 ? 'Agotado' : `Stock: ${qty}`}
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 font-mono text-xs font-medium ${STOCK_STATUS[status].badge}`}>
+      <Package className="h-3 w-3" aria-hidden="true" />
+      {status === 'untracked' || status === 'out_of_stock' ? STOCK_STATUS[status].label : `Stock: ${qty}`}
     </span>
   )
 }
@@ -456,6 +456,8 @@ function ProductForm({ product, onClose, onSave, hasInventory = false }) {
   const [catId,         setCatId]         = useState(product?.category_id || product?.categories?.id || '')
   const [desc,          setDesc]          = useState(product?.description || '')
   const [stock,         setStock]         = useState(product?.stock_quantity !== undefined ? String(product.stock_quantity) : '')
+  const [trackStock,    setTrackStock]    = useState(product?.track_stock !== false)
+  const [minStock,      setMinStock]      = useState(product?.min_stock != null ? String(product.min_stock) : '')
   const [presentations, setPresentations] = useState(
     (product?.presentations || []).map(p => ({ label: p.label, price: String(p.price) }))
   )
@@ -556,7 +558,8 @@ function ProductForm({ product, onClose, onSave, hasInventory = false }) {
         category_id: catId || null,
         description: desc.trim() || null,
         presentations: presToSave,
-        ...(hasInventory && stock !== '' && !isNaN(Number(stock)) ? { stock: Math.max(0, parseInt(stock, 10)) } : {}),
+        ...(hasInventory ? { track_stock: trackStock, min_stock: trackStock && minStock !== '' ? Math.max(0, parseInt(minStock, 10)) : null } : {}),
+        ...(hasInventory && trackStock && stock !== '' && !isNaN(Number(stock)) ? { stock: Math.max(0, parseInt(stock, 10)) } : {}),
       }
       // Solo enviar image_url si cambió (evita tocar la columna en BDs sin la migración)
       if (finalImageUrl !== (product?.image_url ?? null)) body.image_url = finalImageUrl
@@ -690,31 +693,63 @@ function ProductForm({ product, onClose, onSave, hasInventory = false }) {
         )}
       </div>
 
-      <div className={hasInventory ? 'grid gap-4 sm:grid-cols-[1fr_9rem]' : ''}>
-        <div>
-          <label htmlFor={`${fid}-desc`} className="field-label">Descripción <span className="font-normal">(opcional)</span></label>
-          <input id={`${fid}-desc`} placeholder="Detalle corto para el vendedor" value={desc} onChange={e => setDesc(e.target.value)} className="input" />
-        </div>
-
-        {hasInventory && (
-          <div>
-            <label htmlFor={`${fid}-stock`} className="field-label" title={product ? 'Actualizar existencias' : 'Inventario inicial'}>
-              {product ? 'Stock disponible' : 'Stock inicial'}
-            </label>
-            <input
-              id={`${fid}-stock`}
-              type="number"
-              min="0"
-              step="1"
-              inputMode="numeric"
-              placeholder="Ej: 50"
-              value={stock}
-              onChange={e => setStock(e.target.value)}
-              className="input font-mono"
-            />
-          </div>
-        )}
+      <div>
+        <label htmlFor={`${fid}-desc`} className="field-label">Descripción <span className="font-normal">(opcional)</span></label>
+        <input id={`${fid}-desc`} placeholder="Detalle corto para el vendedor" value={desc} onChange={e => setDesc(e.target.value)} className="input" />
       </div>
+
+      {hasInventory && (
+        <div className="space-y-3 rounded-xl border border-white/10 bg-surface-400/50 p-3">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={trackStock}
+              onChange={e => setTrackStock(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#B4E854]"
+            />
+            <span>
+              <span className="block text-sm font-medium text-white">Controlar inventario de este producto</span>
+              <span className="block text-xs text-gray-400">
+                Apágalo para servicios o productos sin límite: se venden siempre y no descuentan stock.
+              </span>
+            </span>
+          </label>
+          {trackStock && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor={`${fid}-stock`} className="field-label" title={product ? 'Actualizar existencias' : 'Inventario inicial'}>
+                  {product ? 'Stock disponible' : 'Stock inicial'}
+                </label>
+                <input
+                  id={`${fid}-stock`}
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  placeholder="Ej: 50"
+                  value={stock}
+                  onChange={e => setStock(e.target.value)}
+                  className="input font-mono"
+                />
+              </div>
+              <div>
+                <label htmlFor={`${fid}-min`} className="field-label">Alerta de stock bajo <span className="font-normal">(opcional)</span></label>
+                <input
+                  id={`${fid}-min`}
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  placeholder="Usa la del negocio"
+                  value={minStock}
+                  onChange={e => setMinStock(e.target.value)}
+                  className="input font-mono"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <fieldset aria-describedby={errors.presentations ? `${fid}-presentations-error` : undefined}>
         <div className="mb-2 flex items-center justify-between">
