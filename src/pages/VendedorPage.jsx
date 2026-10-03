@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Play, Search, ShoppingCart, Sparkles } from 'lucide-react'
+import { Play, Search, ShoppingCart } from 'lucide-react'
 import { useAuthStore }     from '../store/authStore.js'
 import { useCartStore }     from '../store/cartStore.js'
 import { useInvoiceStore }  from '../store/invoiceStore.js'
@@ -23,6 +23,7 @@ import { useCatalogRefresh } from '../hooks/useCatalogRefresh.js'
 import EmptyState      from '../components/EmptyState.jsx'
 import ErrorNotice     from '../components/ErrorNotice.jsx'
 import Kbd             from '../components/Kbd.jsx'
+import CategoryBar     from '../components/CategoryBar.jsx'
 
 // Grilla fluida: tantas columnas de ≥16rem como quepan junto al carrito
 // (1 en teléfono, 2 en tablet, 3 en laptop, 4–5 en monitores anchos).
@@ -365,23 +366,7 @@ export default function VendedorPage() {
                 ))}
               </div>
             )}
-            <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 scrollbar-hide sm:-mx-4 sm:px-4 lg:-mx-5 lg:px-5">
-              <CatChip
-                active={catFilter === 'all'}
-                onClick={() => setCatFilter('all')}
-                label="Todos"
-                icon={<Sparkles className="w-3.5 h-3.5" />}
-              />
-              {categories.map(cat => (
-                <CatChip
-                  key={cat.id}
-                  active={catFilter === cat.id}
-                  onClick={() => setCatFilter(cat.id)}
-                  label={cat.name}
-                  icon={cat.icon}
-                />
-              ))}
-            </div>
+            <CategoryBar categories={categories} value={catFilter} onChange={setCatFilter} />
           </div>
 
           {/* Grid de productos */}
@@ -495,13 +480,5 @@ export default function VendedorPage() {
         <SuccessAnimation invoice={lastCreated} onDone={handleSuccessDone} />
       )}
     </div>
-  )
-}
-
-function CatChip({ active, onClick, label, icon }) {
-  return (
-    <button type="button" onClick={onClick} aria-pressed={active} className="chip press">
-      <span aria-hidden="true">{icon}</span> {label}
-    </button>
   )
 }
