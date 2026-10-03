@@ -1,14 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, RotateCcw, Sliders, DollarSign, Package } from 'lucide-react'
+import { Search, RotateCcw, Sliders, DollarSign, Package, Boxes } from 'lucide-react'
 import { api, clearProductsCache } from '../lib/api.js'
 import { formatCOP } from '../lib/format.js'
 import { useToast } from './Toast.jsx'
+import { useAuthStore } from '../store/authStore.js'
+import Select from './Select.jsx'
 import Modal from './Modal.jsx'
 import ErrorNotice from './ErrorNotice.jsx'
 import FormError from './FormError.jsx'
 
 export default function LocationCatalogModal({ location, onClose, onSaved }) {
   const { success: toastSuccess } = useToast()
+  const hasInventory = Boolean(useAuthStore(s => s.tenant?.has_inventory))
 
   const [activeSubTab, setActiveSubTab] = useState('precios') // 'precios' | 'productos'
   const [loading,      setLoading]      = useState(true)
@@ -23,6 +26,9 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
   const [priceOverrides, setPriceOverrides] = useState({})
   // Deshabilitados en este punto: Set con product_ids
   const [disabledProds,  setDisabledProds]  = useState(new Set())
+  // Inventario: el punto controla o no, y excepciones por producto { [product_id]: true | false }
+  const [locTracks,  setLocTracks]  = useState(location?.tracks_inventory !== false)
+  const [trackOverrides, setTrackOverrides] = useState({})
 
   useEffect(() => {
     if (!location?.id) return
@@ -55,6 +61,12 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
           }
         })
         setDisabledProds(dp)
+
+        const to = {}
+        ;(config?.products || []).forEach(p => {
+          if (p.product_id && typeof p.track_stock === 'boolean') to[p.product_id] = p.track_stock
+        })
+        setTrackOverrides(to)
       })
       .catch(err => { if (!err.canceled) setLoadError(err) })
       .finally(() => { if (!signal.aborted) setLoading(false) })
@@ -84,6 +96,7 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
   }).length
 
   const disabledCount = disabledProds.size
+  const exceptionCount = Object.keys(trackOverrides).length
 
   // Acciones de precio
   const setOverride = (presId, val) => {
@@ -108,6 +121,15 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
     })
   }
 
+  const setTrackOverride = (prodId, value) => {
+    setTrackOverrides(prev => {
+      const next = { ...prev }
+      if (value === 'default') delete next[prodId]
+      else next[prodId] = value === 'track'
+      return next
+    })
+  }
+
   const enableAll = () => setDisabledProds(new Set())
   const disableAll = () => setDisabledProds(new Set(products.map(p => p.id)))
 
@@ -125,9 +147,18 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
       }
 
       const productsPayload = []
-      // Solo registramos los explícitamente deshabilitados para no inflar la tabla
-      for (const prodId of disabledProds) {
-        productsPayload.push({ product_id: prodId, active: false })
+      // Solo registramos los deshabilitados y las excepciones de inventario para no inflar la tabla
+      const ids = new Set([...disabledProds, ...Object.keys(trackOverrides)])
+      for (const prodId of ids) {
+        productsPayload.push({
+          product_id: prodId,
+          active: !disabledProds.has(prodId),
+          ...(prodId in trackOverrides ? { track_stock: trackOverrides[prodId] } : {}),
+        })
+      }
+
+      if (hasInventory && locTracks !== (location?.tracks_inventory !== false)) {
+        await api.put(`/locations/${location.id}`, { tracks_inventory: locTracks })
       }
 
       await api.put(`/locations/${location.id}/catalog-config`, {
@@ -188,7 +219,36 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
             </span>
           )}
         </button>
+
+        {hasInventory && (
+          <button type="button" onClick={() => setActiveSubTab('inventario')} aria-pressed={activeSubTab === 'inventario'} className={subTabClass(activeSubTab === 'inventario')}>
+            <Boxes className="h-3.5 w-3.5" />
+            Inventario
+            {exceptionCount > 0 && (
+              <span className="whitespace-nowrap rounded-full border border-brand-500/30 bg-brand-500/20 px-1.5 text-2xs text-brand-300">
+                {exceptionCount} excepci{exceptionCount !== 1 ? 'ones' : 'ón'}
+              </span>
+            )}
+          </button>
+        )}
       </div>
+
+      {activeSubTab === 'inventario' && (
+        <div className="space-y-1 rounded-xl border border-white/10 bg-surface-400/50 p-3">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input type="checkbox" checked={locTracks} onChange={e => setLocTracks(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#B4E854]" />
+            <span>
+              <span className="block text-sm font-medium text-white">Controlar inventario en este punto</span>
+              <span className="block text-xs text-gray-400">
+                {locTracks
+                  ? 'Los productos con control de inventario descuentan stock aquí. Puedes excluir productos concretos abajo.'
+                  : 'Este punto vende sin descontar stock. Marca abajo los productos que sí quieres controlar aquí.'}
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
 
       {/* Buscador y herramientas */}
       <div className="flex flex-wrap items-center gap-2">
@@ -261,6 +321,35 @@ export default function LocationCatalogModal({ location, onClose, onSaved }) {
                     />
                   </span>
                 </label>
+              )
+            }
+
+            if (activeSubTab === 'inventario') {
+              const general = prod.track_stock !== false
+              const current = prod.id in trackOverrides ? (trackOverrides[prod.id] ? 'track' : 'skip') : 'default'
+              return (
+                <div key={prod.id} className="card flex flex-wrap items-center justify-between gap-3 border border-white/5 bg-surface-300 p-3 sm:p-3">
+                  <span className="min-w-0">
+                    <span className="block text-xs font-semibold text-white">{prod.name}</span>
+                    <span className="block text-2xs text-gray-400">
+                      {general
+                        ? (locTracks ? 'Se controla en este punto' : 'No se controla en este punto')
+                        : 'Sin control de inventario en toda la empresa'}
+                    </span>
+                  </span>
+                  {general && (
+                    <Select
+                      value={current}
+                      onChange={v => setTrackOverride(prod.id, v)}
+                      aria-label={`Inventario de ${prod.name} en este punto`}
+                      options={[
+                        { value: 'default', label: locTracks ? 'Según el punto (controlar)' : 'Según el punto (no controlar)' },
+                        { value: 'track',   label: 'Siempre controlar' },
+                        { value: 'skip',    label: 'No controlar' },
+                      ]}
+                    />
+                  )}
+                </div>
               )
             }
 

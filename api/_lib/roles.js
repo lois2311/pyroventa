@@ -23,6 +23,8 @@ const ACTIONS = {
   refund:            CASHIER,
   cash_session:      CASHIER,  // cierre de caja
   view_reports:      ADMIN,    // reportes e historial del punto
+  restock:           ADMIN,    // reponer y registrar mermas de inventario en su punto
+  view_stock_audit:  ADMIN,    // historial de movimientos de stock (el admin, solo su punto)
   manage_staff:      ADMIN,    // usuarios (el admin: vendedores y cajeros de su punto)
   manage_registers:  ADMIN,
   configure_printer: ADMIN,

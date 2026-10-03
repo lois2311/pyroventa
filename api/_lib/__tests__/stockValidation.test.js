@@ -83,6 +83,24 @@ describe('reglas puras', () => {
     expect(isTracked(on, { tracks_inventory: true }, { track_stock: false })).toBe(false)
   })
 
+  it('un punto sin inventario controla solo los productos con excepción', () => {
+    const on = { has_inventory: true }
+    const off = { tracks_inventory: false }
+    expect(isTracked(on, off, { track_stock: true })).toBe(false)
+    expect(isTracked(on, off, { track_stock: true, location_track: true })).toBe(true)
+    expect(isTracked(on, off, { track_stock: true, location_track: null })).toBe(false)
+  })
+
+  it('un punto con inventario puede excluir productos concretos', () => {
+    const on = { has_inventory: true }
+    expect(isTracked(on, { tracks_inventory: true }, { track_stock: true, location_track: false })).toBe(false)
+  })
+
+  it('la excepción del punto no revive un producto sin seguimiento ni salta el interruptor del negocio', () => {
+    expect(isTracked({ has_inventory: true }, { tracks_inventory: false }, { track_stock: false, location_track: true })).toBe(false)
+    expect(isTracked({ has_inventory: false }, { tracks_inventory: false }, { track_stock: true, location_track: true })).toBe(false)
+  })
+
   it('campos ausentes (BD sin migrar) cuentan como controlado', () => {
     expect(isTracked({ has_inventory: true }, null, undefined)).toBe(true)
   })

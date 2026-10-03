@@ -68,6 +68,9 @@ import {
 import {
   inventoryGet,
   inventoryAdjustPost,
+  inventoryReceivePost,
+  inventoryWastePost,
+  inventoryMovementsGet,
 } from './_lib/routes/inventoryRoutes.js'
 
 // =====================================================
@@ -192,6 +195,9 @@ async function route(req, res) {
   // ---- INVENTARIO & STOCK ---------------------------
   if (route === '/inventory'        && method === 'GET')  return inventoryGet(req, res)
   if (route === '/inventory/adjust' && method === 'POST') return inventoryAdjustPost(req, res)
+  if (route === '/inventory/receive' && method === 'POST') return inventoryReceivePost(req, res)
+  if (route === '/inventory/waste' && method === 'POST') return inventoryWastePost(req, res)
+  if (route === '/inventory/movements' && method === 'GET') return inventoryMovementsGet(req, res)
 
   return res.status(404).json({ error: `Ruta no encontrada: ${method} /api${route}` })
 }

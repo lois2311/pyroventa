@@ -22,8 +22,11 @@ const imageErrMsg = (e) => isMissingImageColumn(e) ? IMAGE_MIGRATION_HINT : e.me
 // Se degrada una vez por instancia si la columna no existe; vuelve a true al reciclar la función
 let productsHasImageColumn = true
 
+// El producto ya se guardó: un fallo de stock se registra en el log, no se oculta ni rompe la respuesta
+const logStockError = (err) => console.error('[catalog] no se pudo actualizar el stock:', err)
+
 /** track_stock / min_stock tal como se editan en el formulario de producto. */
-const trackingMeta = (t) => ({ track_stock: t?.track_stock !== false, min_stock: t?.min_stock ?? null })
+const trackingMeta = (t) => ({ track_stock: t?.track_stock !== false, min_stock: t?.min_stock ?? null, location_track: t?.location_track ?? null })
 
 /** Campos de seguimiento del body (solo los presentes) o { error }. */
 function parseStockSettings({ track_stock, min_stock }) {
@@ -80,7 +83,7 @@ export async function productsGet(req, res) {
       supabaseAdmin.from('location_products')
         .select('product_id, active').eq('location_id', location_id).eq('tenant_id', auth.tenantId),
       loadStockPolicy(auth.tenantId, location_id),
-      fetchProductTracking(auth.tenantId),
+      fetchProductTracking(auth.tenantId, null, location_id),
     ])
     const locPrices = locPricesRes.data
     const locProds = locProdsRes.data
@@ -161,7 +164,7 @@ export async function productsCreate(req, res) {
   // Inicializar stock si se proporcionó
   const stockQty = stock ?? initial_stock
   if (stockQty !== undefined && !isNaN(Number(stockQty))) {
-    await initProductStock(auth.tenantId, product.id, Number(stockQty), location_id || null).catch(() => {})
+    await initProductStock(auth.tenantId, product.id, Number(stockQty), location_id || null, auth.seller?.id).catch(logStockError)
   }
 
   const { data: full } = await supabaseAdmin.from('products')
@@ -209,9 +212,9 @@ export async function productsUpdate(req, res, id) {
   // Actualizar stock si se proporcionó
   if (stock !== undefined && !isNaN(Number(stock))) {
     if (location_id) {
-      await adjustStock(auth.tenantId, location_id, id, Number(stock), 'manual_adjustment', auth.seller?.id).catch(() => {})
+      await adjustStock(auth.tenantId, location_id, id, Number(stock), 'manual_adjustment', auth.seller?.id).catch(logStockError)
     } else {
-      await initProductStock(auth.tenantId, id, Number(stock)).catch(() => {})
+      await initProductStock(auth.tenantId, id, Number(stock), null, auth.seller?.id).catch(logStockError)
     }
   }
   const { data: full } = await supabaseAdmin.from('products')
@@ -331,7 +334,7 @@ export async function productsBulk(req, res) {
         else results.photos_added++
       }
       if (p.stock !== undefined && !isNaN(Number(p.stock))) {
-        await initProductStock(auth.tenantId, existing.id, Number(p.stock)).catch(() => {})
+        await initProductStock(auth.tenantId, existing.id, Number(p.stock), null, auth.seller?.id).catch(logStockError)
       }
       results.skipped++
       continue
@@ -344,7 +347,7 @@ export async function productsBulk(req, res) {
       .insert(p.presentations.map(pr => ({ tenant_id: auth.tenantId, product_id: np.id, label: pr.label.trim(), price: Number(pr.price), active: true })))
     if (pre) { results.errors.push(`"${p.name}" pres: ${pre.message}`); continue }
     if (p.stock !== undefined && !isNaN(Number(p.stock))) {
-      await initProductStock(auth.tenantId, np.id, Number(p.stock)).catch(() => {})
+      await initProductStock(auth.tenantId, np.id, Number(p.stock), null, auth.seller?.id).catch(logStockError)
     }
     results.created++
   }

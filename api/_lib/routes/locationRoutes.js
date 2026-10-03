@@ -9,7 +9,7 @@ import { parseImageDataUrl, ensureProductImagesBucket, PRODUCT_IMAGES_BUCKET } f
 export async function locationsGet(req, res) {
   const auth = await requireAuth(req, res); if (!auth) return
   const { data, error } = await supabaseAdmin.from('locations')
-    .select('id, name, address, printer_config, active')
+    .select('id, name, address, printer_config, active, tracks_inventory')
     .eq('tenant_id', auth.tenantId).in('id', auth.scope.locationIds).order('name')
   if (error) return res.status(500).json({ error: error.message })
   return res.status(200).json(data)
@@ -29,9 +29,12 @@ export async function locationsCreate(req, res) {
 export async function locationsUpdate(req, res, id) {
   const auth = await requireCan(req, res, 'configure_printer'); if (!auth) return
   if (denyOutOfScope(auth, id, res)) return
-  const { name, address, printer_config, active } = req.body || {}
-  // El admin del punto solo ajusta la impresora; nombre, dirección y estado son del superadmin
-  if ((name !== undefined || address !== undefined || active !== undefined) && !can(auth.seller.role, 'manage_locations')) {
+  const { name, address, printer_config, active, tracks_inventory } = req.body || {}
+  if (tracks_inventory !== undefined && typeof tracks_inventory !== 'boolean') {
+    return res.status(400).json({ error: 'tracks_inventory debe ser verdadero o falso' })
+  }
+  // El admin del punto solo ajusta la impresora; nombre, dirección, estado e inventario son del superadmin
+  if ((name !== undefined || address !== undefined || active !== undefined || tracks_inventory !== undefined) && !can(auth.seller.role, 'manage_locations')) {
     return res.status(403).json({ error: 'Solo el superadministrador puede editar los datos del punto de venta' })
   }
   const u = {}
@@ -39,6 +42,7 @@ export async function locationsUpdate(req, res, id) {
   if (address !== undefined)        u.address = address
   if (printer_config !== undefined) u.printer_config = printer_config
   if (active !== undefined)         u.active = active
+  if (tracks_inventory !== undefined) u.tracks_inventory = tracks_inventory
   const { data, error } = await supabaseAdmin.from('locations')
     .update(u).eq('id', id).eq('tenant_id', auth.tenantId).select().single()
   if (error) return res.status(500).json({ error: error.message })
@@ -61,7 +65,7 @@ export async function locationCatalogConfigGet(req, res, locationId) {
       .select('presentation_id, price')
       .eq('tenant_id', auth.tenantId).eq('location_id', locationId),
     supabaseAdmin.from('location_products')
-      .select('product_id, active')
+      .select('product_id, active, track_stock')
       .eq('tenant_id', auth.tenantId).eq('location_id', locationId),
   ])
 
@@ -110,6 +114,7 @@ export async function locationCatalogConfigPut(req, res, locationId) {
           location_id: locationId,
           product_id:  p.product_id,
           active:      p.active !== false,
+          track_stock: typeof p.track_stock === 'boolean' ? p.track_stock : null,
         }))
       )
     }

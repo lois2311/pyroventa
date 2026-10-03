@@ -2,6 +2,7 @@
  * PyroVenta — Servicio de Inventario y Control de Stock
  */
 
+import { randomUUID } from 'node:crypto'
 import { supabaseAdmin } from '../supabaseAdmin.js'
 
 export const DEFAULT_LOW_STOCK = 5
@@ -25,13 +26,15 @@ export function groupItemsByProduct(items = []) {
 
 /**
  * ¿Este producto se controla en este punto? Única regla del sistema:
- * tenants.has_inventory AND locations.tracks_inventory AND products.track_stock.
+ * tenants.has_inventory AND products.track_stock AND (excepción del punto ?? locations.tracks_inventory).
+ * La excepción (`location_track`, de location_products) permite que un punto sin
+ * inventario controle productos concretos, o al revés.
  * Los campos ausentes (BD sin migrar) cuentan como "controlado", el comportamiento previo.
  */
 export function isTracked(tenant, location, product) {
   return Boolean(tenant?.has_inventory)
-    && location?.tracks_inventory !== false
     && product?.track_stock !== false
+    && (product?.location_track ?? location?.tracks_inventory !== false)
 }
 
 /** Umbral efectivo de stock bajo: el del producto, o el del negocio. */
@@ -70,8 +73,11 @@ export async function loadStockPolicy(tenantId, locationId = null) {
   }
 }
 
-/** Map productId -> { track_stock, min_stock }. Vacío si la BD aún no tiene las columnas. */
-export async function fetchProductTracking(tenantId, productIds = null) {
+/**
+ * Map productId -> { track_stock, min_stock, location_track }. Vacío si la BD aún no tiene las columnas.
+ * Con `locationId` suma la excepción de ese punto (location_products.track_stock).
+ */
+export async function fetchProductTracking(tenantId, productIds = null, locationId = null) {
   let q = supabaseAdmin.from('products').select('id, track_stock, min_stock').eq('tenant_id', tenantId)
   if (productIds) q = q.in('id', productIds)
   const { data, error } = await q
@@ -81,6 +87,17 @@ export async function fetchProductTracking(tenantId, productIds = null) {
     return map
   }
   for (const p of data || []) map.set(p.id, { track_stock: p.track_stock, min_stock: p.min_stock })
+  if (locationId) {
+    let lq = supabaseAdmin.from('location_products').select('product_id, track_stock')
+      .eq('tenant_id', tenantId).eq('location_id', locationId).not('track_stock', 'is', null)
+    if (productIds) lq = lq.in('product_id', productIds)
+    const { data: overrides, error: lErr } = await lq
+    if (lErr && !isMissingColumn(lErr)) console.error('[StockService] Error leyendo excepciones del punto:', lErr)
+    for (const o of overrides || []) {
+      const cur = map.get(o.product_id)
+      if (cur) cur.location_track = o.track_stock
+    }
+  }
   return map
 }
 
@@ -90,7 +107,7 @@ async function trackedQuantities(tenantId, locationId, items) {
   if (all.size === 0) return all
   const [policy, tracking] = await Promise.all([
     loadStockPolicy(tenantId, locationId),
-    fetchProductTracking(tenantId, [...all.keys()]),
+    fetchProductTracking(tenantId, [...all.keys()], locationId),
   ])
   // El llamador ya comprobó tenants.has_inventory
   const tenant = { has_inventory: true }
@@ -133,22 +150,36 @@ export async function findStockShortages(tenantId, locationId, items = []) {
 /** Mismo texto que el aviso del POS (src/lib/cartItem.js). */
 export const shortageMessage = (s) => `Sin existencia. Quedan ${s.available} de ${s.productName}.`
 
+/**
+ * Única vía de escritura de stock: apply_stock_delta bloquea la fila, suma el delta y deja el
+ * movimiento (saldo previo, usuario, referencia, lote) en la misma transacción.
+ * Devuelve { data: saldo resultante, error } como cualquier llamada de supabase-js.
+ */
+function stockDelta({ tenantId, locationId, productId, delta, reason, invoiceId = null, userId = null, notes = null,
+  reference = null, batchId = null, allowNegative = true }) {
+  return supabaseAdmin.rpc('apply_stock_delta', {
+    p_tenant_id:      tenantId,
+    p_location_id:    locationId,
+    p_product_id:     productId,
+    p_delta:          delta,
+    p_reason:         reason,
+    p_invoice_id:     invoiceId || null,
+    p_user_id:        userId || null,
+    p_allow_negative: allowNegative,
+    p_notes:          notes || null,
+    p_reference:      reference || null,
+    p_batch_id:       batchId || null,
+  })
+}
+
 async function applyDeltas(tenantId, invoiceId, locationId, quantities, sign, reason, userId, notes = null) {
   const failures = []
   let applied = 0
   // Cada llamada es una transacción propia que bloquea solo la fila de ese producto
   for (const [pId, qty] of quantities) {
-    const { error } = await supabaseAdmin.rpc('apply_stock_delta', {
-      p_tenant_id:      tenantId,
-      p_location_id:    locationId,
-      p_product_id:     pId,
-      p_delta:          sign * qty,
-      p_reason:         reason,
-      p_invoice_id:     invoiceId || null,
-      p_user_id:        userId || null,
-      // Se valida antes de cobrar; aquí la venta ya está pagada y el stock debe reflejarla
-      p_allow_negative: true,
-      p_notes:          notes,
+    // Se valida antes de cobrar; aquí la venta ya está pagada y el stock debe reflejarla
+    const { error } = await stockDelta({
+      tenantId, locationId, productId: pId, delta: sign * qty, reason, invoiceId, userId, notes, allowNegative: true,
     })
     if (error) {
       console.error(`[StockService] apply_stock_delta falló (${reason}, producto ${pId}):`, error)
@@ -191,55 +222,38 @@ export async function restoreStockForInvoice(tenantId, invoiceId, locationId, it
 }
 
 /**
- * Ajusta manualmente el stock de un producto en un punto de venta
+ * Fija el stock de un producto en un punto a una cantidad exacta (conteo físico, carga inicial).
+ * Calcula el delta contra el saldo leído y lo aplica atómicamente: si entra una venta entre la
+ * lectura y la escritura, la venta no se pierde (solo el resultado difiere del conteo).
  */
-export async function adjustStock(tenantId, locationId, productId, newQuantity, reason = 'manual_adjustment', userId = null, notes = null) {
+export async function adjustStock(tenantId, locationId, productId, newQuantity, reason = 'manual_adjustment', userId = null, notes = null, extra = {}) {
   const finalQty = Math.max(0, parseInt(newQuantity) || 0)
 
-  const { data: currentStock } = await supabaseAdmin
+  const { data: currentStock, error: readErr } = await supabaseAdmin
     .from('stock')
     .select('quantity')
     .eq('tenant_id', tenantId)
     .eq('location_id', locationId)
     .eq('product_id', productId)
     .maybeSingle()
+  if (readErr) throw readErr
 
   const current = currentStock ? Number(currentStock.quantity || 0) : 0
   const delta = finalQty - current
+  if (delta === 0) return { ok: true, delta: 0, quantity: finalQty }
 
-  const { data, error } = await supabaseAdmin
-    .from('stock')
-    .upsert({
-      tenant_id:   tenantId,
-      location_id: locationId,
-      product_id:  productId,
-      quantity:    finalQty,
-      updated_at:  new Date().toISOString(),
-    }, { onConflict: 'product_id, location_id' })
-    .select()
-    .single()
-
-  if (error) throw error
-
-  // Registrar auditoría
-  await supabaseAdmin.from('stock_movements').insert({
-    tenant_id:   tenantId,
-    location_id: locationId,
-    product_id:  productId,
-    delta,
-    final_stock: finalQty,
-    reason,
-    user_id:     userId,
-    notes,
-  }).catch(() => {})
-
-  return { ...data, ok: true, delta, quantity: finalQty }
+  const { data: quantity, error } = await stockDelta({
+    tenantId, locationId, productId, delta, reason, userId, notes, allowNegative: true, ...extra,
+  })
+  if (error) {
+    console.error(`[StockService] apply_stock_delta falló (${reason}, producto ${productId}):`, error)
+    throw new Error(error.message)
+  }
+  return { ok: true, delta, quantity: quantity ?? finalQty }
 }
 
-/**
- * Inicializa stock de un producto en uno o varios puntos
- */
-export async function initProductStock(tenantId, productId, initialQuantity, locationId = null) {
+/** Inicializa stock de un producto en uno o varios puntos (movimiento 'initial_load'). */
+export async function initProductStock(tenantId, productId, initialQuantity, locationId = null, userId = null) {
   const qty = parseInt(initialQuantity)
   if (isNaN(qty) || qty < 0) return { ok: false, reason: 'Cantidad inválida' }
 
@@ -257,26 +271,87 @@ export async function initProductStock(tenantId, productId, initialQuantity, loc
 
   if (!locationIds.length) return { ok: false, reason: 'No hay puntos de venta configurados' }
 
-  const rows = locationIds.map(locId => ({
-    tenant_id:   tenantId,
-    product_id:  productId,
-    location_id: locId,
-    quantity:    qty,
-    updated_at:  new Date().toISOString(),
-  }))
-
-  await supabaseAdmin.from('stock').upsert(rows, { onConflict: 'product_id, location_id' })
-
-  const movements = locationIds.map(locId => ({
-    tenant_id:   tenantId,
-    location_id: locId,
-    product_id:  productId,
-    delta:       qty,
-    final_stock: qty,
-    reason:      'initial_load',
-  }))
-
-  await supabaseAdmin.from('stock_movements').insert(movements).catch(() => {})
-
-  return { ok: true, locations: locationIds.length }
+  const failures = []
+  for (const locId of locationIds) {
+    try { await adjustStock(tenantId, locId, productId, qty, 'initial_load', userId) }
+    catch (err) { failures.push({ locationId: locId, error: err.message }) }
+  }
+  return { ok: failures.length === 0, locations: locationIds.length - failures.length, failures }
 }
+
+// ---- Reposición y merma ------------------------------------------------
+
+export const MAX_RECEIVE_ITEMS = 100
+export const MAX_QTY = 1_000_000
+
+/** Valida y normaliza las líneas de una recepción. { ok, items } | { ok:false, error } */
+export function validateReceiveItems(items, defaults = {}) {
+  if (!Array.isArray(items) || items.length === 0) return { ok: false, error: 'Agrega al menos un producto' }
+  if (items.length > MAX_RECEIVE_ITEMS) return { ok: false, error: `Máximo ${MAX_RECEIVE_ITEMS} productos por recepción` }
+  const seen = new Set()
+  const clean = []
+  for (const it of items) {
+    const productId = it?.product_id
+    const qty = Number(it?.quantity)
+    if (!productId || typeof productId !== 'string') return { ok: false, error: 'Cada línea requiere product_id' }
+    if (!Number.isInteger(qty) || qty <= 0 || qty > MAX_QTY) return { ok: false, error: 'La cantidad debe ser un entero mayor a 0' }
+    if (seen.has(productId)) return { ok: false, error: 'Hay productos repetidos en la recepción' }
+    seen.add(productId)
+    const reference = String(it.reference ?? defaults.reference ?? '').trim().slice(0, 100) || null
+    const notes = String(it.notes ?? defaults.notes ?? '').trim().slice(0, 500) || null
+    clean.push({ productId, quantity: qty, reference, notes })
+  }
+  return { ok: true, items: clean }
+}
+
+/** Valida una merma: cantidad entera > 0 y motivo (notes) obligatorio. */
+export function validateWaste({ product_id, quantity, notes, reference } = {}) {
+  const qty = Number(quantity)
+  const why = String(notes ?? '').trim()
+  if (!product_id) return { ok: false, error: 'product_id es requerido' }
+  if (!Number.isInteger(qty) || qty <= 0 || qty > MAX_QTY) return { ok: false, error: 'La cantidad debe ser un entero mayor a 0' }
+  if (why.length < 3) return { ok: false, error: 'El motivo de la merma es obligatorio' }
+  return { ok: true, productId: product_id, quantity: qty, notes: why.slice(0, 500), reference: String(reference ?? '').trim().slice(0, 100) || null }
+}
+
+/**
+ * Reposición (+N) de varios productos en un punto, con un lote común. Cada línea es una
+ * transacción atómica propia (suma sobre el saldo real, nunca lo sobrescribe).
+ * Devuelve { batchId, applied: [{productId, before, after}], failures: [{productId, error}] }.
+ */
+export async function receiveStock(tenantId, locationId, items, { userId = null, batchId = randomUUID() } = {}) {
+  const applied = []
+  const failures = []
+  for (const it of items) {
+    const { data: after, error } = await stockDelta({
+      tenantId, locationId, productId: it.productId, delta: it.quantity, reason: 'restock',
+      userId, notes: it.notes, reference: it.reference, batchId, allowNegative: true,
+    })
+    if (error) {
+      console.error(`[StockService] reposición falló (producto ${it.productId}):`, error)
+      failures.push({ productId: it.productId, error: error.message })
+    } else {
+      applied.push({ productId: it.productId, before: after - it.quantity, after })
+    }
+  }
+  return { batchId, applied, failures }
+}
+
+/** Merma (−N) con motivo obligatorio. No deja el saldo bajo cero: lanza error 409 si no alcanza. */
+export async function wasteStock(tenantId, locationId, w, { userId = null } = {}) {
+  const { data: after, error } = await stockDelta({
+    tenantId, locationId, productId: w.productId, delta: -w.quantity, reason: 'damage',
+    userId, notes: w.notes, reference: w.reference, allowNegative: false,
+  })
+  if (error) {
+    const insufficient = /INSUFFICIENT_STOCK/.test(error.message)
+    if (!insufficient) console.error(`[StockService] merma falló (producto ${w.productId}):`, error)
+    const e = new Error(insufficient ? 'La merma supera el stock disponible' : error.message)
+    e.status = insufficient ? 409 : 500
+    throw e
+  }
+  return { before: after + w.quantity, after }
+}
+
+/** Salidas que no son venta (merma, traslado, conteo a la baja) se resaltan en el historial. */
+export const movementFlag = (m) => (Number(m?.delta) < 0 && m?.reason !== 'sale' ? 'outflow' : null)
