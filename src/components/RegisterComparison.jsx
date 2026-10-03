@@ -7,15 +7,12 @@ import ProgressBar from './ProgressBar.jsx'
 import RankBadge from './RankBadge.jsx'
 import RegisterDetailModal from './RegisterDetailModal.jsx'
 
-export default function RegisterComparison({ data, loading, from, to, locationId }) {
+/** Rendimiento por caja. `embedded`: solo las filas, para vivir dentro de otro panel. */
+export default function RegisterComparison({ data, loading, from, to, locationId, embedded = false }) {
   const [selected, setSelected] = useState(null)
 
   if (loading && !data?.length) {
-    return (
-      <div className="grid gap-3 md:grid-cols-2">
-        {[1, 2].map(i => <div key={i} className="skeleton h-32 rounded-xl" />)}
-      </div>
-    )
+    return <div className="skeleton h-40 rounded-xl" />
   }
 
   if (!data?.length) {
@@ -26,7 +23,7 @@ export default function RegisterComparison({ data, loading, from, to, locationId
 
   return (
     <>
-      <ol className={`grid gap-3 transition-opacity md:grid-cols-2 2xl:grid-cols-3 ${loading ? 'opacity-60' : ''}`}>
+      <ol className={`divide-y divide-white/5 transition-opacity ${embedded ? '' : 'panel overflow-hidden'} ${loading ? 'opacity-60' : ''}`}>
         {data.map((reg, idx) => {
           const clickable = reg.register_id !== null
           const Wrapper = clickable ? 'button' : 'div'
@@ -35,7 +32,7 @@ export default function RegisterComparison({ data, loading, from, to, locationId
             <li key={reg.register_id || idx}>
               <Wrapper
                 {...(clickable ? { type: 'button', onClick: () => setSelected(reg), title: 'Ver detalle de la caja' } : {})}
-                className={`card group flex h-full w-full items-start gap-3 bg-surface-300 text-left ${clickable ? 'cursor-pointer transition-colors hover:border-white/10 hover:bg-surface-200' : ''}`}
+                className={`list-row group w-full items-start !py-2.5 text-left ${clickable ? 'cursor-pointer transition-colors hover:bg-white/[0.03]' : ''}`}
               >
                 <RankBadge rank={idx + 1} />
 
@@ -48,13 +45,13 @@ export default function RegisterComparison({ data, loading, from, to, locationId
                     <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-white">{formatCOP(reg.total)}</p>
                   </div>
                   <p className="mt-0.5 text-2xs text-gray-400">
-                    {reg.count} cobro{reg.count !== 1 ? 's' : ''} · Ticket prom. <span className="font-mono tabular-nums">{formatCOP(reg.avg_ticket)}</span>
+                    <span className="font-mono tabular-nums">{reg.count}</span> cobro{reg.count !== 1 ? 's' : ''} · Ticket prom. <span className="font-mono tabular-nums">{formatCOP(reg.avg_ticket)}</span>
                     {reg.cashier_name && <span> · {reg.cashier_name}</span>}
                   </p>
-                  <div className="mt-2">
-                    <ProgressBar pct={(reg.total / maxRevenue) * 100} />
+                  <div className="mt-1.5">
+                    <ProgressBar pct={(reg.total / maxRevenue) * 100} height="xs" />
                   </div>
-                  <div className="mt-2">
+                  <div className="mt-1.5">
                     <PaymentMethodChips byMethod={reg.by_method} />
                   </div>
                 </div>

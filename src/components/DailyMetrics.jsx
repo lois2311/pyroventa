@@ -25,9 +25,8 @@ const trendPct = (curr, prev) => (prev > 0 ? ((curr - prev) / prev) * 100 : null
 export function DailyKpis({ data, loading, singleDay = true }) {
   if (loading && !data) {
     return (
-      <div className="grid grid-cols-3 gap-3 sm:gap-4 xl:grid-cols-5">
-        <div className="skeleton col-span-3 h-32 rounded-xl xl:col-span-2" />
-        {[1, 2, 3].map(i => <div key={i} className="skeleton h-32 rounded-xl" />)}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[1, 2, 3, 4].map(i => <div key={i} className="skeleton h-28 rounded-xl" />)}
       </div>
     )
   }
@@ -41,10 +40,9 @@ export function DailyKpis({ data, loading, singleDay = true }) {
   const days = by_day.length > 1 ? by_day : null
 
   return (
-    <div className={`grid grid-cols-3 gap-3 transition-opacity sm:gap-4 xl:grid-cols-5 ${loading ? 'opacity-60' : ''}`}>
+    <div className={`grid grid-cols-2 gap-3 transition-opacity lg:grid-cols-4 ${loading ? 'opacity-60' : ''}`}>
       <MetricTile
         hero
-        className="col-span-3 xl:col-span-2"
         icon={Wallet}
         label={singleDay ? 'Total del día' : 'Total del período'}
         value={total_revenue}
@@ -84,7 +82,7 @@ export function DailyKpis({ data, loading, singleDay = true }) {
   )
 }
 
-const DONUT = 176 // px; el anillo mide 24px (radio 64 → 88)
+const DONUT = 140 // px; el anillo mide 18px (radio 52 → 70)
 
 /**
  * Desglose por método de pago: dona (parte del todo de un vistazo, ≤ 3
@@ -99,7 +97,7 @@ export function PaymentBreakdown({ data, loading, className = '' }) {
   const { C: CHART } = useChartTheme()
   const [activeKey, setActiveKey] = useState(null)
 
-  if (loading && !data) return <div className={`skeleton h-72 rounded-xl ${className}`} />
+  if (loading && !data) return <div className={`skeleton h-56 rounded-xl ${className}`} />
   if (!data) return null
 
   const { total_revenue = 0, by_pay_method = {}, by_transfer_provider = null } = data
@@ -120,7 +118,7 @@ export function PaymentBreakdown({ data, loading, className = '' }) {
         <h3 className="panel-title">Por método de pago</h3>
       </div>
 
-      <figure className="cq-row gap-6 px-4 pb-5 sm:px-5">
+      <figure className="cq-row flex-1 gap-4 px-4 pb-4 sm:px-5">
         <figcaption className="sr-only">Ventas por método de pago: {summary}.</figcaption>
 
         {/* Dona con el total al centro */}
@@ -130,8 +128,8 @@ export function PaymentBreakdown({ data, loading, className = '' }) {
               data={segments.length ? segments : [{ key: 'empty', name: 'Sin ventas', value: 1, fill: CHART.grid }]}
               dataKey="value"
               nameKey="name"
-              innerRadius={64}
-              outerRadius={88}
+              innerRadius={52}
+              outerRadius={70}
               startAngle={90}
               endAngle={-270}
               stroke={CHART.surface}
@@ -154,7 +152,7 @@ export function PaymentBreakdown({ data, loading, className = '' }) {
           {/* Centro: total, o el método activo con su monto y porcentaje */}
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center" aria-live="polite">
             <span className="eyebrow">{active ? active.name : 'Total'}</span>
-            <span className="mt-0.5 font-mono text-base font-bold tabular-nums text-white">
+            <span className="mt-0.5 font-mono text-sm font-bold tabular-nums text-white">
               {formatCOP(active ? active.value : total_revenue)}
             </span>
             {active && <span className="text-2xs tabular-nums text-gray-400">{share(active.value).toFixed(1)}% del total</span>}
@@ -162,7 +160,7 @@ export function PaymentBreakdown({ data, loading, className = '' }) {
         </div>
 
         {/* Leyenda con valores: la lectura exacta no depende de la dona */}
-        <ul className="w-full min-w-0 flex-1 space-y-2">
+        <ul className="w-full min-w-0 flex-1 space-y-1.5">
           {rows.map(r => {
             const Icon = PAY_ICONS[r.key]
             return (

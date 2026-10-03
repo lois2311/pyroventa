@@ -4,13 +4,10 @@ import EmptyState from './EmptyState.jsx'
 import ProgressBar from './ProgressBar.jsx'
 import RankBadge from './RankBadge.jsx'
 
-export default function LocationComparison({ data, loading }) {
+/** Comparativa de puntos de venta. `embedded`: solo las filas, para vivir dentro de otro panel. */
+export default function LocationComparison({ data, loading, embedded = false }) {
   if (loading && !data?.length) {
-    return (
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
-        {[1, 2, 3].map(i => <div key={i} className="skeleton h-36 rounded-xl" />)}
-      </div>
-    )
+    return <div className="skeleton h-40 rounded-xl" />
   }
 
   if (!data?.length) {
@@ -20,39 +17,34 @@ export default function LocationComparison({ data, loading }) {
   const maxRevenue = Math.max(...data.map(l => l.total_revenue), 1)
 
   return (
-    <ol className={`grid grid-cols-1 gap-3 transition-opacity md:grid-cols-2 2xl:grid-cols-3 ${loading ? 'opacity-60' : ''}`}>
+    <ol className={`divide-y divide-white/5 transition-opacity ${embedded ? '' : 'panel overflow-hidden'} ${loading ? 'opacity-60' : ''}`}>
       {data.map((loc, idx) => (
-        <li key={loc.location_id} className="card flex flex-col bg-surface-300">
-          <div className="mb-3 flex items-start gap-3">
-            <RankBadge rank={idx + 1} />
-            <div className="min-w-0 flex-1">
-              <h3 className="truncate font-semibold text-white">{loc.location_name}</h3>
-              {loc.address && (
-                <p className="flex items-center gap-1 truncate text-xs text-gray-400">
-                  <MapPin className="h-3 w-3 shrink-0" /> <span className="truncate">{loc.address}</span>
-                </p>
-              )}
+        <li key={loc.location_id} className="list-row items-start !py-2.5">
+          <RankBadge rank={idx + 1} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="truncate text-sm font-medium text-white">{loc.location_name}</p>
+              <p className="shrink-0 font-mono text-sm font-semibold tabular-nums text-white">{formatCOP(loc.total_revenue)}</p>
             </div>
-            <div className="shrink-0 text-right">
-              <p className="font-mono text-lg font-bold tabular-nums text-white">{formatCOP(loc.total_revenue)}</p>
-              <p className="text-xs text-gray-400">{loc.invoice_count} facturas</p>
+            <div className="mt-0.5 flex items-center justify-between gap-3 text-2xs text-gray-400">
+              <span className="truncate">
+                <span className="font-mono tabular-nums">{loc.invoice_count}</span> facturas · Ticket prom. <span className="font-mono tabular-nums">{formatCOP(loc.avg_ticket)}</span>
+                {loc.address && <span> · {loc.address}</span>}
+              </span>
+              <span className="flex shrink-0 gap-2.5 font-mono tabular-nums">
+                <span className="flex items-center gap-1" title="Pendientes">
+                  <Clock className="h-3 w-3 text-yellow-400" /> {loc.pending_count}
+                  <span className="sr-only">pendientes</span>
+                </span>
+                <span className="flex items-center gap-1" title="Canceladas">
+                  <XCircle className="h-3 w-3 text-red-400" /> {loc.cancelled_count}
+                  <span className="sr-only">canceladas</span>
+                </span>
+              </span>
             </div>
-          </div>
-
-          <ProgressBar pct={(loc.total_revenue / maxRevenue) * 100} height="md" />
-
-          <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pt-3 text-xs text-gray-400">
-            <span>Ticket prom. <span className="font-mono tabular-nums">{formatCOP(loc.avg_ticket)}</span></span>
-            <span className="flex gap-3">
-              <span className="flex items-center gap-1" title="Pendientes">
-                <Clock className="h-3.5 w-3.5 text-yellow-400" /> {loc.pending_count}
-                <span className="sr-only">pendientes</span>
-              </span>
-              <span className="flex items-center gap-1" title="Canceladas">
-                <XCircle className="h-3.5 w-3.5 text-red-400" /> {loc.cancelled_count}
-                <span className="sr-only">canceladas</span>
-              </span>
-            </span>
+            <div className="mt-1.5">
+              <ProgressBar pct={(loc.total_revenue / maxRevenue) * 100} height="xs" />
+            </div>
           </div>
         </li>
       ))}

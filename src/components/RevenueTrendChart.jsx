@@ -13,7 +13,7 @@ const VIEWS = [
   { id: 'methods', label: 'Por método' },
 ]
 
-const CHART_HEIGHT = 288 // incluye la banda del eje X (sin scroll interno)
+const CHART_HEIGHT = 232 // incluye la banda del eje X (sin scroll interno)
 const MARGIN = { top: 12, right: 8, bottom: 0, left: 0 }
 
 const dayTitle = (day) => formatDayShort(day, { weekday: true })

@@ -7,11 +7,12 @@ import ProgressBar from './ProgressBar.jsx'
 import RankBadge from './RankBadge.jsx'
 import SellerDetailModal from './SellerDetailModal.jsx'
 
-export default function SellerStats({ data, loading, from, to, locationId }) {
+/** Top vendedores. `embedded`: solo las filas, para vivir dentro de otro panel. */
+export default function SellerStats({ data, loading, from, to, locationId, embedded = false }) {
   const [selectedSeller, setSelectedSeller] = useState(null)
 
   if (loading && !data?.length) {
-    return <div className="skeleton h-80 rounded-xl" />
+    return <div className="skeleton h-64 rounded-xl" />
   }
 
   if (!data?.length) {
@@ -22,14 +23,14 @@ export default function SellerStats({ data, loading, from, to, locationId }) {
 
   return (
     <>
-      <ol className={`panel divide-y divide-white/5 overflow-hidden transition-opacity ${loading ? 'opacity-60' : ''}`}>
+      <ol className={`divide-y divide-white/5 transition-opacity ${embedded ? '' : 'panel overflow-hidden'} ${loading ? 'opacity-60' : ''}`}>
         {data.map((s, idx) => (
           <li key={s.seller_id || idx}>
             <button
               type="button"
               onClick={() => setSelectedSeller(s)}
               title="Ver detalle del vendedor"
-              className="list-row group w-full items-start text-left transition-colors hover:bg-white/[0.03]"
+              className="list-row group w-full items-start !py-2.5 text-left transition-colors hover:bg-white/[0.03]"
             >
               <RankBadge rank={idx + 1} />
 

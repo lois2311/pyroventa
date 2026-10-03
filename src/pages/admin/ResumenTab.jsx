@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Download, Monitor, RefreshCw, Store, TrendingUp, Trophy, UserRound } from 'lucide-react'
 import { useApi } from '../../hooks/useApi.js'
 import { formatRangeLabel } from '../../lib/format.js'
@@ -40,6 +41,17 @@ export default function ResumenTab({ from, to, setRange, locationId, setLocation
   const d = daily.data
   const list = (r) => r.data || []
 
+  const [dayView, setDayView] = useState('chart')
+  const [rank, setRank] = useState('products')
+  const rankTabs = [
+    { id: 'products', label: 'Productos', icon: Trophy, count: list(topProds).length },
+    { id: 'sellers', label: 'Vendedores', icon: UserRound, count: list(sellers).length },
+    { id: 'registers', label: 'Cajas', icon: Monitor, count: list(regCompar).length },
+    ...(isOwner && !locationId ? [{ id: 'locations', label: 'Puntos', icon: Store, count: list(locCompar).length }] : []),
+  ]
+  // Si la pestaña elegida deja de existir (p. ej. se filtra por un punto), vuelve a la primera.
+  const activeRank = rankTabs.some(t => t.id === rank) ? rank : 'products'
+
   const handleExport = () => {
     if (!d) return
     const sheets = [
@@ -72,7 +84,7 @@ export default function ResumenTab({ from, to, setRange, locationId, setLocation
     : (isOwner ? 'Todos los puntos' : null)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <PageHeader
         title="Resumen de ventas"
         description={[formatRangeLabel(from, to), scopeLabel].filter(Boolean).join(' · ')}
@@ -87,7 +99,7 @@ export default function ResumenTab({ from, to, setRange, locationId, setLocation
       />
 
       {/* Filtros: una sola fila sobre todo lo que filtran */}
-      <div className="toolbar panel p-3 sm:p-4">
+      <div className="toolbar panel p-2.5 sm:p-3 lg:sticky lg:top-0 lg:z-20">
         <DateRangeBar from={from} to={to} onChange={setRange} />
         {isOwner && (
           <div className="w-full sm:w-56">
@@ -107,45 +119,58 @@ export default function ResumenTab({ from, to, setRange, locationId, setLocation
       <DailyKpis data={d} loading={daily.loading} singleDay={from === to} />
 
       {/* Desgloses lado a lado: por método de pago y por categoría */}
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
-        <PaymentBreakdown data={d} loading={daily.loading} className="xl:col-span-2" />
-        <CategoryBreakdown data={list(byCategory)} loading={byCategory.loading} className="xl:col-span-3" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <PaymentBreakdown data={d} loading={daily.loading} />
+        <CategoryBreakdown data={list(byCategory)} loading={byCategory.loading} />
       </div>
 
       {d?.by_day?.length > 1 && (
         <section>
-          <SectionHeader title="Ventas por día" icon={TrendingUp} description={formatRangeLabel(from, to)} />
-          <div className="space-y-3">
-            <RevenueTrendChart data={d.by_day} loading={daily.loading} />
-            <DailyTrend data={d.by_day} />
+          <SectionHeader
+            title="Ventas por día"
+            icon={TrendingUp}
+            description={formatRangeLabel(from, to)}
+            actions={
+              <div className="segmented" role="group" aria-label="Vista de ventas por día">
+                <button type="button" aria-pressed={dayView === 'chart'} onClick={() => setDayView('chart')}>Gráfica</button>
+                <button type="button" aria-pressed={dayView === 'table'} onClick={() => setDayView('table')}>Tabla</button>
+              </div>
+            }
+          />
+          {dayView === 'chart'
+            ? <RevenueTrendChart data={d.by_day} loading={daily.loading} />
+            : <DailyTrend data={d.by_day} />}
+        </section>
+      )}
+
+      {/* Rankings en un solo panel con pestañas: una lista visible a la vez,
+          con alto máximo y scroll propio para no empujar el resto de la vista. */}
+      <section className="panel overflow-hidden">
+        <div className="panel-header flex-wrap">
+          <h2 className="panel-title">Rankings</h2>
+          <div className="segmented max-w-full overflow-x-auto scrollbar-hide" role="group" aria-label="Ranking">
+            {rankTabs.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={activeRank === t.id}
+                onClick={() => setRank(t.id)}
+                className="inline-flex items-center gap-1.5"
+              >
+                <t.icon className="h-3.5 w-3.5" aria-hidden="true" />
+                {t.label}
+                <span className="font-mono tabular-nums text-gray-400">{t.count}</span>
+              </button>
+            ))}
           </div>
-        </section>
-      )}
-
-      {/* Rankings lado a lado en desktop, apilados en móvil */}
-      <div className="grid gap-8 lg:grid-cols-2 lg:gap-6">
-        <section>
-          <SectionHeader title="Top productos" icon={Trophy} />
-          <TopProducts data={list(topProds)} loading={topProds.loading} />
-        </section>
-
-        <section>
-          <SectionHeader title="Top vendedores" icon={UserRound} description="Toca un vendedor para ver su detalle" />
-          <SellerStats data={list(sellers)} loading={sellers.loading} from={from} to={to} locationId={locationId} />
-        </section>
-      </div>
-
-      <section>
-        <SectionHeader title="Rendimiento por caja" icon={Monitor} />
-        <RegisterComparison data={list(regCompar)} loading={regCompar.loading} from={from} to={to} locationId={locationId} />
+        </div>
+        <div className="max-h-[420px] overflow-y-auto border-t border-white/5">
+          {activeRank === 'products' && <TopProducts embedded data={list(topProds)} loading={topProds.loading} />}
+          {activeRank === 'sellers' && <SellerStats embedded data={list(sellers)} loading={sellers.loading} from={from} to={to} locationId={locationId} />}
+          {activeRank === 'registers' && <RegisterComparison embedded data={list(regCompar)} loading={regCompar.loading} from={from} to={to} locationId={locationId} />}
+          {activeRank === 'locations' && <LocationComparison embedded data={list(locCompar)} loading={locCompar.loading} />}
+        </div>
       </section>
-
-      {isOwner && !locationId && (
-        <section>
-          <SectionHeader title="Comparativa de puntos de venta" icon={Store} />
-          <LocationComparison data={list(locCompar)} loading={locCompar.loading} />
-        </section>
-      )}
     </div>
   )
 }

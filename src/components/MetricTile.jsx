@@ -7,8 +7,8 @@ import { useChartTheme } from '../hooks/useChartTheme.js'
 // units): la misma tarjeta sirve en una grilla de 5 columnas, en un modal o
 // a lo ancho de un teléfono sin desbordarse ni verse diminuta.
 const VALUE_SIZE = {
-  hero:    'clamp(1.875rem, 14cqi, 3.25rem)',
-  regular: 'clamp(1rem, 16cqi, 1.75rem)',
+  hero:    'clamp(1.5rem, 11cqi, 2.25rem)',
+  regular: 'clamp(1rem, 12cqi, 1.5rem)',
 }
 
 /**
@@ -49,7 +49,7 @@ export default function MetricTile({
       </div>
 
       <p
-        className={`font-semibold leading-none tracking-tight ${color}`}
+        className={`font-mono font-semibold leading-none tracking-tight tabular-nums ${color}`}
         style={{ fontSize: hero ? VALUE_SIZE.hero : VALUE_SIZE.regular }}
       >
         {display}

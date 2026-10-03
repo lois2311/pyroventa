@@ -1,31 +1,20 @@
 import { Tags } from 'lucide-react'
-import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { formatCOP, formatCOPShort } from '../lib/format.js'
-import { useChartTheme } from '../hooks/useChartTheme.js'
-import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion.js'
-import ChartTooltip from './charts/ChartTooltip.jsx'
+import { formatCOP } from '../lib/format.js'
 import EmptyState from './EmptyState.jsx'
+import ProgressBar from './ProgressBar.jsx'
 
-// Máximo de barras visibles; el resto se agrupa en "Otros" para que el
-// gráfico no crezca sin límite con catálogos de muchas categorías.
-const MAX_ROWS = 7
-const ROW_H = 36     // alto mínimo por categoría (barra de 16px + aire)
-const ROW_H_MAX = 52 // al estirarse con el panel, cada fila crece hasta aquí
-
-const truncate = (s, n = 18) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
+// Máximo de filas; el resto se agrupa en "Otros" para que el panel no crezca
+// sin límite con catálogos de muchas categorías.
+const MAX_ROWS = 6
 
 /**
- * Ventas por categoría: barras horizontales de un solo tono (la etiqueta ya
- * identifica la categoría; el color queda para la magnitud). Valor y % en la
- * punta de cada barra; unidades y monto exacto en el tooltip.
- * Antes eran columnas de 8 colores asignados por posición en el ranking: el
- * color de una categoría cambiaba al cambiar el rango de fechas.
+ * Ventas por categoría: una fila por categoría con monto y % tabulares a la
+ * derecha y una barra proporcional a la categoría que más vendió. Es una
+ * lista y no un gráfico: el monto exacto, el % y las unidades se leen sin
+ * tooltip y las columnas quedan alineadas con el panel de métodos de pago.
  */
 export default function CategoryBreakdown({ data, loading, className = '' }) {
-  const reducedMotion = usePrefersReducedMotion()
-  const { C: CHART } = useChartTheme()
-
-  if (loading && !data?.length) return <div className={`skeleton h-72 rounded-xl ${className}`} />
+  if (loading && !data?.length) return <div className={`skeleton h-56 rounded-xl ${className}`} />
 
   const top = (data || []).slice(0, MAX_ROWS)
   const rest = (data || []).slice(MAX_ROWS)
@@ -36,20 +25,8 @@ export default function CategoryBreakdown({ data, loading, className = '' }) {
     ...(restRevenue > 0 ? [{ label: `Otros (${rest.length})`, total_revenue: restRevenue, total_qty: restQty, isOther: true }] : []),
   ]
   const total = rows.reduce((s, r) => s + r.total_revenue, 0)
+  const max = Math.max(...rows.map(r => r.total_revenue), 1)
   const share = (v) => (total > 0 ? (v / total) * 100 : 0)
-  const summary = rows.map(r => `${r.label} ${formatCOP(r.total_revenue)}`).join(', ')
-
-  // Valor + % en la punta de cada barra (texto en tinta neutra, no del color de la serie)
-  const renderTipLabel = ({ x, y, width, height, index }) => {
-    const r = rows[index]
-    if (!r) return null
-    return (
-      <text x={x + width + 8} y={y + height / 2} dy="0.35em" fontSize={11} fontFamily='"JetBrains Mono", Consolas, ui-monospace, monospace'>
-        <tspan fill={CHART.label} fontWeight={600}>{formatCOPShort(r.total_revenue)}</tspan>
-        <tspan fill={CHART.axis} dx={6}>{share(r.total_revenue).toFixed(0)}%</tspan>
-      </text>
-    )
-  }
 
   return (
     <div className={`panel flex flex-col transition-opacity ${loading ? 'opacity-60' : ''} ${className}`}>
@@ -63,48 +40,25 @@ export default function CategoryBreakdown({ data, loading, className = '' }) {
           <EmptyState compact icon={Tags} title="Sin ventas en este período" />
         </div>
       ) : (
-        <figure className="flex flex-1 flex-col px-2 pb-4 sm:px-3 sm:pb-5">
-          <figcaption className="sr-only">Ventas por categoría: {summary}.</figcaption>
-          {/* Crece con el panel (en la grilla se estira al alto del de pagos) y
-              reparte las barras en ese alto, entre un mínimo y un máximo por
-              fila: con pocas categorías no quedan barras flotando lejos. */}
-          <div className="flex-1" style={{ minHeight: rows.length * ROW_H + 8, maxHeight: rows.length * ROW_H_MAX + 8 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 88, bottom: 4, left: 4 }} barCategoryGap={10}>
-                <XAxis type="number" hide domain={[0, 'dataMax']} />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  width={128}
-                  tickFormatter={(s) => truncate(String(s))}
-                  tick={{ fill: CHART.labelStrong, fontSize: 12 }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                  content={(
-                    <ChartTooltip
-                      title={(label) => label}
-                      footer={(d) => `${d.total_qty} uds vendidas · ${share(d.total_revenue).toFixed(1)}% del total`}
-                    />
-                  )}
-                />
-                <Bar
-                  dataKey="total_revenue"
-                  name="Ventas"
-                  maxBarSize={16}
-                  radius={[0, 4, 4, 0]}
-                  isAnimationActive={!reducedMotion}
-                  animationDuration={600}
-                >
-                  {rows.map(r => <Cell key={r.label} fill={r.isOther ? CHART.other : CHART.bar} />)}
-                  <LabelList dataKey="total_revenue" content={renderTipLabel} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </figure>
+        <ul className="space-y-2.5 px-4 pb-4 sm:px-5">
+          {rows.map(r => (
+            <li key={r.label}>
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <span className="truncate text-gray-300">{r.label}</span>
+                  <span className="shrink-0 font-mono text-2xs tabular-nums text-gray-400">{r.total_qty} uds</span>
+                </span>
+                <span className="shrink-0 whitespace-nowrap">
+                  <span className="font-mono font-semibold tabular-nums text-white">{formatCOP(r.total_revenue)}</span>
+                  <span className="ml-2 inline-block w-9 text-right font-mono text-xs tabular-nums text-gray-400">{share(r.total_revenue).toFixed(0)}%</span>
+                </span>
+              </div>
+              <div className="mt-1">
+                <ProgressBar pct={(r.total_revenue / max) * 100} height="xs" color={r.isOther ? 'neutral' : 'brand'} />
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )

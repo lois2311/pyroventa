@@ -13,8 +13,8 @@ export default function DailyTrend({ data, loading }) {
   const max = Math.max(...data.map(d => d.total_revenue), 1)
 
   return (
-    <div className="panel relative overflow-x-auto">
-      <table className="w-full min-w-[600px] text-sm tabular-nums">
+    <div className="panel relative max-h-[360px] overflow-auto">
+      <table className="w-full min-w-[600px] text-sm tabular-nums [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:border-b [&_th]:border-white/5 [&_th]:bg-surface-300">
         <thead>
           <tr className="text-left text-xs text-gray-400">
             <th scope="col" className="py-2.5 pl-4 pr-3 font-medium sm:pl-5">Día</th>
@@ -29,8 +29,8 @@ export default function DailyTrend({ data, loading }) {
         <tbody>
           {data.map(d => (
             <tr key={d.day} className="border-t border-white/5 hover:bg-white/[0.02]">
-              <td className="whitespace-nowrap py-2 pl-4 pr-3 text-gray-300 sm:pl-5">{formatDayShort(d.day, { weekday: true })}</td>
-              <td className="py-2 pr-3 text-right text-gray-400">{d.invoice_count}</td>
+              <td className="whitespace-nowrap py-2 pl-4 pr-3 font-mono text-gray-300 sm:pl-5">{formatDayShort(d.day, { weekday: true })}</td>
+              <td className="py-2 pr-3 text-right font-mono text-gray-400">{d.invoice_count}</td>
               <td className="py-2 pr-3 text-right font-mono text-gray-300">{formatCOP(d.cash)}</td>
               <td className="py-2 pr-3 text-right font-mono text-gray-300">{formatCOP(d.transfer)}</td>
               <td className="py-2 pr-3 text-right font-mono text-gray-300">{formatCOP(d.card)}</td>
