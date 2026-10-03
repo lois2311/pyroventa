@@ -17,6 +17,7 @@ import { useTheme } from './lib/theme.js'
 // Caja (que trae el cliente de Supabase Realtime) ni Administración (Recharts,
 // reportes). El service worker igual las precachea, así que funcionan offline.
 const VendedorPage   = lazy(() => import('./pages/VendedorPage.jsx'))
+const SetupPasswordPage = lazy(() => import('./pages/SetupPasswordPage.jsx'))
 const CajaPage       = lazy(() => import('./pages/CajaPage.jsx'))
 const AdminPage      = lazy(() => import('./pages/AdminPage.jsx'))
 const SuperDashboard = lazy(() => import('./pages/SuperDashboard.jsx'))
@@ -71,6 +72,7 @@ export default function App() {
           <Routes>
             <Route path="/c/:slug" element={<TenantEntry />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth/establecer-clave/:token" element={<SetupPasswordPage />} />
 
             <Route path="/vender" element={
               <RequireCan action="sell" needsLocation>

@@ -3,7 +3,9 @@ import { requireAuth, requireCan } from '../auth.js'
 import { locationInScope } from '../scope.js'
 import { scopedLocation, denyOutOfScope, loadScopedRegister } from '../scopedLocation.js'
 import { checkUserChange } from '../userRules.js'
+import { randomBytes } from 'node:crypto'
 import { hashPassword, normalizeUsername } from '../passwords.js'
+import { issueSetupLink } from './passwordSetupRoutes.js'
 
 // =====================================================
 // USUARIOS (tabla sellers)
@@ -61,8 +63,11 @@ export async function sellersGet(req, res) {
 
 export async function sellersCreate(req, res) {
   const auth = await requireCan(req, res, 'manage_staff'); if (!auth) return
-  const body = req.body || {}
+  const body = { ...(req.body || {}) }
   if (!String(body.name || '').trim()) return res.status(400).json({ error: 'El nombre es requerido' })
+  // Alta con enlace: la clave inicial es aleatoria y nadie la conoce; la persona define la suya con el enlace
+  const wantsLink = body.send_link === true && ['admin', 'owner'].includes(body.role)
+  if (wantsLink) body.password = randomBytes(24).toString('hex')
   const verdict = checkUserChange({ actor: actorOf(auth), target: null, patch: body })
   if (!verdict.ok) return res.status(verdict.status).json({ error: verdict.error })
   if (verdict.locationIds.some(l => !locationInScope(auth.scope, l))) {
@@ -82,7 +87,14 @@ export async function sellersCreate(req, res) {
       .insert(verdict.locationIds.map(lid => ({ tenant_id: auth.tenantId, seller_id: created.id, location_id: lid })))
     if (locErr) return res.status(500).json({ error: locErr.message })
   }
-  return res.status(201).json(await loadPublicUser(auth.tenantId, created.id))
+  const user = await loadPublicUser(auth.tenantId, created.id)
+  if (!wantsLink) return res.status(201).json(user)
+  try {
+    return res.status(201).json({ ...user, setup_link: await issueSetupLink(req, auth.tenantId, created.id, auth.seller.id) })
+  } catch (e) {
+    // El usuario ya existe: se avisa y el enlace se genera aparte desde "Editar"
+    return res.status(201).json({ ...user, setup_link_error: e.message })
+  }
 }
 
 async function updateUser(auth, id, body, res) {

@@ -42,6 +42,7 @@ import {
   registersUpdate,
   registersDelete,
 } from './_lib/routes/userRoutes.js'
+import { passwordLinkCreate, setupPasswordValidate, setupPasswordSubmit } from './_lib/routes/passwordSetupRoutes.js'
 import { closuresSummary, closuresList, closuresCreate } from './_lib/routes/closureRoutes.js'
 import {
   invoicesCreate,
@@ -97,6 +98,10 @@ async function route(req, res) {
   // ---- AUTH -----------------------------------------
   if (route === '/auth/login' && method === 'POST') return authLogin(req, res)
   if (route === '/auth/admin-login' && method === 'POST') return adminLogin(req, res)
+  if (route === '/auth/setup-password/submit' && method === 'POST') return setupPasswordSubmit(req, res)
+  if (segments[0] === 'auth' && segments[1] === 'setup-password' && segments[2] === 'validate' && segments[3] && segments.length === 4 && method === 'GET') {
+    return setupPasswordValidate(req, res, segments[3])
+  }
 
   // ---- PÚBLICO (bootstrap de login por empresa) -----
   if (segments[0] === 'public' && segments[1] === 'tenant' && segments[2] && segments.length === 3 && method === 'GET') {
@@ -146,6 +151,7 @@ async function route(req, res) {
   // ---- SELLERS --------------------------------------
   if (route === '/sellers' && method === 'GET')  return sellersGet(req, res)
   if (route === '/sellers' && method === 'POST') return sellersCreate(req, res)
+  if (segments[0] === 'sellers' && segments[1] && segments[2] === 'password-link' && method === 'POST') return passwordLinkCreate(req, res, segments[1])
   if (segments[0] === 'sellers' && segments[1] && method === 'PUT')    return sellersUpdate(req, res, segments[1])
   if (segments[0] === 'sellers' && segments[1] && method === 'DELETE') return sellersDelete(req, res, segments[1])
 

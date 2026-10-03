@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { MapPin, Pencil, Plus, Users } from 'lucide-react'
+import { Copy, KeyRound, Link2, MapPin, Pencil, Plus, Users } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore.js'
 import { api } from '../../lib/api.js'
 import { useApi } from '../../hooks/useApi.js'
@@ -107,6 +107,7 @@ export default function UsuariosTab({ locations, isOwner }) {
 
 function SellerForm({ seller, locations, onClose, onSave }) {
   const { seller: me } = useAuthStore()
+  const { error: toastError } = useToast()
   const fid = useId()
   const { errors, validate, clear, describe } = useFieldErrors(fid)
   const roleOptions = [...new Set([...assignableRoles(me?.role), ...(seller?.role ? [seller.role] : [])])]
@@ -120,6 +121,9 @@ function SellerForm({ seller, locations, onClose, onSave }) {
   const [locIds,   setLocIds]   = useState((seller?.seller_locations || []).map(sl => sl.location_id))
   const [saving,   setSaving]   = useState(false)
   const [formError, setFormError] = useState('')
+  const [sendLink, setSendLink] = useState(false)   // alta: la persona define su clave con un enlace
+  const [link,     setLink]     = useState(null)    // { url, ttl_hours } mostrado tras generarlo
+  const [linking,  setLinking]  = useState(false)
 
   const usesPassword = role === 'admin' || role === 'owner'
   const needsLocations = role !== 'owner'
@@ -145,12 +149,19 @@ function SellerForm({ seller, locations, onClose, onSave }) {
   const needsNewPass = usesPassword && !seller?.has_password
   const usernameChanged = !seller || username !== (seller?.username || '')
 
+  const handleGenerateLink = async () => {
+    setLinking(true); setFormError('')
+    try { setLink(await api.post(`/sellers/${seller.id}/password-link`, {}, { retries: 0 })) }
+    catch (err) { setFormError(err.message) }
+    finally { setLinking(false) }
+  }
+
   const handleSave = async () => {
     setFormError('')
     const ok = validate({
       name: !name.trim() && 'El nombre es requerido',
       username: usesPassword && usernameChanged && username.trim().length < 3 && 'Mínimo 3 caracteres',
-      password: usesPassword && needsNewPass && password.length < 10 && 'La contraseña debe tener al menos 10 caracteres',
+      password: usesPassword && needsNewPass && !(sendLink && !seller) && password.length < 10 && 'La contraseña debe tener al menos 10 caracteres',
       pin: !usesPassword && ((needsNewPin && pin.length !== 4) || (pin && pin.length !== 4)) && 'El PIN debe tener 4 dígitos',
       locations: needsLocations && !isSelf && locations.length > 1 && locIds.length === 0 && 'Asigna al menos un punto de venta',
     })
@@ -161,6 +172,7 @@ function SellerForm({ seller, locations, onClose, onSave }) {
     if (usesPassword) {
       if (username !== (seller?.username || '')) body.username = username
       if (password) body.password = password
+      if (sendLink && !seller) body.send_link = true
     } else if (pin) {
       body.pin = pin
     }
@@ -170,7 +182,11 @@ function SellerForm({ seller, locations, onClose, onSave }) {
     setSaving(true)
     try {
       if (seller?.id) await api.put(`/sellers/${seller.id}`, body)
-      else            await api.post('/sellers', body)
+      else {
+        const created = await api.post('/sellers', body)
+        if (created.setup_link) { setLink(created.setup_link); return }
+        if (created.setup_link_error) toastError(created.setup_link_error)
+      }
       onSave()
     } catch (err) { setFormError(err.message) }
     finally { setSaving(false) }
@@ -215,12 +231,28 @@ function SellerForm({ seller, locations, onClose, onSave }) {
           <div>
             <label htmlFor={`${fid}-password`} className="field-label">{needsNewPass ? 'Contraseña' : 'Nueva contraseña'}</label>
             <input id={`${fid}-password`} type="password" autoComplete="new-password" value={password}
+              disabled={sendLink && !seller}
               {...describe('password')}
               onChange={e => { setPassword(e.target.value); clear('password') }}
               placeholder={needsNewPass ? 'Mínimo 10 caracteres' : 'Vacío = no cambiar'}
               className="input" />
             <FieldError id={`${fid}-password-error`}>{errors.password}</FieldError>
           </div>
+          {me?.role === 'owner' && (
+            <div className="sm:col-span-2">
+              {seller ? (
+                <button type="button" onClick={handleGenerateLink} disabled={linking} className="btn-ghost btn-sm text-brand-400">
+                  <Link2 className="h-3.5 w-3.5" /> {linking ? 'Generando…' : 'Generar enlace de clave inicial'}
+                </button>
+              ) : (
+                <label className="flex cursor-pointer items-start gap-2.5 text-sm text-gray-300">
+                  <input type="checkbox" checked={sendLink} onChange={e => { setSendLink(e.target.checked); setPassword(''); clear('password') }}
+                    className="mt-0.5 accent-brand-500" />
+                  <span>Generar enlace de clave inicial <span className="block text-xs text-gray-400">La persona define su clave en privado. Válido 24 horas, un solo uso.</span></span>
+                </label>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div>
@@ -255,6 +287,32 @@ function SellerForm({ seller, locations, onClose, onSave }) {
       )}
 
       <FormError message={formError} />
+
+      {link && <SetupLinkModal link={link} onClose={onSave} />}
+    </Modal>
+  )
+}
+
+function SetupLinkModal({ link, onClose }) {
+  const { success: toastSuccess, error: toastError } = useToast()
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link.url)
+      toastSuccess('Enlace copiado')
+    } catch { toastError('No se pudo copiar: selecciónalo y cópialo a mano') }
+  }
+  return (
+    <Modal title="Enlace de clave inicial" icon={KeyRound} size="md" onClose={onClose} closeOnBackdrop={false}
+      footer={<button type="button" onClick={onClose} className="btn-primary">Listo</button>}>
+      <p className="text-sm text-gray-300">
+        Válido durante {link.ttl_hours} horas y de un solo uso. Compártelo con el administrador: quien lo abra podrá definir la clave.
+        Si generas otro, este queda revocado.
+      </p>
+      <div className="flex gap-2">
+        <input readOnly value={link.url} aria-label="Enlace de clave inicial" onFocus={e => e.target.select()} className="input min-w-0 flex-1 font-mono text-xs" />
+        <button type="button" onClick={copy} className="btn-ghost shrink-0"><Copy className="h-4 w-4" /> Copiar enlace</button>
+      </div>
+      <p className="text-xs text-gray-400">Por seguridad, no volverás a ver este enlace después de cerrar esta ventana.</p>
     </Modal>
   )
 }
