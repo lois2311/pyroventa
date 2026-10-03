@@ -7,7 +7,7 @@ const SECTIONS = {
     rows: [
       [['F1'], 'Vender'],
       [['F2'], 'Inventario'],
-      [['F3'], 'Corte (caja)'],
+      [['F3'], 'Cierre de caja'],
       [['F4'], 'Reportes'],
       [['/'], 'Ir al buscador o al código'],
       [['?'], 'Ver esta ayuda'],

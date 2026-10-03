@@ -38,15 +38,15 @@ export default function Topbar({ title }) {
   }
 
   // Módulos VENDRA con su tecla de función: F1 Vender · F2 Inventario ·
-  // F3 Corte (caja: cobro y cierre) · F4 Reportes. Cada uno aparece solo si
-  // el rol puede usarlo; Vender y Corte necesitan un punto elegido.
+  // F3 Cierre (caja: cobro y cierre) · F4 Reportes. Cada uno aparece solo si
+  // el rol puede usarlo; Vender y Cierre necesitan un punto elegido.
   const hasInventory = Boolean(tenant?.has_inventory)
   const navLinks = useMemo(() => {
     const role = seller?.role
     const links = []
     if (location && can(role, 'sell'))   links.push({ key: 'F1', label: 'Vender', path: '/vender' })
     if (can(role, 'manage_catalog'))     links.push({ key: 'F2', label: 'Inventario', path: '/admin', tab: hasInventory ? 'inventario' : 'productos' })
-    if (location && can(role, 'charge')) links.push({ key: 'F3', label: 'Corte', path: '/caja' })
+    if (location && can(role, 'charge')) links.push({ key: 'F3', label: 'Cierre', path: '/caja' })
     if (can(role, 'view_reports'))       links.push({ key: 'F4', label: 'Reportes', path: '/admin', tab: 'resumen' })
     return links
   }, [seller?.role, location, hasInventory])

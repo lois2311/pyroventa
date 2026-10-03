@@ -68,9 +68,9 @@ export default function CloseRegisterModal({ register, location, onClose }) {
         notes:         notes.trim() || undefined,
       })
       setCreated(data)
-      toastSuccess('Corte guardado.')
+      toastSuccess('Cierre de caja guardado.')
     } catch (err) {
-      setError(err.message || 'No se pudo guardar el corte. Intenta de nuevo.')
+      setError(err.message || 'No se pudo guardar el cierre de caja. Intenta de nuevo.')
     } finally {
       setSaving(false)
     }
@@ -85,7 +85,7 @@ export default function CloseRegisterModal({ register, location, onClose }) {
 
   return (
     <Modal
-      title="Corte de caja"
+      title="Cierre de caja"
       description={`${register?.name || 'Sin caja'} · ${location?.name} · ${summary?.date || 'hoy'}`}
       icon={Receipt}
       onClose={onClose}
@@ -94,7 +94,7 @@ export default function CloseRegisterModal({ register, location, onClose }) {
       footer={showForm ? <>
         <button type="button" onClick={onClose} className="btn btn-ghost">Cancelar</button>
         <button type="submit" disabled={saving} className="btn btn-primary">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar corte'}
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar cierre'}
         </button>
       </> : closure ? (
         <button type="button" onClick={onClose} className="btn btn-primary" data-autofocus>Listo</button>

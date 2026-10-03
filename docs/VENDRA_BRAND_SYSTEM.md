@@ -202,7 +202,7 @@ Las impresoras térmicas no leen SVG. Rasterizar `vendra-thermal-1bit.svg` a PNG
 - [ ] Etiquetas de estado con texto + color (Disponible, Stock bajo, Sin existencia).
 - [ ] Existencias y precios en JetBrains Mono alineados a la derecha.
 
-### Reportes, Corte de caja, Dashboard
+### Reportes, Cierre de caja, Dashboard
 
 - [ ] Funcionan en ambos temas; al imprimir o exportar PDF se fuerza el claro.
 - [ ] Barras en Voltaje Profundo; valor destacado en Voltaje (oscuro) o `#3F6B0F` (claro).
@@ -230,7 +230,7 @@ Directo, seguro, verbo primero. Frases que se leen mientras se atiende.
 | Abrir caja | Caja 1 lista. Fondo: $500.00. | La sesión de caja ha sido inicializada correctamente. |
 | Sin existencia | Sin existencia. Quedan 0 de [Producto]. | Error 409: stock insuficiente. |
 | Tarjeta rechazada | Tarjeta rechazada. Intenta otra forma de pago. | La transacción no pudo ser procesada por el emisor. |
-| Caja cuadrada | Caja cuadrada. Vendiste $13,680.00 hoy. | El proceso de corte finalizó sin diferencias. |
+| Caja cuadrada | Caja cuadrada. Vendiste $13,680.00 hoy. | El cierre de caja finalizó sin diferencias. |
 | Lema | **Cobra en segundos.** | La solución integral de punto de venta. |
 
 Reglas:

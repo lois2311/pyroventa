@@ -573,7 +573,7 @@ export default function CajaPage() {
         )}
         {canEdit && (
           <button type="button" onClick={() => setClosingReg(true)} className="btn-outline btn-sm btn-touch-safe">
-            <Receipt className="h-3.5 w-3.5" /> Corte de caja
+            <Receipt className="h-3.5 w-3.5" /> Cierre de caja
           </button>
         )}
       </div>

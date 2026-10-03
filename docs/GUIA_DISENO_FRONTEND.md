@@ -305,7 +305,7 @@ La tecla `?` abre la hoja de atajos (`ShortcutsHelp`), con la sección de la pan
 
 | Vista | Tecla | Acción |
 |---|---|---|
-| Todas | `F1` `F2` `F3` `F4` | Vender · Inventario · Corte · Reportes |
+| Todas | `F1` `F2` `F3` `F4` | Vender · Inventario · Cierre · Reportes |
 | Todas | `?` | Hoja de atajos |
 | Vender | `/` | Enfoca el escáner (`> escanea o escribe`) |
 | Vender (escáner) | `Enter` | Agrega la primera presentación si la búsqueda da un solo producto (o un nombre idéntico) y limpia el campo |
