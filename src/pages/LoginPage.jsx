@@ -124,6 +124,45 @@ function RegisterSelector({ locationId, value, onChange }) {
   )
 }
 
+// ---- Selector de modo de ingreso -------------------------
+const LOGIN_MODE_KEY = 'pv_login_mode'
+const readMode = () => {
+  try { return localStorage.getItem(LOGIN_MODE_KEY) === 'admin' ? 'admin' : 'cashier' } catch { return 'cashier' }
+}
+const saveMode = (m) => { try { localStorage.setItem(LOGIN_MODE_KEY, m) } catch { /* sin storage: no se recuerda */ } }
+
+const MODES = [
+  { id: 'cashier', label: 'Caja y Ventas', hint: 'Ingreso con PIN',        Icon: Monitor },
+  { id: 'admin',   label: 'Administración', hint: 'Usuario y contraseña',  Icon: KeyRound },
+]
+
+function ModeSelector({ value, onChange }) {
+  return (
+    <div role="group" aria-label="Tipo de ingreso" className="grid grid-cols-2 gap-2 mb-6">
+      {MODES.map(({ id, label, hint, Icon }) => {
+        const active = value === id
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onChange(id)}
+            aria-pressed={active}
+            className={`rounded-lg border-2 px-3 py-3 text-center transition-all duration-150 ${
+              active
+                ? 'bg-brand-500/20 border-brand-500 text-brand-300'
+                : 'bg-surface-400 border-white/5 text-gray-300 hover:border-white/20 hover:text-white'
+            }`}
+          >
+            <Icon className="mx-auto mb-1 h-5 w-5" aria-hidden="true" />
+            <span className="block text-sm font-semibold">{label}</span>
+            <span className="block text-xs text-gray-400">{hint}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ---- LoginPage ------------------------------------------
 export default function LoginPage() {
   const theme = useTheme()
@@ -143,6 +182,7 @@ export default function LoginPage() {
   const [adminUser,    setAdminUser]    = useState('')
   const [adminPass,    setAdminPass]    = useState('')
   const [adminData,    setAdminData]    = useState(null) // respuesta de /auth/admin-login
+  const [mode,         setMode]         = useState(readMode) // 'cashier' | 'admin' (recordado en pv_login_mode)
 
   const loadTenant = async (slug) => {
     setBootLoading(true)
@@ -151,7 +191,7 @@ export default function LoginPage() {
       setTenant(data.tenant)
       setLocations(data.locations || [])
       localStorage.setItem('pv_tenant_slug', data.tenant.slug)
-      setStep('location')
+      setStep(readMode() === 'admin' ? 'admin' : 'location')
     } catch (err) {
       const { clearSlug, message } = classifyBootstrapError(err)
       if (clearSlug) {
@@ -184,6 +224,12 @@ export default function LoginPage() {
     setStep('company')
   }
 
+  const handleModeChange = (m) => {
+    setMode(m); saveMode(m)
+    setAdminUser(''); setAdminPass('')
+    setStep(m === 'admin' ? 'admin' : 'location')
+  }
+
   const handleLocationNext = () => {
     if (!location) return
     setPin('')
@@ -198,6 +244,7 @@ export default function LoginPage() {
     try {
       const data = await api.post('/auth/login', { pin: p, location_id: location.id, tenant_slug: tenant.slug })
       await login(data.seller, data.location, data.tenant, data.token)
+      saveMode('cashier')
 
       // Si es cajero o admin yendo a caja → pedir selección de caja
       if (data.seller.role === 'cashier') {
@@ -236,6 +283,7 @@ export default function LoginPage() {
         tenant_slug: tenant.slug, username: adminUser.trim(), password: adminPass,
       }, { retries: 0 })
       setAdminPass('')
+      saveMode('admin')
       if (data.seller.role === 'admin') {
         await login(data.seller, data.locations[0], data.tenant, data.token, data.locations)
         navigate('/admin')
@@ -316,6 +364,10 @@ export default function LoginPage() {
             </form>
           )}
 
+          {!bootLoading && (step === 'location' || step === 'admin') && (
+            <ModeSelector value={mode} onChange={handleModeChange} />
+          )}
+
           {/* ---- Paso 1: Seleccionar punto de venta ---- */}
           {!bootLoading && step === 'location' && (
             <div className="animate-fade-in">
@@ -332,14 +384,6 @@ export default function LoginPage() {
                 className="text-xs text-gray-400 hover:text-white transition-colors mt-3 w-full text-center"
               >
                 Cambiar de empresa
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setAdminUser(''); setAdminPass(''); setStep('admin') }}
-                className="text-xs text-gray-400 hover:text-white transition-colors mt-2 w-full text-center inline-flex items-center justify-center gap-1.5"
-              >
-                <KeyRound className="w-3.5 h-3.5" /> Ingreso administrativo
               </button>
 
               <button
@@ -398,10 +442,6 @@ export default function LoginPage() {
           {/* ---- Ingreso administrativo ---- */}
           {!bootLoading && step === 'admin' && (
             <form onSubmit={handleAdminLogin} className="animate-fade-in space-y-4">
-              <button type="button" onClick={() => setStep('location')}
-                className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm transition-colors">
-                <ArrowLeft className="w-4 h-4" /> <span>Volver</span>
-              </button>
               <div>
                 <h2 className="font-display text-lg font-semibold text-white mb-1">Ingreso administrativo</h2>
                 <p className="text-gray-400 text-sm">Para administradores y superadministradores.</p>
@@ -422,6 +462,10 @@ export default function LoginPage() {
                 {loading
                   ? <span className="flex items-center gap-2"><Loader2 className="animate-spin h-4 w-4" /> Verificando...</span>
                   : <span className="inline-flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Ingresar</span>}
+              </button>
+              <button type="button" onClick={handleChangeCompany}
+                className="text-xs text-gray-400 hover:text-white transition-colors w-full text-center">
+                Cambiar de empresa
               </button>
             </form>
           )}
