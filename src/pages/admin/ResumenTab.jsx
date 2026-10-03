@@ -14,6 +14,7 @@ import DailyTrend from '../../components/DailyTrend.jsx'
 import RevenueTrendChart from '../../components/RevenueTrendChart.jsx'
 import CategoryBreakdown from '../../components/CategoryBreakdown.jsx'
 import { transferColumns } from '../../components/TransferBreakdown.jsx'
+import Select from '../../components/Select.jsx'
 
 // ===========================================================
 // TAB: Resumen
@@ -91,17 +92,12 @@ export default function ResumenTab({ from, to, setRange, locationId, setLocation
         {isOwner && (
           <div className="w-full sm:w-56">
             <label htmlFor="resumen-location" className="field-label">Punto de venta</label>
-            <select
+            <Select
               id="resumen-location"
               value={locationId}
-              onChange={e => setLocationId(e.target.value)}
-              className="input"
-            >
-              <option value="">Todos (consolidado)</option>
-              {locations.map(l => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
+              onChange={setLocationId}
+              options={[{ value: '', label: 'Todos (consolidado)' }, ...locations.map(l => ({ value: l.id, label: l.name }))]}
+            />
           </div>
         )}
       </div>

@@ -9,6 +9,7 @@ import FieldError from '../../components/FieldError.jsx'
 import LocationCatalogModal from '../../components/LocationCatalogModal.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { CARD_GRID, FormError } from './shared.jsx'
+import Select from '../../components/Select.jsx'
 
 // ===========================================================
 // TAB: Puntos de venta
@@ -164,10 +165,10 @@ function LocationForm({ location, onClose, onSave, isOwner }) {
       </div>
       <div>
         <label htmlFor={`${fid}-width`} className="field-label">Ancho del papel</label>
-        <select id={`${fid}-width`} value={width} onChange={e => setWidth(e.target.value)} className="input">
-          <option value="80mm">80mm (48 caracteres)</option>
-          <option value="58mm">58mm (32 caracteres)</option>
-        </select>
+        <Select id={`${fid}-width`} value={width} onChange={setWidth} options={[
+          { value: '80mm', label: '80mm (48 caracteres)' },
+          { value: '58mm', label: '58mm (32 caracteres)' },
+        ]} />
       </div>
       <label className="flex cursor-pointer items-center gap-2.5">
         <input type="checkbox" checked={qz} onChange={e => setQz(e.target.checked)} className="h-4 w-4 accent-brand-500" />

@@ -18,6 +18,7 @@ import { useToast } from './Toast.jsx'
 import PageHeader from './PageHeader.jsx'
 import { formatCOP } from '../lib/format.js'
 import { printBrowserFallback, generatePDF, RECEIPT_ENDORSEMENT } from '../lib/printService.js'
+import Select from './Select.jsx'
 
 export default function PrinterConfigTab({ locations = [], isOwner = false }) {
   const { location: authLocation, updatePrinterConfig } = useAuthStore()
@@ -209,19 +210,14 @@ export default function PrinterConfigTab({ locations = [], isOwner = false }) {
             <label htmlFor={`${fid}-location`} className="text-xs font-medium text-gray-300 block mb-1">
               Punto de venta a configurar:
             </label>
-            <select
+            <Select
               id={`${fid}-location`}
               value={selectedLocId}
-              onChange={e => { setSelectedLocId(e.target.value); setApplyToAll(false) }}
+              onChange={v => { setSelectedLocId(v); setApplyToAll(false) }}
               disabled={applyToAll}
-              className="input text-sm w-full max-w-sm disabled:opacity-50"
-            >
-              {locations.map(loc => (
-                <option key={loc.id} value={loc.id}>
-                  📍 {loc.name} {loc.address ? `(${loc.address})` : ''}
-                </option>
-              ))}
-            </select>
+              className="w-full max-w-sm text-sm"
+              options={locations.map(loc => ({ value: loc.id, label: `📍 ${loc.name} ${loc.address ? `(${loc.address})` : ''}`.trim() }))}
+            />
           </div>
 
           <label className="flex items-center gap-2 text-xs font-medium text-white cursor-pointer bg-surface-400 px-3 py-2 rounded-lg border border-white/5 hover:border-brand-500/30 transition-colors">

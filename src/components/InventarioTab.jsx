@@ -22,6 +22,7 @@ import FormError from './FormError.jsx'
 import { useToast } from './Toast.jsx'
 import PageHeader from './PageHeader.jsx'
 import ProductThumb from './ProductThumb.jsx'
+import Select from './Select.jsx'
 
 export default function InventarioTab({ locations = [], isOwner = false }) {
   const { error: toastError } = useToast()
@@ -158,18 +159,16 @@ export default function InventarioTab({ locations = [], isOwner = false }) {
           {isOwner && locations.length > 0 && (
             <div className="flex items-center gap-1.5 w-full sm:w-auto">
               <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-              <select
+              <Select
+                aria-label="Punto de venta"
                 value={locationId}
-                onChange={e => setLocationId(e.target.value)}
-                className="input py-1.5 text-xs bg-surface-300 text-white w-full sm:w-48"
-              >
-                <option value="">🏢 Todos los puntos (Consolidado)</option>
-                {locations.map(loc => (
-                  <option key={loc.id} value={loc.id}>
-                    📍 {loc.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setLocationId}
+                className="w-full py-1.5 text-xs sm:w-48"
+                options={[
+                  { value: '', label: '🏢 Todos los puntos (Consolidado)' },
+                  ...locations.map(loc => ({ value: loc.id, label: `📍 ${loc.name}` })),
+                ]}
+              />
             </div>
           )}
         </div>
@@ -389,17 +388,13 @@ function StockAdjustModal({ product, locations = [], defaultLocationId, onClose,
       {locations.length > 0 && (
         <div>
           <label htmlFor={`${fid}-location`} className="field-label">Punto de venta</label>
-          <select
+          <Select
             id={`${fid}-location`}
             value={locationId}
             {...describe('location')}
-            onChange={e => { setLocationId(e.target.value); clear('location') }}
-            className="input"
-          >
-            {locations.map(loc => (
-              <option key={loc.id} value={loc.id}>{loc.name}</option>
-            ))}
-          </select>
+            onChange={v => { setLocationId(v); clear('location') }}
+            options={locations.map(loc => ({ value: loc.id, label: loc.name }))}
+          />
           <FieldError id={`${fid}-location-error`}>{errors.location}</FieldError>
         </div>
       )}
@@ -426,17 +421,17 @@ function StockAdjustModal({ product, locations = [], defaultLocationId, onClose,
       {/* Motivo */}
       <div>
         <label htmlFor={`${fid}-reason`} className="field-label">Motivo del ajuste</label>
-        <select
+        <Select
           id={`${fid}-reason`}
           value={reason}
-          onChange={e => setReason(e.target.value)}
-          className="input"
-        >
-          <option value="manual_adjustment">Ajuste manual / conteo físico</option>
-          <option value="initial_load">Carga o reposición de mercancía</option>
-          <option value="damage">Merma o producto dañado</option>
-          <option value="transfer">Traslado entre sedes</option>
-        </select>
+          onChange={setReason}
+          options={[
+            { value: 'manual_adjustment', label: 'Ajuste manual / conteo físico' },
+            { value: 'initial_load', label: 'Carga o reposición de mercancía' },
+            { value: 'damage', label: 'Merma o producto dañado' },
+            { value: 'transfer', label: 'Traslado entre sedes' },
+          ]}
+        />
       </div>
 
       {/* Notas */}

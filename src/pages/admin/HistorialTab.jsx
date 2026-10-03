@@ -9,6 +9,7 @@ import ErrorNotice from '../../components/ErrorNotice.jsx'
 import DateRangeBar, { toISO } from '../../components/DateRangeBar.jsx'
 import { useConfirm } from '../../components/ConfirmDialog.jsx'
 import { useToast } from '../../components/Toast.jsx'
+import Select from '../../components/Select.jsx'
 
 // ===========================================================
 // TAB: Historial de facturas
@@ -23,6 +24,14 @@ const STATUS_LABEL = { pending: 'Pendiente', paid: 'Pagada', cancelled: 'Cancela
 
 // Columnas de la fila de factura en desktop: todas las filas alinean igual
 const INVOICE_ROW_COLS = 'xl:grid xl:grid-cols-[4.5rem_minmax(0,1fr)_6.5rem_9rem_7.5rem_8.5rem_1rem] xl:items-center xl:gap-4'
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'Todos' },
+  { value: 'paid', label: 'Pagadas' },
+  { value: 'pending', label: 'Pendientes' },
+  { value: 'cancelled', label: 'Canceladas' },
+  { value: 'refunded', label: 'Devueltas' },
+]
 
 export default function HistorialTab({ locations }) {
   const { error: toastError, success: toastSuccess } = useToast()
@@ -84,21 +93,13 @@ export default function HistorialTab({ locations }) {
         {locations.length > 1 && (
           <div className="w-full sm:w-48">
             <label htmlFor="history-location" className="field-label">Punto de venta</label>
-            <select id="history-location" value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input">
-              <option value="">Todos</option>
-              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
+            <Select id="history-location" value={locFilter} onChange={setLocFilter}
+              options={[{ value: '', label: 'Todos' }, ...locations.map(l => ({ value: l.id, label: l.name }))]} />
           </div>
         )}
         <div className="w-full sm:w-40">
           <label htmlFor="history-status" className="field-label">Estado</label>
-          <select id="history-status" value={statusFilt} onChange={e => setStatusFilt(e.target.value)} className="input">
-            <option value="">Todos</option>
-            <option value="paid">Pagadas</option>
-            <option value="pending">Pendientes</option>
-            <option value="cancelled">Canceladas</option>
-            <option value="refunded">Devueltas</option>
-          </select>
+          <Select id="history-status" value={statusFilt} onChange={setStatusFilt} options={STATUS_OPTIONS} />
         </div>
       </div>
 

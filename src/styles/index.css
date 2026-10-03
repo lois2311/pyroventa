@@ -120,6 +120,7 @@
   @media (max-width: 639px) {
     input.input:not(.text-lg, .text-xl, .text-2xl),
     select.input,
+    button.input,
     textarea.input {
       font-size: 1rem;
     }

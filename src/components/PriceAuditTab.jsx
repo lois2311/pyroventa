@@ -5,6 +5,7 @@ import { formatCOP, formatDate } from '../lib/format.js'
 import { toISO } from './DateRangeBar.jsx'
 import { useToast } from './Toast.jsx'
 import PageHeader from './PageHeader.jsx'
+import Select from './Select.jsx'
 
 export default function PriceAuditTab({ locations = [], isOwner = false }) {
   const { error: toastError } = useToast()
@@ -111,16 +112,13 @@ export default function PriceAuditTab({ locations = [], isOwner = false }) {
         {isOwner && locations.length > 0 && (
           <div className="flex items-center gap-2 text-xs">
             <Filter className="w-4 h-4 text-gray-400" />
-            <select
+            <Select
+              aria-label="Punto de venta"
               value={locationId}
-              onChange={e => setLocationId(e.target.value)}
-              className="input py-1 px-2 text-xs"
-            >
-              <option value="">Todos los puntos de venta</option>
-              {locations.map(loc => (
-                <option key={loc.id} value={loc.id}>{loc.name}</option>
-              ))}
-            </select>
+              onChange={setLocationId}
+              className="py-1 px-2 text-xs"
+              options={[{ value: '', label: 'Todos los puntos de venta' }, ...locations.map(loc => ({ value: loc.id, label: loc.name }))]}
+            />
           </div>
         )}
 

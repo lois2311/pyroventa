@@ -15,6 +15,7 @@ import EmptyState from '../../components/EmptyState.jsx'
 import ErrorNotice from '../../components/ErrorNotice.jsx'
 import FieldError from '../../components/FieldError.jsx'
 import Kbd from '../../components/Kbd.jsx'
+import Select from '../../components/Select.jsx'
 import PhotoThumb from '../../components/ProductThumb.jsx'
 import BulkUpload from '../../components/BulkUpload.jsx'
 import { useConfirm } from '../../components/ConfirmDialog.jsx'
@@ -187,19 +188,17 @@ export default function ProductosTab({ hasInventory = false }) {
             </div>
             <div>
               <label htmlFor="products-category" className="field-label">Categoría</label>
-              <select id="products-category" value={filters.cat} onChange={e => setFilter('cat', e.target.value)} className="input">
-                <option value="">Todas ({counts.all})</option>
-                {categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.icon ? `${c.icon} ` : ''}{c.name} ({c.count})</option>
-                ))}
-                {!catExists && <option value={filters.cat}>Categoría eliminada</option>}
-              </select>
+              <Select id="products-category" value={filters.cat} onChange={v => setFilter('cat', v)}
+                options={[
+                  { value: '', label: `Todas (${counts.all})` },
+                  ...categories.map(c => ({ value: c.id, label: `${c.icon ? `${c.icon} ` : ''}${c.name} (${c.count})` })),
+                  ...(catExists ? [] : [{ value: filters.cat, label: 'Categoría eliminada' }]),
+                ]} />
             </div>
             <div>
               <label htmlFor="products-sort" className="field-label">Ordenar por</label>
-              <select id="products-sort" value={filters.sort} onChange={e => setFilter('sort', e.target.value)} className="input">
-                {SORTS.filter(o => !o.inventoryOnly || hasInventory).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
+              <Select id="products-sort" value={filters.sort} onChange={v => setFilter('sort', v)}
+                options={SORTS.filter(o => !o.inventoryOnly || hasInventory).map(o => ({ value: o.id, label: o.label }))} />
             </div>
           </div>
 
@@ -678,20 +677,16 @@ function ProductForm({ product, onClose, onSave, hasInventory = false }) {
             </button>
           </div>
         ) : (
-          <select
+          <Select
             id={`${fid}-cat`}
             value={catId}
-            onChange={e => setCatId(e.target.value)}
-            className="input cursor-pointer"
+            onChange={setCatId}
             disabled={loadingCats}
-          >
-            <option value="">(Sin categoría)</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.icon ? `${c.icon} ` : ''}{c.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: '(Sin categoría)' },
+              ...categories.map(c => ({ value: c.id, label: `${c.icon ? `${c.icon} ` : ''}${c.name}` })),
+            ]}
+          />
         )}
       </div>
 

@@ -13,6 +13,7 @@ import DateRangeBar, { toISO } from '../../components/DateRangeBar.jsx'
 import { useConfirm } from '../../components/ConfirmDialog.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { FormError, SkeletonGrid } from './shared.jsx'
+import Select from '../../components/Select.jsx'
 
 // ===========================================================
 // TAB: Cajas / Registradoras
@@ -148,10 +149,8 @@ function ClosuresSection({ locations }) {
         {locations.length > 1 && (
           <div className="w-full sm:w-48">
             <label htmlFor="closures-location" className="field-label">Punto de venta</label>
-            <select id="closures-location" value={locFilter} onChange={e => setLocFilter(e.target.value)} className="input">
-              <option value="">Todos</option>
-              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
+            <Select id="closures-location" value={locFilter} onChange={setLocFilter}
+              options={[{ value: '', label: 'Todos' }, ...locations.map(l => ({ value: l.id, label: l.name }))]} />
           </div>
         )}
       </div>
@@ -268,12 +267,9 @@ function RegisterForm({ register, locations, onClose, onSave }) {
       {!register && locations.length > 1 && (
         <div>
           <label htmlFor={`${fid}-loc`} className="field-label">Punto de venta</label>
-          <select id={`${fid}-loc`} value={locationId} {...describe('loc')}
-            onChange={e => { setLocationId(e.target.value); clear('loc') }} className="input">
-            {locations.map(l => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </select>
+          <Select id={`${fid}-loc`} value={locationId} {...describe('loc')}
+            onChange={v => { setLocationId(v); clear('loc') }}
+            options={locations.map(l => ({ value: l.id, label: l.name }))} />
           <FieldError id={`${fid}-loc-error`}>{errors.loc}</FieldError>
         </div>
       )}

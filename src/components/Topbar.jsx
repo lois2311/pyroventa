@@ -10,11 +10,13 @@ import { isTypingTarget } from '../lib/device.js'
 import { useAuthStore } from '../store/authStore.js'
 import { useCartStore }  from '../store/cartStore.js'
 import { can, ROLE_LABELS } from '../../api/_lib/roles.js'
+import Select from './Select.jsx'
 
 export default function Topbar({ title }) {
   const navigate = useNavigate()
   const route = useLocation()
   const { seller, location, locations, register, tenant, logout, setLocation } = useAuthStore()
+  const locationOptions = [{ value: '', label: 'Todos los puntos' }, ...locations.map(l => ({ value: l.id, label: l.name }))]
   const cartCount = useCartStore(s => s.count())
   const clearCart = useCartStore(s => s.clear)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -145,17 +147,14 @@ export default function Topbar({ title }) {
           <label className="hidden sm:flex items-center gap-1.5 bg-brand-500/15 border border-brand-500/30 rounded-lg px-2 py-1 max-w-[240px]">
             <MapPin className="w-3.5 h-3.5 text-brand-400 shrink-0" />
             <span className="sr-only">Punto de venta</span>
-            <select
+            <Select
+              variant="bare"
+              aria-label="Punto de venta"
               value={location?.id || ''}
-              onChange={e => {
-                const next = locations.find(l => l.id === e.target.value) || null
-                handleLocationChange(next)
-              }}
-              className="bg-transparent text-brand-300 text-xs font-medium focus:outline-none max-w-[190px]"
-            >
-              <option value="">Todos los puntos</option>
-              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
+              onChange={v => handleLocationChange(locations.find(l => l.id === v) || null)}
+              className="max-w-[190px] text-xs font-medium text-brand-300"
+              options={locationOptions}
+            />
           </label>
         ) : location && (
           <div className="hidden sm:flex items-center gap-1.5 bg-brand-500/15 border border-brand-500/30 rounded-lg px-2.5 py-1.5 max-w-[220px]">
@@ -227,17 +226,14 @@ export default function Topbar({ title }) {
               <label className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/25 rounded-lg px-3 py-2">
                 <MapPin className="w-4 h-4 text-brand-400 shrink-0" />
                 <span className="sr-only">Punto de venta</span>
-                <select
+                <Select
+                  variant="bare"
+                  aria-label="Punto de venta"
                   value={location?.id || ''}
-                  onChange={e => {
-                    const next = locations.find(l => l.id === e.target.value) || null
-                    handleLocationChange(next)
-                  }}
-                  className="text-sm text-brand-300 bg-transparent w-full focus:outline-none"
-                >
-                  <option value="">Todos los puntos</option>
-                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                </select>
+                  onChange={v => handleLocationChange(locations.find(l => l.id === v) || null)}
+                  className="w-full text-sm text-brand-300"
+                  options={locationOptions}
+                />
               </label>
             ) : location && (
               <div className="flex items-center gap-2 bg-brand-500/10 border border-brand-500/25 rounded-lg px-3 py-2">

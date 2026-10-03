@@ -12,6 +12,7 @@ import FieldError from '../../components/FieldError.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { ROLE_LABELS, assignableRoles } from '../../../api/_lib/roles.js'
 import { CARD_GRID, FormError, Initials, SkeletonGrid } from './shared.jsx'
+import Select from '../../components/Select.jsx'
 
 // ===========================================================
 // TAB: Usuarios
@@ -197,9 +198,8 @@ function SellerForm({ seller, locations, onClose, onSave }) {
 
       <div>
         <label htmlFor={`${fid}-role`} className="field-label">Rol</label>
-        <select id={`${fid}-role`} value={role} onChange={e => handleRoleChange(e.target.value)} className="input" disabled={isSelf}>
-          {roleOptions.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-        </select>
+        <Select id={`${fid}-role`} value={role} onChange={handleRoleChange} disabled={isSelf}
+          options={roleOptions.map(r => ({ value: r, label: ROLE_LABELS[r] }))} />
         {isSelf && <p className="field-hint">No puedes cambiar tu propio rol.</p>}
       </div>
 
