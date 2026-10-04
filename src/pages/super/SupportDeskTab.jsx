@@ -47,10 +47,32 @@ function timeAgo(dateString) {
   return `Hace ${diffDays} d`
 }
 
+function playChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext
+    if (!AudioCtx) return
+    const ctx = new AudioCtx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime) // D5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15) // A5
+    gain.gain.setValueAtTime(0.15, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.3)
+  } catch {
+    // Silencioso si la política del navegador bloquea audio antes de interacción
+  }
+}
+
 export default function SupportDeskTab({ tenants = [] }) {
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [justArrivedId, setJustArrivedId] = useState(null)
 
   // Filtros
   const [statusFilter, setStatusFilter] = useState('active') // 'active' | 'open' | 'in_progress' | 'resolved' | ''
@@ -96,7 +118,13 @@ export default function SupportDeskTab({ tenants = [] }) {
         { event: '*', schema: 'public', table: 'support_tickets' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setTickets((prev) => [payload.new, ...prev])
+            const newTicket = payload.new
+            setTickets((prev) => [newTicket, ...prev])
+            setJustArrivedId(newTicket.id)
+            setTimeout(() => setJustArrivedId(null), 6000)
+            if (newTicket.priority === 'critical' || newTicket.priority === 'high') {
+              playChime()
+            }
           } else if (payload.eventType === 'UPDATE') {
             setTickets((prev) =>
               prev.map((t) => (t.id === payload.new.id ? payload.new : t))
@@ -256,7 +284,14 @@ export default function SupportDeskTab({ tenants = [] }) {
                 const waUrl = `https://wa.me/${waPhone}?text=${waText}`
 
                 return (
-                  <tr key={t.id} className="border-t border-white/5 transition hover:bg-white/[0.02]">
+                  <tr
+                    key={t.id}
+                    className={`border-t border-white/5 transition ${
+                      justArrivedId === t.id
+                        ? 'bg-brand-500/20 ring-1 ring-brand-500/50'
+                        : 'hover:bg-white/[0.02]'
+                    }`}
+                  >
                     {/* Código y tiempo */}
                     <td className="py-3 pl-4 pr-2">
                       <span className="font-mono font-bold text-white text-xs block">
