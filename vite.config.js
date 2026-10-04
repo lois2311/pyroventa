@@ -98,7 +98,8 @@ export default defineConfig({
         short_name: 'VENDRA',
         description: 'Punto de venta para cualquier negocio. By flightdev.',
         lang: 'es',
-        start_url: '/login',
+        start_url: '/',
+        scope: '/',
         display: 'standalone',
         orientation: 'any',
         background_color: '#0A1428', // Noche
