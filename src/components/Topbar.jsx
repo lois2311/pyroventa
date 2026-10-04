@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Keyboard, LogOut, MapPin, Menu, ShoppingCart, Shield, X } from 'lucide-react'
+import { Keyboard, LifeBuoy, LogOut, MapPin, Menu, ShoppingCart, Shield, X } from 'lucide-react'
 import ThemeToggle from './ThemeToggle.jsx'
 import VendraLogo from './VendraLogo.jsx'
+import SupportModal from './SupportModal.jsx'
 import { useTheme } from '../lib/theme.js'
 import Kbd from './Kbd.jsx'
 import ShortcutsHelp from './ShortcutsHelp.jsx'
@@ -21,6 +22,8 @@ export default function Topbar({ title }) {
   const clearCart = useCartStore(s => s.clear)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [supportOpen, setSupportOpen] = useState(false)
+  const [supportContext, setSupportContext] = useState({})
   const helpContext = route.pathname === '/vender' ? 'vender' : route.pathname === '/caja' ? 'caja' : null
   const theme = useTheme()
 
@@ -64,11 +67,27 @@ export default function Topbar({ title }) {
   }
   const go = (link) => navigate(link.tab ? `${link.path}?tab=${link.tab}` : link.path)
 
+  useEffect(() => {
+    const handleGlobalSupport = (e) => {
+      setSupportContext(e.detail || {})
+      setSupportOpen(true)
+    }
+    window.addEventListener('vendra:open-support', handleGlobalSupport)
+    return () => window.removeEventListener('vendra:open-support', handleGlobalSupport)
+  }, [])
+
   // Teclas de función: navegan desde cualquier pantalla salvo con un diálogo
   // abierto (F1 ya no abre la ayuda del navegador dentro de la app).
   useEffect(() => {
     const onKey = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
+      // F12 abre el soporte VENDRA
+      if (e.key === 'F12' && !document.querySelector('[role="dialog"]')) {
+        e.preventDefault()
+        setSupportContext({})
+        setSupportOpen(true)
+        return
+      }
       // "?" abre la hoja de atajos (fuera de los campos)
       if (e.key === '?' && !isTypingTarget(e.target) && !document.querySelector('[role="dialog"]')) {
         e.preventDefault()
@@ -171,6 +190,18 @@ export default function Topbar({ title }) {
 
         <button
           type="button"
+          onClick={() => { setSupportContext({}); setSupportOpen(true) }}
+          aria-keyshortcuts="F12"
+          aria-label="Soporte técnico VENDRA"
+          title="Soporte Vendra (F12)"
+          className="btn btn-ghost btn-sm px-2 text-brand-400 hover:text-brand-300 flex items-center gap-1.5"
+        >
+          <LifeBuoy className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline text-xs font-medium">Soporte</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setHelpOpen(true)}
           aria-keyshortcuts="?"
           aria-label="Atajos de teclado"
@@ -262,6 +293,14 @@ export default function Topbar({ title }) {
               })}
             </nav>
 
+            <button
+              onClick={() => { setDrawerOpen(false); setSupportContext({}); setSupportOpen(true) }}
+              className="btn btn-ghost w-full justify-start gap-2 text-brand-400 mt-2"
+            >
+              <LifeBuoy className="w-4 h-4" />
+              Soporte Vendra
+            </button>
+
             {seller && (
               <div className="mt-auto space-y-3">
                 <div className="text-xs text-gray-400">
@@ -281,6 +320,13 @@ export default function Topbar({ title }) {
             )}
           </aside>
         </div>
+      )}
+
+      {supportOpen && (
+        <SupportModal
+          contextData={supportContext}
+          onClose={() => setSupportOpen(false)}
+        />
       )}
     </>
   )
