@@ -72,6 +72,11 @@ import {
   inventoryWastePost,
   inventoryMovementsGet,
 } from './_lib/routes/inventoryRoutes.js'
+import {
+  supportTicketCreate,
+  superSupportTicketsList,
+  superSupportTicketPatch,
+} from './_lib/routes/supportRoutes.js'
 
 // =====================================================
 // PyroVenta — API Router (Modular Dispatcher)
@@ -198,6 +203,13 @@ async function route(req, res) {
   if (route === '/inventory/receive' && method === 'POST') return inventoryReceivePost(req, res)
   if (route === '/inventory/waste' && method === 'POST') return inventoryWastePost(req, res)
   if (route === '/inventory/movements' && method === 'GET') return inventoryMovementsGet(req, res)
+
+  // ---- SOPORTE Y MESA DE AYUDA -----------------------
+  if (route === '/support/tickets' && method === 'POST') return supportTicketCreate(req, res)
+  if (route === '/super/support/tickets' && method === 'GET') return superSupportTicketsList(req, res)
+  if (segments[0] === 'super' && segments[1] === 'support' && segments[2] === 'tickets' && segments[3] && method === 'PATCH') {
+    return superSupportTicketPatch(req, res, segments[3])
+  }
 
   return res.status(404).json({ error: `Ruta no encontrada: ${method} /api${route}` })
 }
