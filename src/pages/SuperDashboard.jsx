@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  BarChart3, Building2, CalendarClock, CheckCircle2, Copy, Loader2, LogOut, MapPin, Package,
+  BarChart3, Building2, CalendarClock, CheckCircle2, Copy, LifeBuoy, Loader2, LogOut, MapPin, Package,
   Pause, Play, Plus, RefreshCw, ShieldCheck, Users, Wallet,
 } from 'lucide-react'
+import SupportDeskTab from './super/SupportDeskTab.jsx'
 import { superApi } from '../lib/superApi.js'
 import { formatCOP, formatRangeLabel } from '../lib/format.js'
 import DateRangeBar, { toISO } from '../components/DateRangeBar.jsx'
@@ -494,6 +495,7 @@ export default function SuperDashboard() {
   const theme = useTheme()
   const navigate = useNavigate()
   const [tenants, setTenants] = useState(null)
+  const [activeTab, setActiveTab] = useState('tenants') // 'tenants' | 'support'
   const [showNew, setShowNew] = useState(false)
   const [locTenant, setLocTenant] = useState(null) // tenant al que se le agrega punto de venta
   const [ownerTenant, setOwnerTenant] = useState(null) // tenant al que se le agrega superadministrador
@@ -562,7 +564,39 @@ export default function SuperDashboard() {
           <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300" role="alert">{error}</p>
         )}
 
-        {tenants?.length > 0 && <PlatformSummary tenants={tenants} />}
+        {/* Pestañas superiores de plataforma: Clientes / Mesa de Soporte */}
+        <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab('tenants')}
+            className={`btn-sm rounded-lg font-medium transition ${
+              activeTab === 'tenants'
+                ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Building2 className="w-4 h-4 inline mr-1.5" />
+            Clientes ({tenants ? tenants.length : '...'})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('support')}
+            className={`btn-sm rounded-lg font-medium transition flex items-center gap-1.5 ${
+              activeTab === 'support'
+                ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <LifeBuoy className="w-4 h-4 text-brand-400" />
+            Mesa de Soporte
+          </button>
+        </div>
+
+        {activeTab === 'support' ? (
+          <SupportDeskTab tenants={tenants || []} />
+        ) : (
+          <>
+            {tenants?.length > 0 && <PlatformSummary tenants={tenants} />}
 
         {!tenants ? (
           <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="skeleton h-40 rounded-xl" />)}</div>
@@ -703,6 +737,8 @@ export default function SuperDashboard() {
         )}
 
         <MetricsSection />
+          </>
+        )}
       </div>
 
       {showNew && <NewTenantModal onClose={() => setShowNew(false)} onCreated={load} />}
