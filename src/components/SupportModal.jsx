@@ -218,7 +218,7 @@ export default function SupportModal({ onClose, contextData = {} }) {
         {/* Problemas frecuentes de esta categoría */}
         {category.issues?.length > 0 && (
           <div>
-            <label className="field-label mb-2 block">Problema frecuente:</label>
+            <span className="field-label mb-2 block">Problema frecuente:</span>
             <div className="space-y-2">
               {category.issues.map((issue) => (
                 <button

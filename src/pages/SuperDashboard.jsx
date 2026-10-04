@@ -632,7 +632,7 @@ export default function SuperDashboard() {
                           Sin puntos de venta — no pueden ingresar
                         </span>
                       )}
-                      {t.owners.length === 0 && (
+                      {(!t.owners || t.owners.length === 0) && (
                         <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
                           Sin superadministrador
                         </span>
@@ -653,9 +653,9 @@ export default function SuperDashboard() {
                 <div className="mt-4 grid grid-cols-1 gap-4 border-t border-white/5 pt-4 text-sm sm:grid-cols-2">
                   <div>
                     <p className="eyebrow mb-1.5 flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5" /> Puntos de venta ({t.locations.length})
+                      <MapPin className="w-3.5 h-3.5" /> Puntos de venta ({(t.locations || []).length})
                     </p>
-                    {t.locations.length === 0 ? (
+                    {(!t.locations || t.locations.length === 0) ? (
                       <p className="text-gray-400 text-xs">Ninguno todavía</p>
                     ) : (
                       <ul className="space-y-1">
@@ -671,9 +671,9 @@ export default function SuperDashboard() {
                   </div>
                   <div>
                     <p className="eyebrow mb-1.5 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5" /> Superadministradores ({t.owners.length})
+                      <ShieldCheck className="w-3.5 h-3.5" /> Superadministradores ({(t.owners || []).length})
                     </p>
-                    {t.owners.length === 0 ? (
+                    {(!t.owners || t.owners.length === 0) ? (
                       <p className="text-gray-400 text-xs">Ninguno — crea uno para que la empresa pueda administrarse</p>
                     ) : (
                       <ul className="space-y-1">

@@ -81,8 +81,8 @@ export default function Topbar({ title }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
-      // F12 abre el soporte VENDRA
-      if (e.key === 'F12' && !document.querySelector('[role="dialog"]')) {
+      // F9 abre el soporte VENDRA
+      if (e.key === 'F9' && !document.querySelector('[role="dialog"]')) {
         e.preventDefault()
         setSupportContext({})
         setSupportOpen(true)
@@ -191,9 +191,9 @@ export default function Topbar({ title }) {
         <button
           type="button"
           onClick={() => { setSupportContext({}); setSupportOpen(true) }}
-          aria-keyshortcuts="F12"
-          aria-label="Soporte técnico VENDRA"
-          title="Soporte Vendra (F12)"
+          aria-keyshortcuts="F9"
+          aria-label="Soporte técnico VENDRA (F9)"
+          title="Soporte Vendra (F9)"
           className="btn btn-ghost btn-sm px-2 text-brand-400 hover:text-brand-300 flex items-center gap-1.5"
         >
           <LifeBuoy className="h-4 w-4" aria-hidden="true" />

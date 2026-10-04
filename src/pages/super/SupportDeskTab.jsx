@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   LifeBuoy, RefreshCw, MessageSquare, CheckCircle2, Clock, AlertTriangle,
-  Printer, CreditCard, Package, KeyRound, Eye, Loader2, Filter, Building2,
-  Check, X, ShieldAlert,
+  Printer, CreditCard, Package, KeyRound, Eye, Loader2, Filter,
+  Check,
 } from 'lucide-react'
 import { superApi } from '../../lib/superApi.js'
 import { supabase } from '../../lib/supabase.js'

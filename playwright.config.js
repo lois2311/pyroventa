@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 // Pruebas E2E del frontend con la API simulada (e2e/fixtures.js): no hace
 // falta backend ni Supabase. Corren contra el build de producción servido
 // con `vite preview`, que es lo que se despliega (chunks diferidos incluidos).
-const PORT = Number(process.env.E2E_PORT || 4173)
+const PORT = Number(process.env.E2E_PORT || 4195)
 
 export default defineConfig({
   testDir: 'e2e',
@@ -25,7 +25,7 @@ export default defineConfig({
   webServer: {
     command: `npm run build && npx vite preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 180_000,
   },
 })

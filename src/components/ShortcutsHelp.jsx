@@ -10,6 +10,7 @@ const SECTIONS = {
       [['F3'], 'Cierre de caja'],
       [['F4'], 'Reportes'],
       [['/'], 'Ir al buscador o al código'],
+      [['F9'], 'Mesa de soporte y ayuda'],
       [['?'], 'Ver esta ayuda'],
     ],
   },
