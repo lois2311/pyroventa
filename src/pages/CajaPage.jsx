@@ -14,6 +14,7 @@ import Topbar          from '../components/Topbar.jsx'
 import PendingList     from '../components/PendingList.jsx'
 import InvoiceDetail   from '../components/InvoiceDetail.jsx'
 import PaymentMethods, { METHODS, PROVIDER_KEYS } from '../components/PaymentMethods.jsx'
+import { EMPTY_SPLIT, evaluateSplit, splitPayBody } from '../lib/splitPayments.js'
 import PrintButton     from '../components/PrintButton.jsx'
 import EditInvoiceModal from '../components/EditInvoiceModal.jsx'
 import CloseRegisterModal from '../components/CloseRegisterModal.jsx'
@@ -268,14 +269,24 @@ export default function CajaPage() {
   const [discountReason, setDiscountReason] = useState('')  // motivo (obligatorio si hay descuento)
   const [cashReceived, setCashReceived] = useState('')    // con cuánto paga (efectivo)
   const [transferProv, setTransferProv] = useState(null)  // nequi | daviplata | bancolombia
+  const [mixed,        setMixed]        = useState(false)   // pago mixto
+  const [splitAmounts, setSplitAmounts] = useState(EMPTY_SPLIT)
+  const resetSplit = () => { setMixed(false); setSplitAmounts(EMPTY_SPLIT) }
 
   // Cambiar de método limpia el detalle de transferencia: si no, quedaría
   // colgado un proveedor de una selección anterior y el API lo rechazaría.
   // Con teclado, Efectivo lleva directo a "¿Con cuánto paga?" (Enter ahí cobra).
   const selectPayMethod = (m, { fromKey = false } = {}) => {
     setPayMethod(m)
+    setMixed(false)
     if (m !== 'transfer') setTransferProv(null)
     if (m === 'cash' && fromKey) afterRender(() => focusVisible('[data-cash-input]'))
+  }
+
+  const toggleMixed = () => {
+    if (mixed) return resetSplit()
+    setMixed(true); setPayMethod(null); setTransferProv(null)
+    afterRender(() => focusVisible('[data-split-input]'))
   }
 
   const canEdit = can(seller?.role, 'charge')
@@ -365,7 +376,7 @@ export default function CajaPage() {
     if (c.length !== 4 || !location?.id) return
     const seq = ++searchSeq.current
     setSearching(true); setNotFound(false); setInvoice(null); setPayMethod(null); setTransferProv(null); setObservations('')
-    setDiscountStr(''); setDiscountReason(''); setCashReceived('')
+    setDiscountStr(''); setDiscountReason(''); setCashReceived(''); resetSplit()
     try {
       const data = await api.get(`/invoices/${c}?location_id=${location.id}`)
       if (seq !== searchSeq.current) return
@@ -391,7 +402,7 @@ export default function CajaPage() {
   const handleSelectPending = (inv) => {
     setCode(inv.code); setInvoice(inv); setPayMethod(null); setTransferProv(null)
     setNotFound(false); setObservations(inv.observations || ''); setMobileTab('pagar')
-    setDiscountStr(''); setDiscountReason(''); setCashReceived('')
+    setDiscountStr(''); setDiscountReason(''); setCashReceived(''); resetSplit()
     afterRender(focusPayArea)
   }
 
@@ -410,11 +421,13 @@ export default function CajaPage() {
   const insufficientCash = payMethod === 'cash' && receivedNum !== null && !isNaN(receivedNum) && receivedNum < totalToPay
   const missingProvider = payMethod === 'transfer' && !transferProv
   const missingReason = discountNum > 0 && !discountReason.trim()
-  const payBlocked = !invoice || !payMethod || paying || insufficientCash || missingProvider || missingReason
+  const split = evaluateSplit(totalToPay, splitAmounts, transferProv)
+  const payBlocked = !invoice || paying || missingReason
+    || (mixed ? !split.ok : (!payMethod || insufficientCash || missingProvider))
 
   // ---- Cobrar --------------------------------------------
   const handlePay = async () => {
-    if (!invoice || !payMethod || payingRef.current) return
+    if (!invoice || !(payMethod || (mixed && split.ok)) || payingRef.current) return
     if (invalidDiscount) return toastError('El descuento no puede superar el total')
     if (missingReason) return toastError('Escribe el motivo del descuento')
     payingRef.current = true
@@ -422,8 +435,9 @@ export default function CajaPage() {
     try {
       const paid = await api.post(`/invoices/${invoice.code}/pay`, {
         location_id:   location.id,
-        pay_method:    payMethod,
-        ...(payMethod === 'transfer' ? { transfer_provider: transferProv } : {}),
+        ...(mixed
+          ? splitPayBody(split)
+          : { pay_method: payMethod, ...(payMethod === 'transfer' ? { transfer_provider: transferProv } : {}) }),
         observations:  observations.trim() || undefined,
         register_id:   register?.id || undefined,
         register_name: register?.name || undefined,
@@ -432,7 +446,7 @@ export default function CajaPage() {
       removePending(paid.id)
       setPaidInv(paid)
       setInvoice(null); setCode(''); setPayMethod(null); setTransferProv(null); setObservations(''); setMobileTab('cobrar')
-      setDiscountStr(''); setDiscountReason(''); setCashReceived('')
+      setDiscountStr(''); setDiscountReason(''); setCashReceived(''); resetSplit()
       toastSuccess(`Cobrado. #${paid.code} · ${register?.name || 'Sin caja'}`)
     } catch (err) {
       toastError(err.message || (payMethod === 'card'
@@ -455,7 +469,7 @@ export default function CajaPage() {
     try {
       await api.post(`/invoices/${invoice.code}/cancel`, { location_id: location.id })
       removePending(invoice.id)
-      setInvoice(null); setCode(''); setPayMethod(null); setTransferProv(null); setObservations(''); setMobileTab('cobrar')
+      setInvoice(null); setCode(''); setPayMethod(null); setTransferProv(null); setObservations(''); setMobileTab('cobrar'); resetSplit()
       toastSuccess(`Venta #${invoice.code} cancelada.`)
     } catch (err) { toastError(err.message || 'No se pudo cancelar. Intenta de nuevo.') }
   }
@@ -474,7 +488,7 @@ export default function CajaPage() {
   // re-suscribirse en cada render.
   const shortcuts = useRef(null)
   shortcuts.current = {
-    invoice, payMethod, payBlocked, handlePay, handleCancel, selectPayMethod, setTransferProv, canEdit,
+    invoice, payMethod, payBlocked, handlePay, handleCancel, selectPayMethod, setTransferProv, canEdit, toggleMixed,
     busy: editing || closingReg || refunding || Boolean(paidInv),
   }
   useEffect(() => {
@@ -511,6 +525,7 @@ export default function CajaPage() {
       }
       if (typing) return
 
+      if (e.key === '4') { e.preventDefault(); st.toggleMixed(); return }
       const method = METHODS.find(m => m.key === e.key)
       if (method) { e.preventDefault(); st.selectPayMethod(method.id, { fromKey: true }); return }
       if (st.payMethod === 'transfer') {
@@ -688,7 +703,9 @@ export default function CajaPage() {
       <PaymentMethods total={totalToPay} selected={payMethod}
         onSelect={selectPayMethod} onConfirm={handlePay} loading={paying}
         cashReceived={cashReceived} onCashReceived={setCashReceived}
-        transferProvider={transferProv} onTransferProvider={setTransferProv} />
+        transferProvider={transferProv} onTransferProvider={setTransferProv}
+        mixed={mixed} onMixed={toggleMixed} splitAmounts={splitAmounts} split={split}
+        onSplitAmount={(m, v) => setSplitAmounts(a => ({ ...a, [m]: v }))} />
     </div>
   )
 

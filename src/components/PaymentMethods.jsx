@@ -38,9 +38,86 @@ export const METHODS = [
 // Inicial de cada proveedor de transferencia: N, D, B
 export const PROVIDER_KEYS = Object.fromEntries(TRANSFER_PROVIDERS.map(p => [p.id, p.label[0].toUpperCase()]))
 
+// Pago mixto: una fila por método; el campo vacío sugiere lo que falta.
+function SplitForm({ fid, total, amounts, onAmount, split, transferProvider, onTransferProvider }) {
+  return (
+    <div className="space-y-2 animate-fade-in">
+      {METHODS.map(m => {
+        const Icon = m.Icon
+        const own = Number(amounts[m.id]) || 0
+        const suggest = Math.max(0, total - (split.paid - own))
+        const id = `${fid}-split-${m.id}`
+        return (
+          <div key={m.id}>
+            <div className="flex items-center gap-2">
+              <label htmlFor={id} className="flex w-28 shrink-0 items-center gap-1.5 text-xs font-medium text-gray-300">
+                <Icon className="h-4 w-4" aria-hidden="true" /> {m.label}
+              </label>
+              <input
+                id={id}
+                data-split-input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                value={amounts[m.id]}
+                onChange={e => onAmount(m.id, e.target.value)}
+                placeholder={String(suggest)}
+                className={`input min-w-0 flex-1 text-right font-mono text-lg tabular-nums focus:border-2 ${own > 0 ? 'border-brand-500/60' : ''}`}
+              />
+              <button
+                type="button"
+                onClick={() => onAmount(m.id, String(suggest))}
+                disabled={suggest === 0 || suggest === own}
+                aria-label={`Completar con ${formatCOP(suggest)} en ${m.label}`}
+                className="btn-outline min-h-[var(--control-h)] shrink-0 px-3 text-xs disabled:opacity-40"
+              >
+                Resto
+              </button>
+            </div>
+            {m.id === 'transfer' && own > 0 && (
+              <div role="group" aria-label="Proveedor de la transferencia" className="mt-1.5 grid grid-cols-3 gap-2">
+                {TRANSFER_PROVIDERS.map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => onTransferProvider(p.id)}
+                    aria-pressed={transferProvider === p.id}
+                    className={`press min-h-[var(--control-h)] rounded-lg border-2 px-2 text-xs font-medium cursor-pointer ${
+                      transferProvider === p.id
+                        ? 'border-brand-500 bg-surface-300 text-white'
+                        : 'border-white/5 bg-surface-300 text-gray-400 hover:border-white/15 hover:text-white'}`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      <dl className="rounded-lg border border-white/5 bg-surface-300 px-3 py-2 font-mono tabular-nums text-sm" aria-live="polite">
+        <div className="flex justify-between"><dt className="font-sans text-xs text-gray-400">Recibido</dt><dd>{formatCOP(split.paid)}</dd></div>
+        <div className={`flex justify-between ${split.remaining > 0 ? 'text-red-400' : 'text-gray-300'}`}>
+          <dt className="font-sans text-xs">Faltan</dt><dd className="font-bold">{formatCOP(split.remaining)}</dd>
+        </div>
+        {split.change > 0 && (
+          <div className={`flex justify-between ${split.error === 'overpaid' ? 'text-red-400' : 'text-green-400'}`}>
+            <dt className="font-sans text-xs">Cambio a devolver</dt><dd className="text-xl font-bold">{formatCOP(split.change)}</dd>
+          </div>
+        )}
+      </dl>
+      {split.error === 'overpaid' && (
+        <p className="text-xs text-red-400">Sobra plata y el efectivo no alcanza para devolver el cambio.</p>
+      )}
+    </div>
+  )
+}
+
 export default function PaymentMethods({
   total, selected, onSelect, onConfirm, loading, cashReceived, onCashReceived,
   transferProvider, onTransferProvider,
+  mixed = false, onMixed, splitAmounts, onSplitAmount, split,
 }) {
   const fid = useId()
   const received = cashReceived === '' || cashReceived === undefined ? null : Number(cashReceived)
@@ -81,6 +158,26 @@ export default function PaymentMethods({
           )
         })}
       </div>
+
+      {onMixed && (
+        <button
+          type="button"
+          onClick={onMixed}
+          aria-pressed={mixed}
+          aria-keyshortcuts="4"
+          className={`press flex min-h-[var(--control-h)] w-full items-center justify-center gap-2 rounded-lg border-2 text-xs font-medium cursor-pointer ${
+            mixed
+              ? 'border-brand-500 bg-surface-300 text-white'
+              : 'border-white/5 bg-surface-300 text-gray-400 hover:border-white/15 hover:text-white'}`}
+        >
+          Pago mixto <Kbd>4</Kbd>
+        </button>
+      )}
+
+      {mixed && (
+        <SplitForm fid={fid} total={total} amounts={splitAmounts} onAmount={onSplitAmount} split={split}
+          transferProvider={transferProvider} onTransferProvider={onTransferProvider} />
+      )}
 
       {/* Transferencia: por dónde entró la plata */}
       {selected === 'transfer' && (
@@ -163,18 +260,20 @@ export default function PaymentMethods({
       )}
 
       {/* Botón cobrar */}
-      {selected && (
+      {(selected || mixed) && (
         <button
           type="button"
           onClick={onConfirm}
-          disabled={loading || insufficientCash || missingProvider}
+          disabled={loading || (mixed ? !split.ok : insufficientCash || missingProvider)}
           aria-keyshortcuts="F12 Enter"
           className="btn-primary btn-lg w-full animate-slide-up text-base disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {missingProvider ? (
+          {(mixed ? split.error === 'provider' : missingProvider) ? (
             <span className="inline-flex items-center gap-2">
               Elige Nequi, Daviplata o Bancolombia
             </span>
+          ) : mixed && split.error === 'short' ? (
+            <span className="font-mono tabular-nums">Faltan {formatCOP(split.remaining)}</span>
           ) : loading ? (
             <span className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
