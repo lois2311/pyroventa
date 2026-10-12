@@ -331,7 +331,11 @@ export default function VendedorPage() {
                 aria-label="Buscar producto: escanea o escribe"
                 aria-keyshortcuts="/"
                 value={query}
-                onChange={e => setQuery(e.target.value)}
+                onChange={e => {
+                  // Global Search Override: escribir/escanear siempre busca en todo el catálogo
+                  if (e.target.value) setCatFilter('all')
+                  setQuery(e.target.value)
+                }}
                 onKeyDown={handleScanKey}
                 aria-describedby={scanMatch ? 'scan-hint' : undefined}
                 className="input pl-9 pr-12 placeholder:font-mono"
