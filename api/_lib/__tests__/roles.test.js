@@ -38,8 +38,23 @@ describe('can', () => {
   })
 })
 
+describe('Vendra Pedidos', () => {
+  it('el domiciliario no vende, cobra ni administra pedidos', () => {
+    for (const a of ['sell', 'charge', 'refund', 'manage_orders', 'manage_deliveries', 'manage_connect']) {
+      expect(can('driver', a)).toBe(false)
+    }
+    expect(can('driver', 'update_delivery')).toBe(true)
+  })
+  it('permisos de pedidos por rol', () => {
+    expect(can('seller', 'manage_orders')).toBe(false)
+    expect(can('cashier', 'manage_orders')).toBe(true)
+    expect(can('cashier', 'manage_deliveries')).toBe(false)
+    expect(can('admin', 'manage_connect')).toBe(true)
+  })
+})
+
 describe('assignableRoles', () => {
-  it('owner asigna los cuatro roles', () => {
+  it('owner asigna los cuatro roles de punto (driver pendiente de login)', () => {
     expect(assignableRoles('owner')).toEqual(['seller', 'cashier', 'admin', 'owner'])
   })
   it('admin solo vendedor y cajero', () => {

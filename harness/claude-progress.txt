@@ -1,0 +1,4 @@
+# Vendra Pedidos — bitácora del harness
+# Formato: fecha | PR | qué se hizo | verificación
+
+2026-10-12 | PR-01 | Migración 2026-10-12_vendra_pedidos_schema.sql (14 tablas + 8 columnas aditivas en invoices + rol driver), roles/permisos, 19 stubs 501 | vitest 333 ok, build ok, eslint api ok

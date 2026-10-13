@@ -1,0 +1,19 @@
+{
+  "baseline_commit": "d12884f",
+  "invariants": [
+    "invoicesCreate, invoicesPay y cuadre de caja intactos (ver PROTECTED en scripts/verify-pedidos.js)",
+    "Sin descuentos ni reservas de inventario en pedidos",
+    "tenant_id en toda tabla y consulta de pedidos",
+    "SQL solo como archivos .sql de migración; nunca ejecutado desde el agente"
+  ],
+  "features": [
+    { "id": "PR-01", "title": "Esquema DDL aditivo, roles y stubs de API", "status": "in_progress" },
+    { "id": "PR-02", "title": "Catálogo público y cotizador autoritativo", "status": "pending" },
+    { "id": "PR-03", "title": "Solicitudes, clientes, direcciones, pagos manuales", "status": "pending" },
+    { "id": "PR-04", "title": "UI de administración: Pedidos y configuración", "status": "pending" },
+    { "id": "PR-05", "title": "Outbox, eventos y worker", "status": "pending" },
+    { "id": "PR-06", "title": "Adapter WhatsApp + bandeja", "status": "pending", "blocked_by": "decisión de proveedor" },
+    { "id": "PR-07", "title": "Entregas y vista de domiciliario", "status": "pending" },
+    { "id": "PR-08", "title": "Conversión explícita a factura POS", "status": "pending", "blocked_by": "aprobación adicional" }
+  ]
+}

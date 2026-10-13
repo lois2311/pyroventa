@@ -77,6 +77,27 @@ import {
   superSupportTicketsList,
   superSupportTicketPatch,
 } from './_lib/routes/supportRoutes.js'
+import {
+  publicCatalogGet,
+  publicQuotePost,
+  publicRequestCreate,
+  publicRequestGet,
+  ordersSettingsGet,
+  ordersSettingsPut,
+  ordersRequestsList,
+  ordersRequestGet,
+  ordersRequestAccept,
+  ordersRequestReject,
+  ordersPaymentVerify,
+  ordersInvoiceConvert,
+} from './_lib/routes/ordersRoutes.js'
+import {
+  whatsappWebhookVerify,
+  whatsappWebhookPost,
+  conversationsList,
+  messageSend,
+} from './_lib/routes/whatsappRoutes.js'
+import { deliveryCreate, deliveryStatus } from './_lib/routes/deliveryRoutes.js'
 
 // =====================================================
 // PyroVenta — API Router (Modular Dispatcher)
@@ -209,6 +230,34 @@ async function route(req, res) {
   if (route === '/super/support/tickets' && method === 'GET') return superSupportTicketsList(req, res)
   if (segments[0] === 'super' && segments[1] === 'support' && segments[2] === 'tickets' && segments[3] && method === 'PATCH') {
     return superSupportTicketPatch(req, res, segments[3])
+  }
+
+  // ---- VENDRA PEDIDOS (stubs 501, ver ordersRoutes.js) --
+  if (segments[0] === 'public' && segments[1] === 'orders') {
+    if (segments[2] === 'requests' && segments[3] && segments.length === 4 && method === 'GET') return publicRequestGet(req, res, segments[3])
+    if (segments[2] && segments[3] === 'catalog'  && segments.length === 4 && method === 'GET')  return publicCatalogGet(req, res, segments[2])
+    if (segments[2] && segments[3] === 'quote'    && segments.length === 4 && method === 'POST') return publicQuotePost(req, res, segments[2])
+    if (segments[2] && segments[3] === 'requests' && segments.length === 4 && method === 'POST') return publicRequestCreate(req, res, segments[2])
+  }
+  if (segments[0] === 'integrations' && segments[1] === 'whatsapp' && segments[2] && segments[3] === 'webhook' && segments.length === 4) {
+    if (method === 'GET')  return whatsappWebhookVerify(req, res, segments[2])
+    if (method === 'POST') return whatsappWebhookPost(req, res, segments[2])
+  }
+  if (segments[0] === 'orders') {
+    if (route === '/orders/settings' && method === 'GET') return ordersSettingsGet(req, res)
+    if (route === '/orders/settings' && method === 'PUT') return ordersSettingsPut(req, res)
+    if (route === '/orders/conversations' && method === 'GET') return conversationsList(req, res)
+    if (segments[1] === 'conversations' && segments[2] && segments[3] === 'messages' && segments.length === 4 && method === 'POST') return messageSend(req, res, segments[2])
+    if (route === '/orders/requests' && method === 'GET') return ordersRequestsList(req, res)
+    if (segments[1] === 'requests' && segments[2] && segments.length === 3 && method === 'GET') return ordersRequestGet(req, res, segments[2])
+    if (segments[1] === 'requests' && segments[2] && segments.length === 4 && method === 'POST') {
+      if (segments[3] === 'accept')               return ordersRequestAccept(req, res, segments[2])
+      if (segments[3] === 'reject')               return ordersRequestReject(req, res, segments[2])
+      if (segments[3] === 'payment-verifications') return ordersPaymentVerify(req, res, segments[2])
+      if (segments[3] === 'invoice-conversions')  return ordersInvoiceConvert(req, res, segments[2])
+      if (segments[3] === 'deliveries')           return deliveryCreate(req, res, segments[2])
+    }
+    if (segments[1] === 'deliveries' && segments[2] && segments[3] === 'status' && segments.length === 4 && method === 'POST') return deliveryStatus(req, res, segments[2])
   }
 
   return res.status(404).json({ error: `Ruta no encontrada: ${method} /api${route}` })
