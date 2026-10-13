@@ -82,13 +82,13 @@ const resetDb = () => {
     ],
     location_products: [], location_prices: [],
     delivery_zones: [{ id: randomUUID(), tenant_id: TENANT, location_id: LOC, name: 'Centro', fee: 5000, active: true }],
-    customers: [], customer_addresses: [], order_requests: [], order_request_items: [], payment_records: [], connect_outbox: [],
+    order_customers: [], customer_addresses: [], order_requests: [], order_request_items: [], payment_records: [], connect_outbox: [],
   }
 }
 
-const TENANT_SCOPED = ['customers', 'customer_addresses', 'order_requests', 'order_request_items', 'payment_records']
+const TENANT_SCOPED = ['order_customers', 'customer_addresses', 'order_requests', 'order_request_items', 'payment_records']
 const UNIQUE = {
-  customers: (a, b) => a.tenant_id === b.tenant_id && a.phone === b.phone,
+  order_customers: (a, b) => a.tenant_id === b.tenant_id && a.phone === b.phone,
   order_requests: (a, b) => a.idempotency_key != null && a.tenant_id === b.tenant_id && a.idempotency_key === b.idempotency_key,
   payment_records: (a, b) => a.order_request_id === b.order_request_id,
   connect_outbox: (a, b) => a.dedupe_key != null && a.tenant_id === b.tenant_id && a.dedupe_key === b.dedupe_key,
@@ -164,12 +164,12 @@ describe('POST /public/orders/:slug/requests', () => {
     expect(res.code).toBe(201)
     expect(res.body.public_token).toMatch(/^[a-f0-9]{64}$/)
     expect(res.body).toMatchObject({ status: 'submitted', subtotal: 20000, delivery_fee: 5000, total: 25000, payment: { method: 'cash_on_delivery', status: 'pending' } })
-    expect(db.customers[0].phone).toBe('+573001234567')
+    expect(db.order_customers[0].phone).toBe('+573001234567')
     expect(db.order_requests[0].history[0]).toMatchObject({ action: 'created', actor: 'customer' })
     expect(db.order_request_items).toHaveLength(1)
     expect(db.order_request_items[0]).toMatchObject({ name: 'VOLCAN', label: 'Unidad', unit_price: 10000, quantity: 2, subtotal: 20000 })
     const json = JSON.stringify(res.body)
-    for (const secret of [TENANT, LOC, db.order_requests[0].id, db.customers[0].id]) expect(json).not.toContain(secret)
+    for (const secret of [TENANT, LOC, db.order_requests[0].id, db.order_customers[0].id]) expect(json).not.toContain(secret)
   })
 
   it('misma Idempotency-Key devuelve el mismo pedido sin reinsertar', async () => {
@@ -209,7 +209,7 @@ describe('POST /public/orders/:slug/requests', () => {
     const res = await create(orderBody({ items: [{ presentation_id: P_OFF, quantity: 1 }], expected_total: 5001 }))
     expect(res.code).toBe(422)
     expect(db.order_requests).toHaveLength(0)
-    expect(db.customers).toHaveLength(0)
+    expect(db.order_customers).toHaveLength(0)
   })
 
   it('precio manipulado: se ignora el precio del cliente; total esperado distinto → 409 sin guardar', async () => {
@@ -246,7 +246,7 @@ describe('POST /public/orders/:slug/requests', () => {
   it('reutiliza el cliente por teléfono dentro del tenant', async () => {
     await create(orderBody({ customer: { name: 'Ana', phone: '3001234567' } }))
     await create(orderBody({ customer: { name: 'Ana P.', phone: '+57 300 123 4567' } }))
-    expect(db.customers).toHaveLength(1)
+    expect(db.order_customers).toHaveLength(1)
     expect(db.order_requests).toHaveLength(2)
   })
 

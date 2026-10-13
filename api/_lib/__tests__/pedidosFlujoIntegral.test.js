@@ -65,7 +65,7 @@ beforeEach(() => {
   metaCalls = []
   state.db = {
     tenants: [], locations: [], order_settings: [], delivery_zones: [], products: [], whatsapp_channels: [],
-    location_products: [], location_prices: [], customers: [], customer_addresses: [], order_requests: [], order_request_items: [],
+    location_products: [], location_prices: [], order_customers: [], customer_addresses: [], order_requests: [], order_request_items: [],
     payment_records: [], conversations: [], messages: [], integration_events: [], connect_outbox: [], deliveries: [],
     sellers: [
       { id: A.cashier, tenant_id: A.tenant, name: 'Cajera A', role: 'cashier', active: true },
@@ -196,7 +196,7 @@ describe('duplicados y reintentos: ningún efecto comercial se repite', () => {
     expect(results.every(r => [200, 201].includes(r.code))).toBe(true)
     expect(new Set(results.map(r => r.body.public_token)).size).toBe(1)
     expect(state.db.order_requests).toHaveLength(1)
-    expect(state.db.customers).toHaveLength(1)
+    expect(state.db.order_customers).toHaveLength(1)
     expect(state.db.payment_records).toHaveLength(1)
     expect(outbox('order.submitted')).toHaveLength(1)
   })
@@ -204,7 +204,7 @@ describe('duplicados y reintentos: ningún efecto comercial se repite', () => {
   it('carga: pedidos distintos del mismo cliente reutilizan al cliente', async () => {
     await Promise.all(Array.from({ length: 10 }, (_, i) => submitOrder(`distinta-${i}`)))
     expect(state.db.order_requests).toHaveLength(10)
-    expect(state.db.customers).toHaveLength(1)
+    expect(state.db.order_customers).toHaveLength(1)
   })
 })
 

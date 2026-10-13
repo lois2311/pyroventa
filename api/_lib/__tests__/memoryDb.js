@@ -10,7 +10,7 @@ const UNIQUE = {
   deliveries: (a, b) => (a.tenant_id === b.tenant_id && a.idempotency_key != null && a.idempotency_key === b.idempotency_key)
     || (a.order_request_id === b.order_request_id && ACTIVE.includes(a.status) && ACTIVE.includes(b.status)),
   connect_outbox: (a, b) => a.dedupe_key != null && a.tenant_id === b.tenant_id && a.dedupe_key === b.dedupe_key,
-  customers: (a, b) => a.tenant_id === b.tenant_id && a.phone === b.phone,
+  order_customers: (a, b) => a.tenant_id === b.tenant_id && a.phone === b.phone,
   conversations: (a, b) => a.tenant_id === b.tenant_id && a.channel_id === b.channel_id && a.remote_chat_id === b.remote_chat_id,
   messages: (a, b) => a.tenant_id === b.tenant_id && ((a.remote_message_id != null && a.remote_message_id === b.remote_message_id)
     || (a.idempotency_key != null && a.idempotency_key === b.idempotency_key)),

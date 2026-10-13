@@ -11,7 +11,7 @@ Las migraciones son aditivas e idempotentes; ninguna borra datos ni toca factura
 | # | Archivo | Qué crea |
 |---|---|---|
 | 1 | `2026-10-12_vendra_pedidos_schema.sql` | rol `driver`, columnas aditivas de `invoices`, `order_settings`, `delivery_zones` |
-| 2 | `2026-10-13_vendra_pedidos_orders_schema.sql` | `customers`, `customer_addresses`, `order_requests`, `order_request_items`, `payment_records`, `accept_policy` |
+| 2 | `2026-10-13_vendra_pedidos_orders_schema.sql` | `order_customers` (la tabla `customers` de facturación electrónica no se toca), `customer_addresses`, `order_requests`, `order_request_items`, `payment_records`, `accept_policy` |
 | 3 | `2026-10-14_vendra_pedidos_outbox_schema.sql` | `connect_outbox`, `integration_events` |
 | 4 | `2026-10-15_vendra_pedidos_conversations_schema.sql` | `whatsapp_channels`, `conversations`, `messages` |
 | 5 | `2026-10-16_vendra_pedidos_deliveries_schema.sql` | `deliveries` |

@@ -27,7 +27,7 @@
       "title": "Solicitudes, clientes, direcciones y pagos",
       "status": "completed",
       "tables": [
-        "customers",
+        "order_customers",
         "customer_addresses",
         "order_requests",
         "order_request_items",

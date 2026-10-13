@@ -45,7 +45,7 @@ export async function conversationsList(req, res) {
   const rows = data || []
   const ids = [...new Set(rows.map(c => c.customer_id).filter(Boolean))]
   const { data: customers } = ids.length
-    ? await supabaseAdmin.from('customers').select('id, name, phone').eq('tenant_id', auth.tenantId).in('id', ids)
+    ? await supabaseAdmin.from('order_customers').select('id, name, phone').eq('tenant_id', auth.tenantId).in('id', ids)
     : { data: [] }
   const byId = new Map((customers || []).map(c => [c.id, c]))
   const now = new Date()

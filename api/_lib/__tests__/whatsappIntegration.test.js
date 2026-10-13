@@ -5,7 +5,7 @@ import { _resetForTests } from '../rateLimit.js'
 // ---- BD en memoria con orden/limit (lo que usan bandeja y webhook) ----
 const fake = vi.hoisted(() => ({ db: null, auth: null }))
 const UNIQUE = {
-  customers: (a, b) => a.tenant_id === b.tenant_id && a.phone === b.phone,
+  order_customers: (a, b) => a.tenant_id === b.tenant_id && a.phone === b.phone,
   conversations: (a, b) => a.tenant_id === b.tenant_id && a.channel_id === b.channel_id && a.remote_chat_id === b.remote_chat_id,
   messages: (a, b) => a.tenant_id === b.tenant_id && ((a.remote_message_id != null && a.remote_message_id === b.remote_message_id)
     || (a.idempotency_key != null && a.idempotency_key === b.idempotency_key)),
@@ -16,7 +16,7 @@ const UNIQUE = {
 const DEFAULTS = { conversations: { status: 'open' }, messages: { status: 'received' }, integration_events: { status: 'received', attempts: 0 }, connect_outbox: { status: 'pending', attempts: 0, max_attempts: 5 } }
 const test_ = (r, [op, col, val]) => (op === 'eq' ? r[col] === val : op === 'in' ? val.includes(r[col]) : op === 'lt' ? r[col] < val : op === 'lte' ? r[col] <= val : true)
 // Tablas de negocio: toda consulta lleva tenant_id (salvo la resolución global del canal por número o token)
-const TENANT_SCOPED = ['customers', 'conversations', 'messages', 'order_requests']
+const TENANT_SCOPED = ['order_customers', 'conversations', 'messages', 'order_requests']
 
 vi.mock('../supabaseAdmin.js', () => ({
   supabaseAdmin: {
@@ -121,7 +121,7 @@ beforeEach(() => {
   process.env.WA_TOKEN_TEST = 'tok-secreto-123'
   fake.db = {
     whatsapp_channels: [{ id: CHANNEL, tenant_id: TENANT, location_id: LOC, provider: 'meta', phone_number_id: PHONE_ID, status: 'active', webhook_verify_token: VERIFY, access_token_secret_ref: 'WA_TOKEN_TEST' }],
-    customers: [], conversations: [], messages: [], integration_events: [], connect_outbox: [], order_requests: [],
+    order_customers: [], conversations: [], messages: [], integration_events: [], connect_outbox: [], order_requests: [],
   }
   fake.auth = { tenantId: TENANT, seller: { id: randomUUID(), name: 'Cajera', role: 'cashier' }, scope: { all: false, locationIds: [LOC] } }
 })
@@ -245,7 +245,7 @@ describe('POST webhook', () => {
   it('mensaje válido (con tildes y emoji escapados): crea cliente, conversación y mensaje', async () => {
     const res = await post(payload([waMsg()]))
     expect(res.code).toBe(200)
-    expect(fake.db.customers[0]).toMatchObject({ tenant_id: TENANT, phone: '+573001234567', name: 'Ana Pérez' })
+    expect(fake.db.order_customers[0]).toMatchObject({ tenant_id: TENANT, phone: '+573001234567', name: 'Ana Pérez' })
     const conv = fake.db.conversations[0]
     expect(conv).toMatchObject({ tenant_id: TENANT, location_id: LOC, channel_id: CHANNEL, remote_chat_id: WA_ID, status: 'open', last_message_preview: 'Hola, ¿tienen volcanes? 🎆' })
     expect(conv.last_inbound_at).toBeTruthy()
@@ -259,7 +259,7 @@ describe('POST webhook', () => {
     expect(again.code).toBe(200)
     expect(fake.db.conversations).toHaveLength(1)
     expect(fake.db.messages).toHaveLength(1)
-    expect(fake.db.customers).toHaveLength(1)
+    expect(fake.db.order_customers).toHaveLength(1)
     expect(events()).toHaveLength(1)
   })
 
@@ -279,7 +279,7 @@ describe('POST webhook', () => {
     await post(payload([waMsg({ id: 'wamid.CCC' })]))
     expect(events()[1]).toMatchObject({ status: 'ignored', error_details: 'channel_disconnected' })
     expect(fake.db.conversations).toHaveLength(0)
-    expect(fake.db.customers).toHaveLength(0)
+    expect(fake.db.order_customers).toHaveLength(0)
   })
 
   it('un fallo al procesar responde 500 (Meta reintenta) y el reintento lo completa sin duplicar', async () => {
@@ -318,7 +318,7 @@ describe('GET /orders/conversations y mensajes', () => {
   it('lista por estado con cliente y ventana; respeta tenant y sede', async () => {
     const c = seedConversation(); seedConversation({ status: 'closed' })
     seedConversation({ tenant_id: OTHER_TENANT }); seedConversation({ location_id: OTHER_LOC })
-    fake.db.customers.push({ id: 'cu1', tenant_id: TENANT, name: 'Ana Pérez', phone: '+573001234567' })
+    fake.db.order_customers.push({ id: 'cu1', tenant_id: TENANT, name: 'Ana Pérez', phone: '+573001234567' })
     c.customer_id = 'cu1'
     const res = await call(conversationsList, { query: {} })
     expect(res.body).toHaveLength(1)
@@ -481,7 +481,7 @@ describe('handlers del outbox → WhatsApp', () => {
 
   it('notificación de pedido: usa la conversación del cliente, redacta el texto y un reintento no crea otro mensaje', async () => {
     const c = seedConversation()
-    fake.db.customers.push({ id: 'cu1', tenant_id: TENANT, phone: '+' + WA_ID, name: 'Ana' })
+    fake.db.order_customers.push({ id: 'cu1', tenant_id: TENANT, phone: '+' + WA_ID, name: 'Ana' })
     const order = { id: 'abcdef12-0000-4000-8000-000000000000', tenant_id: TENANT, location_id: LOC, customer_id: 'cu1', total: 25000, reject_reason: 'Fuera de zona' }
     fake.db.order_requests.push(order)
     const row = rowFor({ aggregate_id: order.id })
@@ -501,7 +501,7 @@ describe('handlers del outbox → WhatsApp', () => {
   })
 
   it('notificación sin conversación o fuera de ventana: falla permanente y visible, sin enviar', async () => {
-    fake.db.customers.push({ id: 'cu1', tenant_id: TENANT, phone: '+' + WA_ID })
+    fake.db.order_customers.push({ id: 'cu1', tenant_id: TENANT, phone: '+' + WA_ID })
     const order = { id: randomUUID(), tenant_id: TENANT, location_id: LOC, customer_id: 'cu1', total: 1000 }
     fake.db.order_requests.push(order)
     const f = fetchOk()
@@ -517,7 +517,7 @@ describe('handlers del outbox → WhatsApp', () => {
   it('aislamiento: no notifica con el canal de otra empresa', async () => {
     fake.db.whatsapp_channels.push({ id: randomUUID(), tenant_id: OTHER_TENANT, location_id: LOC, provider: 'meta', phone_number_id: 'otro', status: 'active', webhook_verify_token: 'o', access_token_secret_ref: 'X' })
     fake.db.whatsapp_channels[0].status = 'disconnected'
-    fake.db.customers.push({ id: 'cu1', tenant_id: TENANT, phone: '+' + WA_ID })
+    fake.db.order_customers.push({ id: 'cu1', tenant_id: TENANT, phone: '+' + WA_ID })
     const order = { id: randomUUID(), tenant_id: TENANT, location_id: LOC, customer_id: 'cu1', total: 1 }
     fake.db.order_requests.push(order)
     const err = await orderNotification(ORDER_EVENTS.accepted)(rowFor({ aggregate_id: order.id }), { fetchImpl: fetchOk() }).catch(e => e)

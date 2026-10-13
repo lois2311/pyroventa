@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   tenant_id            UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   location_id          UUID NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
   channel_id           UUID NOT NULL REFERENCES whatsapp_channels(id) ON DELETE CASCADE,
-  customer_id          UUID REFERENCES customers(id) ON DELETE SET NULL,
+  customer_id          UUID REFERENCES order_customers(id) ON DELETE SET NULL,
   remote_chat_id       TEXT NOT NULL,                         -- wa_id del cliente (dígitos, sin +)
   status               TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed', 'archived')),
   assigned_to          UUID REFERENCES sellers(id) ON DELETE SET NULL,

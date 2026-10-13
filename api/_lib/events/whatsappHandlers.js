@@ -102,7 +102,7 @@ async function notifyCustomer(row, deps = {}, textFor) {
   const tenantId = row.tenant_id
   const order = await one('order_requests', tenantId, { id: row.aggregate_id })
   if (!order) throw new PermanentError('Pedido inexistente')
-  const customer = await one('customers', tenantId, { id: order.customer_id })
+  const customer = await one('order_customers', tenantId, { id: order.customer_id })
   if (!customer?.phone) throw new PermanentError('El cliente no tiene teléfono')
 
   const { data: channels } = await supabaseAdmin.from('whatsapp_channels').select('*')

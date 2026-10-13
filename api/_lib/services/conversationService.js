@@ -44,10 +44,10 @@ export async function findChannelByVerifyToken(provider, token) {
 }
 
 async function upsertCustomerByPhone(tenantId, phone, name) {
-  const find = () => supabaseAdmin.from('customers').select('id, name').eq('tenant_id', tenantId).eq('phone', phone).maybeSingle()
+  const find = () => supabaseAdmin.from('order_customers').select('id, name').eq('tenant_id', tenantId).eq('phone', phone).maybeSingle()
   let { data: customer } = await find()
   if (customer) return customer
-  const ins = await supabaseAdmin.from('customers').insert({ tenant_id: tenantId, phone, name }).select('id, name').maybeSingle()
+  const ins = await supabaseAdmin.from('order_customers').insert({ tenant_id: tenantId, phone, name }).select('id, name').maybeSingle()
   if (ins.error && ins.error.code !== UNIQUE_VIOLATION) throw ins.error
   return ins.data || (await find()).data
 }

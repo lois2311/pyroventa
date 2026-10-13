@@ -13,7 +13,10 @@ ALTER TABLE order_settings ADD COLUMN IF NOT EXISTS accept_policy TEXT NOT NULL 
   CHECK (accept_policy IN ('require_verified', 'allow_pending_transfer'));
 
 -- ---- 2. Clientes y direcciones ----------------------
-CREATE TABLE IF NOT EXISTS customers (
+-- OJO: `customers` ya existe en producción (facturación electrónica: identificación DIAN NOT NULL, usada por
+-- invoices.customer_id). Los clientes de pedidos son otra cosa (se identifican por teléfono), así que viven en
+-- `order_customers` y no se toca la tabla de facturación.
+CREATE TABLE IF NOT EXISTS order_customers (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id  UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   phone      TEXT NOT NULL CHECK (phone ~ '^\+[1-9][0-9]{7,14}$'),   -- E.164
@@ -23,12 +26,12 @@ CREATE TABLE IF NOT EXISTS customers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, phone)
 );
-CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_order_customers_tenant ON order_customers(tenant_id);
 
 CREATE TABLE IF NOT EXISTS customer_addresses (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  customer_id     UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  customer_id     UUID NOT NULL REFERENCES order_customers(id) ON DELETE CASCADE,
   address         TEXT NOT NULL,
   details         TEXT,
   reference_notes TEXT,
@@ -44,7 +47,7 @@ CREATE TABLE IF NOT EXISTS order_requests (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   location_id     UUID NOT NULL REFERENCES locations(id),
-  customer_id     UUID NOT NULL REFERENCES customers(id),
+  customer_id     UUID NOT NULL REFERENCES order_customers(id),
   address_id      UUID REFERENCES customer_addresses(id) ON DELETE SET NULL,   -- NULL = recogida en tienda
   source          TEXT NOT NULL DEFAULT 'web' CHECK (source IN ('web', 'whatsapp', 'manual')),
   fulfillment     TEXT NOT NULL DEFAULT 'delivery' CHECK (fulfillment IN ('delivery', 'pickup')),
@@ -102,7 +105,7 @@ CREATE TABLE IF NOT EXISTS payment_records (
 CREATE INDEX IF NOT EXISTS idx_payment_records_tenant ON payment_records(tenant_id);
 
 -- ---- 5. RLS: solo service_role (API) ----------------
-ALTER TABLE customers           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_customers     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_addresses  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_requests      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_request_items ENABLE ROW LEVEL SECURITY;

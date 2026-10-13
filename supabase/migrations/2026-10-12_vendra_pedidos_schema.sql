@@ -13,7 +13,7 @@
 -- =====================================================
 
 -- ---- 1. Rol 'driver' (domiciliario) -----------------
--- Mismas credenciales que seller/cashier (PIN). El login del driver llega en un PR posterior.
+-- Mismas credenciales que seller/cashier (PIN): entra por /auth/login al punto que tenga asignado.
 ALTER TABLE sellers DROP CONSTRAINT IF EXISTS sellers_role_check;
 ALTER TABLE sellers ADD CONSTRAINT sellers_role_check
   CHECK (role IN ('seller', 'cashier', 'admin', 'owner', 'driver'));

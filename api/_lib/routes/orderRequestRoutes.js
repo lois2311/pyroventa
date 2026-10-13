@@ -50,17 +50,17 @@ async function findByKey(tenantId, key) {
 }
 
 async function upsertCustomer(tenantId, { name, phone }) {
-  const find = () => supabaseAdmin.from('customers').select('id, consent_at')
+  const find = () => supabaseAdmin.from('order_customers').select('id, consent_at')
     .eq('tenant_id', tenantId).eq('phone', phone).maybeSingle()
   const now = new Date().toISOString()
   let { data: customer } = await find()
   if (!customer) {
-    const ins = await supabaseAdmin.from('customers')
+    const ins = await supabaseAdmin.from('order_customers')
       .insert({ tenant_id: tenantId, phone, name, consent_at: now }).select('id').maybeSingle()
     if (ins.error && ins.error.code !== UNIQUE_VIOLATION) throw ins.error
     customer = ins.data || (await find()).data // carrera: otro request lo creó primero
   } else {
-    check(await supabaseAdmin.from('customers')
+    check(await supabaseAdmin.from('order_customers')
       .update({ name, updated_at: now, ...(customer.consent_at ? {} : { consent_at: now }) })
       .eq('id', customer.id).eq('tenant_id', tenantId))
   }
@@ -174,7 +174,7 @@ async function orderDetail(order) {
   const t = order.tenant_id
   const one = (table, id) => id ? supabaseAdmin.from(table).select('*').eq('id', id).eq('tenant_id', t).maybeSingle() : { data: null }
   const [{ data: customer }, { data: address }, { data: items }, payment, { data: settings }, deliveries] = await Promise.all([
-    one('customers', order.customer_id),
+    one('order_customers', order.customer_id),
     one('customer_addresses', order.address_id),
     supabaseAdmin.from('order_request_items').select('*').eq('tenant_id', t).eq('order_request_id', order.id),
     paymentOf(t, order.id),
@@ -210,7 +210,7 @@ export async function ordersRequestsList(req, res) {
   const rows = orders || []
   const ids = rows.map(o => o.id)
   const [{ data: customers }, { data: payments }] = ids.length ? await Promise.all([
-    supabaseAdmin.from('customers').select('id, name, phone').eq('tenant_id', auth.tenantId).in('id', [...new Set(rows.map(o => o.customer_id))]),
+    supabaseAdmin.from('order_customers').select('id, name, phone').eq('tenant_id', auth.tenantId).in('id', [...new Set(rows.map(o => o.customer_id))]),
     supabaseAdmin.from('payment_records').select('order_request_id, method, status').eq('tenant_id', auth.tenantId).in('order_request_id', ids),
   ]) : [{ data: [] }, { data: [] }]
   const cById = new Map((customers || []).map(c => [c.id, c]))
