@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/integrations/whatsapp/:provider/webhook",
-      "destination": "/api/integrations/whatsapp/:provider/webhook"
+      "destination": "/api/whatsapp-webhook?provider=:provider"
     },
     {
       "source": "/api/(.*)",

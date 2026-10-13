@@ -38,7 +38,7 @@ El panel *Configuración de pedidos → Operación y soporte* avisa si hay notif
 1. En Meta: app con producto WhatsApp, número del comercio, token permanente de usuario del sistema.
 2. Webhook de la app: `https://<DOMINIO>/api/integrations/whatsapp/meta/webhook`, con el `webhook_verify_token` que se define en el paso 3; suscribir el campo `messages`.
 3. Dar de alta el canal (aún no hay pantalla; ejemplo en `docs/WORKER_OUTBOX.md`).
-4. **Verificar el handshake en el despliegue real.** El webhook es una función aparte (`api/integrations/whatsapp/[provider]/webhook.js`, cuerpo crudo
+4. **Verificar el handshake en el despliegue real.** El webhook es una función aparte (`api/whatsapp-webhook.js`, cuerpo crudo
    para la firma) con un rewrite explícito en `vercel.json`; no se pudo probar fuera de Vercel.
 
 ## 5. Configuración del comercio (panel Administración)

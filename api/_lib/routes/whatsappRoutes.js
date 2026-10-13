@@ -6,7 +6,7 @@ import { hit } from '../rateLimit.js'
 
 // =====================================================
 // Vendra Pedidos — webhook de WhatsApp (sin JWT: la autenticidad la da la firma HMAC).
-// Lo sirve api/integrations/whatsapp/[provider]/webhook.js, una función aparte porque la
+// Lo sirve api/whatsapp-webhook.js, una función aparte porque la
 // firma se calcula sobre el cuerpo EXACTO y el despachador general ya lo parsea como JSON.
 //
 // Flujo POST: validar firma → persistir cada evento (deduplicado) → resolver canal/tenant →

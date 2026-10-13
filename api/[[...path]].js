@@ -236,7 +236,7 @@ async function route(req, res) {
     if (segments[2] && segments[3] === 'quote'    && segments.length === 4 && method === 'POST') return publicQuotePost(req, res, segments[2])
     if (segments[2] && segments[3] === 'requests' && segments.length === 4 && method === 'POST') return publicRequestCreate(req, res, segments[2])
   }
-  // El webhook de WhatsApp (/integrations/whatsapp/*) lo sirve api/integrations/whatsapp/[provider]/webhook.js (cuerpo crudo para la firma)
+  // El webhook de WhatsApp (/integrations/whatsapp/*) lo sirve api/whatsapp-webhook.js (reescritura en vercel.json) (cuerpo crudo para la firma)
   if (segments[0] === 'orders') {
     if (route === '/orders/settings' && method === 'GET') return ordersSettingsGet(req, res)
     if (route === '/orders/settings' && method === 'PUT') return ordersSettingsPut(req, res)

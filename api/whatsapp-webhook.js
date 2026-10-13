@@ -1,11 +1,12 @@
-import { whatsappWebhookVerify, whatsappWebhookPost } from '../../../_lib/routes/whatsappRoutes.js'
+import { whatsappWebhookVerify, whatsappWebhookPost } from './_lib/routes/whatsappRoutes.js'
 
 // =====================================================
-// Función aparte para el webhook de WhatsApp (ruta /api/integrations/whatsapp/:provider/webhook).
+// Función aparte para el webhook de WhatsApp. Ruta pública: /api/integrations/whatsapp/:provider/webhook,
+// que vercel.json reescribe a /api/whatsapp-webhook?provider=:provider (un archivo con ruta fija: el segmento
+// dinámico [provider] no se enrutaba a la función en Vercel y lo atendía el despachador general).
 // La firma X-Hub-Signature-256 se calcula sobre los bytes exactos del cuerpo: aquí el parser
 // de Vercel está apagado y se lee el cuerpo crudo. El despachador general (api/[[...path]].js)
 // sigue parseando JSON para el resto de la API y no se toca.
-// vercel.json enruta esta ruta directamente a este archivo.
 // =====================================================
 
 export const config = { api: { bodyParser: false } }
@@ -26,8 +27,9 @@ async function readRaw(req) {
 export default async function handler(req, res) {
   try {
     const url = new URL(req.url || '', 'http://localhost')
-    const provider = url.pathname.split('/')[4] // /api/integrations/whatsapp/:provider/webhook
     req.query = { ...Object.fromEntries(url.searchParams), ...req.query }
+    // provider llega por la reescritura (?provider=meta); respaldo: la ruta pública original
+    const provider = req.query.provider || url.pathname.split('/')[4]
     if (req.method === 'GET') return await whatsappWebhookVerify(req, res, provider)
     if (req.method === 'POST') {
       req.rawBody = await readRaw(req)
@@ -36,7 +38,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' })
   } catch (err) {
     if (err.status === 413) return res.status(413).json({ error: err.message })
-    const { reportError } = await import('../../../_lib/sentry.js')
+    const { reportError } = await import('./_lib/sentry.js')
     await reportError(err, { url: req.url, method: req.method })
     if (!res.headersSent) res.status(500).json({ error: 'Error interno del servidor' })
   }
