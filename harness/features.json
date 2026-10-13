@@ -73,7 +73,8 @@
     {
       "id": "PR-08",
       "title": "Pruebas integrales, observabilidad y lanzamiento",
-      "status": "completed"
+      "status": "completed",
+      "commit": "33278cc"
     },
     {
       "id": "PR-09",
