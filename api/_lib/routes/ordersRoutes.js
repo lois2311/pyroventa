@@ -1,7 +1,11 @@
 import { requireCan } from '../auth.js'
+import { clientIp } from '../loginLock.js'
+import { rejectIfRateLimited } from '../rateLimit.js'
+import { resolvePublicOrderContext, fetchLocationCatalog, fetchActiveZones, toPresentationMap } from '../services/publicCatalogService.js'
+import { parseQuoteRequest, buildQuote, DEFAULT_TTL_MINUTES } from '../services/quoteService.js'
 
 // =====================================================
-// Vendra Pedidos — contratos de API (PR 1: solo stubs).
+// Vendra Pedidos — contratos de API (catálogo/cotización reales desde PR 2; el resto stubs).
 // Cada ruta aplica auth/permiso real y responde 501 hasta su PR.
 // Nada aquí toca facturas, caja ni inventario.
 // =====================================================
@@ -19,8 +23,38 @@ export const stub = (action) => async (req, res) => {
 export const publicStub = async (_req, res) => notImplemented(res)
 
 // ---- Públicas (PR 2-3) ----------------------------
-export const publicCatalogGet     = publicStub  // GET  /public/orders/:slug/catalog
-export const publicQuotePost      = publicStub  // POST /public/orders/:slug/quote
+
+const notFound = (res) => res.status(404).json({ error: 'Pedidos no disponibles' })
+
+// GET /public/orders/:slug/catalog — sin JWT; solo campos comerciales de la sede piloto
+export async function publicCatalogGet(req, res, slug) {
+  if (rejectIfRateLimited(res, `orders:${clientIp(req)}`)) return
+  const ctx = await resolvePublicOrderContext(slug); if (!ctx) return notFound(res)
+  const [products, zones] = await Promise.all([
+    fetchLocationCatalog(ctx.tenantId, ctx.locationId),
+    fetchActiveZones(ctx.tenantId, ctx.locationId),
+  ])
+  res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60')
+  return res.json({ business: { name: ctx.businessName, currency: ctx.settings.currency }, products, delivery_zones: zones })
+}
+
+// POST /public/orders/:slug/quote — recalcula todo en servidor; no persiste nada
+export async function publicQuotePost(req, res, slug) {
+  if (rejectIfRateLimited(res, `orders:${clientIp(req)}`)) return
+  const ctx = await resolvePublicOrderContext(slug); if (!ctx) return notFound(res)
+  const parsed = parseQuoteRequest(req.body)
+  if (parsed.error) return res.status(parsed.status).json({ error: parsed.error })
+  const [products, zones] = await Promise.all([
+    fetchLocationCatalog(ctx.tenantId, ctx.locationId),
+    fetchActiveZones(ctx.tenantId, ctx.locationId),
+  ])
+  const result = buildQuote({
+    ...parsed.value, catalog: toPresentationMap(products), zones,
+    currency: ctx.settings.currency, ttlMinutes: ctx.settings.quote_ttl_minutes ?? DEFAULT_TTL_MINUTES,
+  })
+  if (result.error) return res.status(result.status).json({ error: result.error, quote: result.quote })
+  return res.json(result.quote)
+}
 export const publicRequestCreate  = publicStub  // POST /public/orders/:slug/requests
 export const publicRequestGet     = publicStub  // GET  /public/orders/requests/:token
 

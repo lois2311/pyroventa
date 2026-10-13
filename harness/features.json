@@ -7,13 +7,113 @@
     "SQL solo como archivos .sql de migración; nunca ejecutado desde el agente"
   ],
   "features": [
-    { "id": "PR-01", "title": "Esquema DDL aditivo, roles y stubs de API", "status": "in_progress" },
-    { "id": "PR-02", "title": "Catálogo público y cotizador autoritativo", "status": "pending" },
-    { "id": "PR-03", "title": "Solicitudes, clientes, direcciones, pagos manuales", "status": "pending" },
-    { "id": "PR-04", "title": "UI de administración: Pedidos y configuración", "status": "pending" },
-    { "id": "PR-05", "title": "Outbox, eventos y worker", "status": "pending" },
-    { "id": "PR-06", "title": "Adapter WhatsApp + bandeja", "status": "pending", "blocked_by": "decisión de proveedor" },
-    { "id": "PR-07", "title": "Entregas y vista de domiciliario", "status": "pending" },
-    { "id": "PR-08", "title": "Conversión explícita a factura POS", "status": "pending", "blocked_by": "aprobación adicional" }
+    {
+      "id": "PR-01",
+      "title": "Esquema DDL aditivo, roles y stubs de API",
+      "status": "completed",
+      "commit": "38a83c3",
+      "tables": [
+        "order_settings",
+        "delivery_zones"
+      ]
+    },
+    {
+      "id": "PR-02",
+      "title": "Catálogo público y cotizador autoritativo",
+      "status": "completed"
+    },
+    {
+      "id": "PR-03",
+      "title": "Solicitudes, clientes, direcciones y pagos",
+      "status": "in_progress",
+      "tables": [
+        "customers",
+        "customer_addresses",
+        "order_requests",
+        "order_request_items",
+        "payment_records"
+      ]
+    },
+    {
+      "id": "PR-04",
+      "title": "Interfaz administrativa y formulario",
+      "status": "pending"
+    },
+    {
+      "id": "PR-05",
+      "title": "Eventos, outbox y worker",
+      "status": "pending",
+      "tables": [
+        "integration_events",
+        "connect_outbox",
+        "whatsapp_channels"
+      ]
+    },
+    {
+      "id": "PR-06",
+      "title": "Adaptador de WhatsApp y bandeja",
+      "status": "pending",
+      "blocked_by": "decisión de proveedor",
+      "tables": [
+        "conversations",
+        "messages"
+      ]
+    },
+    {
+      "id": "PR-07",
+      "title": "Domicilios y vista móvil del repartidor",
+      "status": "pending",
+      "blocked_by": "decisión: acceso de domiciliarios + autorización de despacho",
+      "tables": [
+        "delivery_agents",
+        "deliveries"
+      ]
+    },
+    {
+      "id": "PR-08",
+      "title": "Pruebas integrales, observabilidad y lanzamiento",
+      "status": "pending",
+      "blocked_by": "PR-04 a PR-07"
+    },
+    {
+      "id": "PR-09",
+      "title": "Mejoras comerciales y expansión (incluye conversión a factura POS)",
+      "status": "pending",
+      "blocked_by": "validación del piloto"
+    }
+  ],
+  "master_plan": "docs/PLAN_MAESTRO_VENDRA_PEDIDOS.md",
+  "agent_rule": "Leer el plan maestro (sección 12) antes de cada fase/PR. Un PR a la vez, sin adelantar fases. Parar ante decisiones pendientes que afecten datos, seguridad o POS.",
+  "pending_decisions": [
+    {
+      "d": "Proveedor de WhatsApp",
+      "before": "PR-06"
+    },
+    {
+      "d": "Acceso de domiciliarios",
+      "before": "PR-07"
+    },
+    {
+      "d": "Retención de mensajes y evidencias",
+      "before": "PR-05"
+    },
+    {
+      "d": "Worker y mecanismo de ejecución",
+      "before": "PR-05"
+    },
+    {
+      "d": "Conversión a factura",
+      "before": "fuera del piloto"
+    }
+  ],
+  "decisions_resolved": [
+    {
+      "d": "Tarifa y cobertura (PR-02)",
+      "r": "delivery_zones con una sola zona activa por sede = tarifa fija del piloto"
+    },
+    {
+      "d": "Despacho (PR-03)",
+      "r": "accepted (comercial) != ready_for_dispatch (logística); aceptar no autoriza despacho"
+    }
   ]
 }

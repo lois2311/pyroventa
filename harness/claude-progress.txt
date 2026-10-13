@@ -2,3 +2,12 @@
 # Formato: fecha | PR | qué se hizo | verificación
 
 2026-10-12 | PR-01 | Migración 2026-10-12_vendra_pedidos_schema.sql (14 tablas + 8 columnas aditivas en invoices + rol driver), roles/permisos, 19 stubs 501 | vitest 333 ok, build ok, eslint api ok
+2026-10-12 | PR-01 | Commit 38a83c3. Creados harness/ y scripts/verify-pedidos.js (no existían) | verify-pedidos ok, vitest 333, build ok
+2026-10-12 | PR-02 | quoteService (puro) + publicCatalogService; GET catalog y POST quote reales en ordersRoutes (slug -> order_settings.public_slug). 404 uniforme, 422 producto no vendible, 409 total esperado distinto, expires_at = quoted_at + quote_ttl_minutes (15) | vitest +19 tests
+  Pendiente PR-02: rate limit (429) en rutas públicas; order_settings.public_slug/enabled y delivery_zones deben cargarse (UI en PR-04) para que el catálogo responda.
+2026-10-12 | docs | Plan maestro consolidado en docs/PLAN_MAESTRO_VENDRA_PEDIDOS.md (referencia obligatoria del harness; features.json -> master_plan). Numeración de PR alineada al plan (PR-07 = domicilios, PR-08 = pruebas/lanzamiento, PR-09 = expansión)
+  Desviaciones PR-01 vs plan: la Fase 1 pide solo order_settings (+whatsapp_channels) y "no crear tablas sin necesidad demostrada"; PR-01 creó 14 tablas. Pendiente decidir si se recorta la migración (aún no aplicada en ningún entorno).
+  PR-02 vs plan: falta rate limiting en rutas públicas y fijar tarifa/cobertura (decisión antes de cerrar PR-02).
+2026-10-12 | decisiones | Tarifa fija: delivery_zones con UNA zona activa por sede = tarifa del piloto (ratificado). Despacho: accepted (comercial) != ready_for_dispatch (logística); aceptar no autoriza despacho (rige para PR-03). Registradas en features.json (decisions_resolved).
+2026-10-12 | PR-01 | DDL podado a Fase 1: migración 2026-10-12_vendra_pedidos_schema.sql ahora solo rol driver + columnas aditivas de invoices + order_settings + delivery_zones (RLS). Eliminadas 12 tablas (y order_settings.accept_policy); features.json lista las tablas por PR (PR-03 solicitudes/pagos/clientes, PR-05 eventos/outbox/canales, PR-06 conversaciones/mensajes, PR-07 entregas). verify-pedidos.js ahora exige exactamente las tablas de PRs completed|in_progress y rechaza las adelantadas. Migración nunca aplicada a ninguna BD.
+2026-10-12 | PR-02 | Rate limit por IP (60 req/min, ventana fija en memoria) en GET catalog y POST quote -> 429 + Retry-After (api/_lib/rateLimit.js). Límite: por instancia serverless; endurecer con WAF si hace falta.
