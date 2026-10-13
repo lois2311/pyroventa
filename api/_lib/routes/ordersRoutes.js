@@ -5,7 +5,7 @@ import { resolvePublicOrderContext, fetchLocationCatalog, fetchActiveZones, toPr
 import { parseQuoteRequest, buildQuote, DEFAULT_TTL_MINUTES } from '../services/quoteService.js'
 
 // =====================================================
-// Vendra Pedidos — contratos de API (catálogo/cotización reales desde PR 2; el resto stubs).
+// Vendra Pedidos — contratos de API (catálogo/cotización desde PR-02, solicitudes desde PR-03; el resto stubs).
 // Cada ruta aplica auth/permiso real y responde 501 hasta su PR.
 // Nada aquí toca facturas, caja ni inventario.
 // =====================================================
@@ -55,15 +55,14 @@ export async function publicQuotePost(req, res, slug) {
   if (result.error) return res.status(result.status).json({ error: result.error, quote: result.quote })
   return res.json(result.quote)
 }
-export const publicRequestCreate  = publicStub  // POST /public/orders/:slug/requests
-export const publicRequestGet     = publicStub  // GET  /public/orders/requests/:token
 
-// ---- Administración (PR 3-5) ----------------------
+// Solicitudes de pedido (PR-03): implementación en orderRequestRoutes.js
+export {
+  publicRequestCreate, publicRequestGet,
+  ordersRequestsList, ordersRequestGet, ordersRequestAccept, ordersRequestReject, ordersPaymentVerify,
+} from './orderRequestRoutes.js'
+
+// ---- Administración (PR 4-5) ----------------------
 export const ordersSettingsGet      = stub('manage_connect')       // GET  /orders/settings
 export const ordersSettingsPut      = stub('manage_connect')       // PUT  /orders/settings
-export const ordersRequestsList     = stub('manage_orders')        // GET  /orders/requests
-export const ordersRequestGet       = stub('manage_orders')        // GET  /orders/requests/:id
-export const ordersRequestAccept    = stub('manage_orders')        // POST /orders/requests/:id/accept
-export const ordersRequestReject    = stub('manage_orders')        // POST /orders/requests/:id/reject
-export const ordersPaymentVerify    = stub('manage_orders')        // POST /orders/requests/:id/payment-verifications
 export const ordersInvoiceConvert   = stub('manage_orders')        // POST /orders/requests/:id/invoice-conversions (PR 8, fuera del piloto)

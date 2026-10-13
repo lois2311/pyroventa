@@ -40,9 +40,9 @@ for (const t of allowed) if (!created.has(t)) fail(`Falta la tabla ${t} (PR acti
 
 // 3. El código de pedidos no importa facturación, caja ni inventario
 const PEDIDOS_FILES = [
-  'ordersRoutes.js', 'whatsappRoutes.js', 'deliveryRoutes.js',
+  'ordersRoutes.js', 'orderRequestRoutes.js', 'whatsappRoutes.js', 'deliveryRoutes.js',
 ].map(f => `api/_lib/routes/${f}`).concat(
-  ['quoteService.js', 'publicCatalogService.js'].map(f => `api/_lib/services/${f}`),
+  ['quoteService.js', 'publicCatalogService.js'].map(f => `api/_lib/services/${f}`).concat(['api/_lib/orderRules.js']),
 ).filter(existsSync)
 for (const f of PEDIDOS_FILES) {
   const src = readFileSync(f, 'utf8')

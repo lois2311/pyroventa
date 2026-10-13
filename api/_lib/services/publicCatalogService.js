@@ -18,7 +18,7 @@ const isMissingColumn = (e) => e?.code === '42703' || e?.code === 'PGRST204'
 export async function resolvePublicOrderContext(slug) {
   if (typeof slug !== 'string' || !SLUG_RE.test(slug)) return null
   const { data: settings } = await supabaseAdmin.from('order_settings')
-    .select('tenant_id, location_id, currency, quote_ttl_minutes')
+    .select('tenant_id, location_id, currency, quote_ttl_minutes, payment_methods')
     .eq('public_slug', slug).eq('enabled', true).maybeSingle()
   if (!settings) return null
 
