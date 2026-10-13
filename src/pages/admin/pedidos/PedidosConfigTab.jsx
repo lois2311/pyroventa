@@ -8,6 +8,7 @@ import Select from '../../../components/Select.jsx'
 import { useToast } from '../../../components/Toast.jsx'
 import { FormError } from '../shared.jsx'
 import { MONO } from './shared.jsx'
+import OperacionSection from './OperacionSection.jsx'
 
 const DAYS = [
   ['mon', 'Lun'], ['tue', 'Mar'], ['wed', 'Mié'], ['thu', 'Jue'], ['fri', 'Vie'], ['sat', 'Sáb'], ['sun', 'Dom'],
@@ -66,6 +67,7 @@ export default function PedidosConfigTab({ locations, isOwner }) {
       {q.data && q.data.location_id === locationId && (
         <SettingsForm key={locationId} settings={q.data} locationId={locationId} onSaved={q.setData} />
       )}
+      {locationId && <OperacionSection key={`ops-${locationId}`} locationId={locationId} />}
     </div>
   )
 }

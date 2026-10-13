@@ -110,7 +110,7 @@ export async function messageSend(req, res, id) {
   // Idempotente por dedupe_key: un reintento repara un encolado que falló la vez anterior
   await enqueue({
     tenantId: auth.tenantId, eventType: 'message.outbound', aggregateType: 'conversation', aggregateId: conversation.id,
-    payload: { message_id: message.id, conversation_id: conversation.id }, dedupeKey: `message.outbound:${message.id}`,
+    payload: { message_id: message.id, conversation_id: conversation.id, location_id: conversation.location_id }, dedupeKey: `message.outbound:${message.id}`,
   })
   if (created) {
     await supabaseAdmin.from('conversations')

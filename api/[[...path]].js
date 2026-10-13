@@ -94,6 +94,7 @@ import {
 import { conversationsList, conversationMessages, messageSend } from './_lib/routes/conversationRoutes.js'
 import { deliveryCreate, deliveriesList, deliveryStatus, driversList } from './_lib/routes/deliveryRoutes.js'
 import { outboxRun } from './_lib/routes/workerRoutes.js'
+import { opsStatus, opsRetryOutbox } from './_lib/routes/opsRoutes.js'
 
 // =====================================================
 // PyroVenta — API Router (Modular Dispatcher)
@@ -244,6 +245,8 @@ async function route(req, res) {
       if (method === 'GET')  return conversationMessages(req, res, segments[2])
       if (method === 'POST') return messageSend(req, res, segments[2])
     }
+    if (route === '/orders/ops' && method === 'GET') return opsStatus(req, res)
+    if (segments[1] === 'ops' && segments[2] === 'outbox' && segments[3] && segments[4] === 'retry' && segments.length === 5 && method === 'POST') return opsRetryOutbox(req, res, segments[3])
     if (route === '/orders/deliveries' && method === 'GET') return deliveriesList(req, res)
     if (route === '/orders/drivers' && method === 'GET') return driversList(req, res)
     if (route === '/orders/requests' && method === 'GET') return ordersRequestsList(req, res)

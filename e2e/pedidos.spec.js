@@ -31,8 +31,20 @@ const detail = (o, over = {}) => ({
 const orderFor = (path) => ORDERS.find(o => path.endsWith(o.id))
 const shot = (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/${name}-${page.viewportSize().width}.png` })
 
+const OPS = {
+  since: ago(7 * 24 * 60),
+  metrics: {
+    orders: { created: 12, accepted: 8, rejected: 2, to_review: 2, awaiting_payment_check: 1, avg_minutes_to_decision: 6.5 },
+    deliveries: { assigned: 8, delivered: 6, failed: 1, in_progress: 1, avg_minutes_assign_to_delivered: 41 },
+    conversations: { open: 3 },
+  },
+  health: { outbox: { pending: 1, processing: 0, failed: 1, oldest_pending_minutes: 22 }, integration_events_failed: 0, messages_failed: 1 },
+  failed: [{ id: 'ob1', event_type: 'order.accepted', aggregate_type: 'order_request', attempts: 5, max_attempts: 5, error_details: 'WhatsApp 500: error', updated_at: ago(10) }],
+}
+
 test.beforeEach(async ({ page, api }) => {
   await signIn(page, 'owner')
+  api.on('GET', '/orders/ops', () => OPS)
   api.on('GET', '/orders/requests', () => ORDERS)
   api.on('GET', /^\/orders\/requests\/[^/]+$/, ({ path }) => detail(orderFor(path)))
 })
@@ -149,4 +161,21 @@ test('las pestañas de pedidos aparecen en la navegación del owner', async ({ p
   await page.goto('/admin?tab=resumen')
   await expect(page.getByRole('button', { name: 'Pedidos', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Config. pedidos' })).toBeVisible()
+})
+
+test('operación: métricas del piloto, salud del outbox y reintento de una notificación fallida', async ({ page, api }) => {
+  api.on('POST', new RegExp('/orders/ops/outbox/[^/]+/retry$'), () => ({ id: 'ob1', status: 'pending' }))
+  api.on('GET', '/orders/settings', () => ({ location_id: 'l1', location_name: 'Local Principal', configured: true, enabled: true, public_slug: 'x-negocio', currency: 'COP',
+    quote_ttl_minutes: 15, payment_methods: ['cash_on_delivery'], accept_policy: 'require_verified', business_hours: {}, transfer_details: {}, zones_count: 1, delivery_fee: 5000 }))
+  await page.goto('/admin?tab=pedidos-config')
+  const ops = page.getByRole('region', { name: /Operación y soporte/ })
+  await expect(ops.getByText('Pedidos recibidos')).toBeVisible()
+  await expect(ops.locator('dd', { hasText: '8 / 2' })).toBeVisible()
+  await expect(ops.getByText('Hay notificaciones esperando hace más de 15 minutos')).toBeVisible()
+  await expect(ops.getByText('Aviso: pedido aceptado')).toBeVisible()
+  await expect(ops.getByText('WhatsApp 500: error')).toBeVisible()
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/operacion-${page.viewportSize().width}.png`, fullPage: true })
+  await ops.getByRole('button', { name: 'Reintentar' }).click()
+  await expect(page.getByText('Se reintentará en el próximo ciclo del worker')).toBeVisible()
+  expect(api.calls('POST', /retry$/)).toHaveLength(1)
 })

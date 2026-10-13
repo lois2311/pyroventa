@@ -39,6 +39,6 @@ export const emitDeliveryEvent = (delivery, status) => enqueue({
   eventType: ORDER_EVENTS.deliveryStatusChanged,
   aggregateType: 'order_request',
   aggregateId: delivery.order_request_id,
-  payload: { delivery_id: delivery.id, status },
+  payload: { delivery_id: delivery.id, status, location_id: delivery.location_id },
   dedupeKey: `${ORDER_EVENTS.deliveryStatusChanged}:${delivery.id}:${status}`,
 })

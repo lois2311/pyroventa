@@ -35,7 +35,15 @@ export async function publicCatalogGet(req, res, slug) {
     fetchActiveZones(ctx.tenantId, ctx.locationId),
   ])
   res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60')
-  return res.json({ business: { name: ctx.businessName, currency: ctx.settings.currency }, products, delivery_zones: zones })
+  const methods = ctx.settings.payment_methods || []
+  return res.json({
+    business: {
+      name: ctx.businessName, currency: ctx.settings.currency, payment_methods: methods,
+      // Instrucciones pensadas para el cliente: solo se publican si la transferencia está habilitada
+      transfer_instructions: methods.includes('transfer') ? ctx.settings.transfer_details?.instructions ?? null : null,
+    },
+    products, delivery_zones: zones,
+  })
 }
 
 // POST /public/orders/:slug/quote — recalcula todo en servidor; no persiste nada

@@ -67,19 +67,19 @@
       "status": "completed",
       "tables": [
         "deliveries"
-      ]
+      ],
+      "commit": "b2432d6"
     },
     {
       "id": "PR-08",
       "title": "Pruebas integrales, observabilidad y lanzamiento",
-      "status": "pending",
-      "blocked_by": "PR-04 a PR-07"
+      "status": "completed"
     },
     {
       "id": "PR-09",
       "title": "Mejoras comerciales y expansión (incluye conversión a factura POS)",
       "status": "pending",
-      "blocked_by": "validación del piloto"
+      "blocked_by": "validación del piloto con datos reales (dependencia externa; requiere aprobación)"
     }
   ],
   "master_plan": "docs/PLAN_MAESTRO_VENDRA_PEDIDOS.md",
@@ -127,5 +127,13 @@
       "d": "Autorización de despacho",
       "r": "Crear la entrega (asignar domiciliario) a un pedido accepted es la autorización; accepted solo no despacha"
     }
+  ],
+  "known_gaps": [
+    "Webhook de WhatsApp sin probar en Vercel real",
+    "Plantillas aprobadas de WhatsApp (fuera de ventana de 24 h)",
+    "Pantalla de alta de canales y zonas múltiples",
+    "Cerrar/archivar conversaciones y cancelar pedidos",
+    "Retención de mensajes y evidencias de pago",
+    "Conversión a factura POS (PR-09)"
   ]
 }

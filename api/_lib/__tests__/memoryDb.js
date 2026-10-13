@@ -10,8 +10,19 @@ const UNIQUE = {
   deliveries: (a, b) => (a.tenant_id === b.tenant_id && a.idempotency_key != null && a.idempotency_key === b.idempotency_key)
     || (a.order_request_id === b.order_request_id && ACTIVE.includes(a.status) && ACTIVE.includes(b.status)),
   connect_outbox: (a, b) => a.dedupe_key != null && a.tenant_id === b.tenant_id && a.dedupe_key === b.dedupe_key,
+  customers: (a, b) => a.tenant_id === b.tenant_id && a.phone === b.phone,
+  conversations: (a, b) => a.tenant_id === b.tenant_id && a.channel_id === b.channel_id && a.remote_chat_id === b.remote_chat_id,
+  messages: (a, b) => a.tenant_id === b.tenant_id && ((a.remote_message_id != null && a.remote_message_id === b.remote_message_id)
+    || (a.idempotency_key != null && a.idempotency_key === b.idempotency_key)),
+  order_requests: (a, b) => a.idempotency_key != null && a.tenant_id === b.tenant_id && a.idempotency_key === b.idempotency_key,
+  payment_records: (a, b) => a.order_request_id === b.order_request_id,
+  integration_events: (a, b) => a.provider === b.provider && a.direction === b.direction
+    && (a.remote_event_id != null ? a.remote_event_id === b.remote_event_id : (b.remote_event_id == null && a.event_hash === b.event_hash)),
 }
-const DEFAULTS = { deliveries: { status: 'assigned', collect_amount: 0 }, connect_outbox: { status: 'pending', attempts: 0, max_attempts: 5 } }
+const DEFAULTS = {
+  deliveries: { status: 'assigned', collect_amount: 0 }, connect_outbox: { status: 'pending', attempts: 0, max_attempts: 5 },
+  conversations: { status: 'open' }, messages: { status: 'received' }, integration_events: { status: 'received', attempts: 0 },
+}
 const OPS = {
   eq: (v, x) => v === x, in: (v, x) => x.includes(v), lt: (v, x) => v < x, lte: (v, x) => v <= x, gte: (v, x) => v >= x,
 }
@@ -36,7 +47,7 @@ export function makeSupabase(getDb, { tenantScoped = [] } = {}) {
         if (q.op === 'insert') {
           const created = []
           for (const p of [].concat(q.payload)) {
-            const row = { id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...DEFAULTS[table], ...p }
+            const row = { ...(table === 'order_requests' && { public_token: (randomUUID() + randomUUID()).replace(/-/g, '') }), id: randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...DEFAULTS[table], ...p }
             if (UNIQUE[table] && rows.some(r => UNIQUE[table](row, r))) return { data: null, error: { code: '23505' } }
             rows.push(row); created.push(row)
           }

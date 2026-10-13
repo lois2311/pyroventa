@@ -148,6 +148,7 @@ describe('GET /public/orders/:slug/catalog', () => {
     expect(res.body.products.map(p => p.id)).toEqual(['prod1'])       // prod2 deshabilitado en la sede
     expect(res.body.products[0].presentations).toEqual([{ id: 'p1', label: 'Unidad', price: 12000 }]) // sin la inactiva
     expect(res.body.delivery_zones).toEqual([{ id: 'z1', name: 'Centro', fee: 5000 }])
+    expect(res.body.business).toMatchObject({ currency: 'COP', payment_methods: expect.any(Array), transfer_instructions: null })
     expect(JSON.stringify(res.body)).not.toContain(TENANT)
     expect(JSON.stringify(res.body)).not.toContain(LOC)
   })
