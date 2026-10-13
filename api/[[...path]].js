@@ -98,6 +98,7 @@ import {
   messageSend,
 } from './_lib/routes/whatsappRoutes.js'
 import { deliveryCreate, deliveryStatus } from './_lib/routes/deliveryRoutes.js'
+import { outboxRun } from './_lib/routes/workerRoutes.js'
 
 // =====================================================
 // PyroVenta — API Router (Modular Dispatcher)
@@ -259,6 +260,9 @@ async function route(req, res) {
     }
     if (segments[1] === 'deliveries' && segments[2] && segments[3] === 'status' && segments.length === 4 && method === 'POST') return deliveryStatus(req, res, segments[2])
   }
+
+  // ---- WORKER DEL OUTBOX (CRON_SECRET) ---------------
+  if (route === '/internal/outbox/run' && (method === 'GET' || method === 'POST')) return outboxRun(req, res)
 
   return res.status(404).json({ error: `Ruta no encontrada: ${method} /api${route}` })
 }

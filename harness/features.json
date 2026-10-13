@@ -37,16 +37,15 @@
     {
       "id": "PR-04",
       "title": "Interfaz administrativa y formulario",
-      "status": "in_progress"
+      "status": "completed"
     },
     {
       "id": "PR-05",
       "title": "Eventos, outbox y worker",
-      "status": "pending",
+      "status": "in_progress",
       "tables": [
         "integration_events",
-        "connect_outbox",
-        "whatsapp_channels"
+        "connect_outbox"
       ]
     },
     {
@@ -55,6 +54,7 @@
       "status": "pending",
       "blocked_by": "decisión de proveedor",
       "tables": [
+        "whatsapp_channels",
         "conversations",
         "messages"
       ]

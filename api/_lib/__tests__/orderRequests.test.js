@@ -82,7 +82,7 @@ const resetDb = () => {
     ],
     location_products: [], location_prices: [],
     delivery_zones: [{ id: randomUUID(), tenant_id: TENANT, location_id: LOC, name: 'Centro', fee: 5000, active: true }],
-    customers: [], customer_addresses: [], order_requests: [], order_request_items: [], payment_records: [],
+    customers: [], customer_addresses: [], order_requests: [], order_request_items: [], payment_records: [], connect_outbox: [],
   }
 }
 
@@ -91,6 +91,7 @@ const UNIQUE = {
   customers: (a, b) => a.tenant_id === b.tenant_id && a.phone === b.phone,
   order_requests: (a, b) => a.idempotency_key != null && a.tenant_id === b.tenant_id && a.idempotency_key === b.idempotency_key,
   payment_records: (a, b) => a.order_request_id === b.order_request_id,
+  connect_outbox: (a, b) => a.dedupe_key != null && a.tenant_id === b.tenant_id && a.dedupe_key === b.dedupe_key,
 }
 const matches = (row, filters) => filters.every(([op, col, val]) => (op === 'eq' ? row[col] === val : op === 'in' ? val.includes(row[col]) : true))
 
@@ -429,5 +430,47 @@ describe('verificación manual de pagos', () => {
     const id = db.order_requests[0].id
     await call(routes.ordersRequestReject, adminReq({ body: { reason: 'Sin stock real' } }), id)
     expect((await call(routes.ordersPaymentVerify, adminReq({ body: { action: 'verify' } }), id)).code).toBe(409)
+  })
+})
+
+describe('outbox: cada cambio de estado deja una notificación durable, sin duplicados', () => {
+  const types = () => db.connect_outbox.map(e => e.event_type)
+
+  it('crear, aceptar y verificar pago encolan un evento cada uno, sin datos personales', async () => {
+    await create(orderBody({ payment_method: 'transfer' }))
+    const id = db.order_requests[0].id
+    await call(routes.ordersPaymentVerify, adminReq({ body: { action: 'verify' } }), id)
+    await call(routes.ordersRequestAccept, adminReq(), id)
+    expect(types()).toEqual(['order.submitted', 'payment.verified', 'order.accepted'])
+    expect(db.connect_outbox.every(e => e.tenant_id === TENANT && e.aggregate_type === 'order_request' && e.aggregate_id === id && e.status === 'pending')).toBe(true)
+    expect(JSON.stringify(db.connect_outbox)).not.toContain('3001234567')
+  })
+
+  it('reintentos (misma Idempotency-Key) no duplican el evento', async () => {
+    await create(orderBody(), 'misma-clave-001'); await create(orderBody(), 'misma-clave-001')
+    const id = db.order_requests[0].id
+    const req = adminReq({ headers: { 'idempotency-key': 'acept-clave-001' } })
+    await call(routes.ordersRequestAccept, req, id); await call(routes.ordersRequestAccept, req, id)
+    expect(types()).toEqual(['order.submitted', 'order.accepted'])
+  })
+
+  it('si el encolado falló tras guardar el cambio, el reintento lo repara', async () => {
+    await create()
+    const id = db.order_requests[0].id
+    const realFrom = fake.current.from
+    fake.current.from = (t) => { if (t === 'connect_outbox') throw new Error('BD caída'); return realFrom(t) }
+    const req = adminReq({ headers: { 'idempotency-key': 'acept-clave-002' } })
+    await expect(routes.ordersRequestAccept(req, respond(), id)).rejects.toThrow('BD caída')
+    expect(db.order_requests[0].status).toBe('accepted')       // el cambio ya estaba guardado
+    expect(types()).toEqual(['order.submitted'])                // pero faltaba la notificación
+    fake.current.from = realFrom
+    expect((await call(routes.ordersRequestAccept, req, id)).code).toBe(200)
+    expect(types()).toEqual(['order.submitted', 'order.accepted'])
+  })
+
+  it('rechazar encola order.rejected', async () => {
+    await create()
+    await call(routes.ordersRequestReject, adminReq({ body: { reason: 'Fuera de zona' } }), db.order_requests[0].id)
+    expect(types()).toEqual(['order.submitted', 'order.rejected'])
   })
 })

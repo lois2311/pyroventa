@@ -4,6 +4,7 @@ import { scopedLocation, denyOutOfScope } from '../scopedLocation.js'
 import { clientIp } from '../loginLock.js'
 import { rejectIfRateLimited } from '../rateLimit.js'
 import { resolvePublicOrderContext, fetchLocationCatalog, fetchActiveZones, toPresentationMap } from '../services/publicCatalogService.js'
+import { emitOrderEvent, ORDER_EVENTS } from '../events/orderEvents.js'
 import { parseQuoteRequest, buildQuote, DEFAULT_TTL_MINUTES } from '../services/quoteService.js'
 import {
   ORDER_STATUSES, IDEMPOTENCY_RE, PUBLIC_TOKEN_RE,
@@ -73,7 +74,10 @@ export async function publicRequestCreate(req, res, slug) {
 
   // Reintento con la misma clave: mismo pedido, sin reinsertar
   const prior = await findByKey(ctx.tenantId, key)
-  if (prior) return res.status(200).json(publicOrderView(prior, await paymentOf(ctx.tenantId, prior.id)))
+  if (prior) {
+    await emitOrderEvent(prior, ORDER_EVENTS.submitted) // idempotente: repara un encolado que falló la vez anterior
+    return res.status(200).json(publicOrderView(prior, await paymentOf(ctx.tenantId, prior.id)))
+  }
 
   const parsed = parseQuoteRequest(req.body)
   if (parsed.error) return res.status(parsed.status).json({ error: parsed.error })
@@ -113,7 +117,10 @@ export async function publicRequestCreate(req, res, slug) {
   }).select('*').maybeSingle()
   if (ins.error?.code === UNIQUE_VIOLATION) { // doble envío simultáneo con la misma clave
     const dup = await findByKey(ctx.tenantId, key)
-    if (dup) return res.status(200).json(publicOrderView(dup, await paymentOf(ctx.tenantId, dup.id)))
+    if (dup) {
+      await emitOrderEvent(dup, ORDER_EVENTS.submitted)
+      return res.status(200).json(publicOrderView(dup, await paymentOf(ctx.tenantId, dup.id)))
+    }
   }
   if (ins.error) throw ins.error
   const order = ins.data
@@ -133,6 +140,7 @@ export async function publicRequestCreate(req, res, slug) {
     await supabaseAdmin.from('order_requests').delete().eq('id', order.id).eq('tenant_id', ctx.tenantId)
     throw itemsRes.error || payRes.error
   }
+  await emitOrderEvent(order, ORDER_EVENTS.submitted)
   return res.status(201).json(publicOrderView(order, payRes.data))
 }
 
@@ -226,7 +234,11 @@ async function transition(req, res, id, target) {
   const order = await loadOrder(auth, id, res); if (!order) return
 
   // Reintento de la misma operación: devuelve el resultado actual
-  if ((order.history || []).some(h => h.key === key)) return res.json(await orderDetail(order))
+  const eventType = target === 'accepted' ? ORDER_EVENTS.accepted : ORDER_EVENTS.rejected
+  if ((order.history || []).some(h => h.key === key)) {
+    await emitOrderEvent(order, eventType) // idempotente: repara un encolado que falló la vez anterior
+    return res.json(await orderDetail(order))
+  }
 
   let reason = null
   if (target === 'rejected') {
@@ -253,6 +265,7 @@ async function transition(req, res, id, target) {
     .select('*').maybeSingle()
   if (error) throw error
   if (!updated) return res.status(409).json({ error: 'El pedido cambió mientras lo revisabas. Recarga e intenta de nuevo' })
+  await emitOrderEvent(updated, eventType)
   return res.json(await orderDetail(updated))
 }
 
@@ -283,7 +296,11 @@ export async function ordersPaymentVerify(req, res, id) {
   if (!payment) return res.status(409).json({ error: 'El pedido no tiene registro de pago' })
   const verdict = canVerifyPayment(payment, target)
   if (!verdict.ok) return res.status(verdict.status).json({ error: verdict.error })
-  if (verdict.noop) return res.json(await orderDetail(order))
+  const eventType = target === 'manually_verified' ? ORDER_EVENTS.paymentVerified : ORDER_EVENTS.paymentRejected
+  if (verdict.noop) {
+    await emitOrderEvent(order, eventType)
+    return res.json(await orderDetail(order))
+  }
 
   const { data: updated, error } = await supabaseAdmin.from('payment_records')
     .update({ status: target, reference: reference ?? payment.reference, proof_url: proofUrl ?? payment.proof_url, verified_by: auth.seller.id, verified_at: new Date().toISOString() })
@@ -291,5 +308,6 @@ export async function ordersPaymentVerify(req, res, id) {
     .select('*').maybeSingle()
   if (error) throw error
   if (!updated) return res.status(409).json({ error: 'El pago cambió mientras lo revisabas. Recarga e intenta de nuevo' })
+  await emitOrderEvent(order, eventType)
   return res.json(await orderDetail(order))
 }
