@@ -164,11 +164,12 @@ async function loadOrder(auth, id, res) {
 async function orderDetail(order) {
   const t = order.tenant_id
   const one = (table, id) => id ? supabaseAdmin.from(table).select('*').eq('id', id).eq('tenant_id', t).maybeSingle() : { data: null }
-  const [{ data: customer }, { data: address }, { data: items }, payment] = await Promise.all([
+  const [{ data: customer }, { data: address }, { data: items }, payment, { data: settings }] = await Promise.all([
     one('customers', order.customer_id),
     one('customer_addresses', order.address_id),
     supabaseAdmin.from('order_request_items').select('*').eq('tenant_id', t).eq('order_request_id', order.id),
     paymentOf(t, order.id),
+    supabaseAdmin.from('order_settings').select('accept_policy').eq('tenant_id', t).eq('location_id', order.location_id).maybeSingle(),
   ])
   const { idempotency_key: _k, history, ...rest } = order
   const timeline = [...(history || [])]
@@ -176,7 +177,8 @@ async function orderDetail(order) {
     timeline.push({ at: payment.verified_at, action: payment.status === 'manually_verified' ? 'payment_verified' : 'payment_rejected', actor: { id: payment.verified_by } })
   }
   timeline.sort((a, b) => String(a.at).localeCompare(String(b.at)))
-  return { ...rest, customer, address, items: items || [], payment, timeline }
+  // accept_policy: la UI replica evaluateAcceptance para avisar antes de intentar aceptar (el servidor decide igual)
+  return { ...rest, customer, address, items: items || [], payment, timeline, accept_policy: settings?.accept_policy || 'require_verified' }
 }
 
 // GET /orders/requests?location_id=&status=

@@ -25,7 +25,7 @@
     {
       "id": "PR-03",
       "title": "Solicitudes, clientes, direcciones y pagos",
-      "status": "in_progress",
+      "status": "completed",
       "tables": [
         "customers",
         "customer_addresses",
@@ -37,7 +37,7 @@
     {
       "id": "PR-04",
       "title": "Interfaz administrativa y formulario",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "id": "PR-05",

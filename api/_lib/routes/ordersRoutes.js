@@ -62,7 +62,8 @@ export {
   ordersRequestsList, ordersRequestGet, ordersRequestAccept, ordersRequestReject, ordersPaymentVerify,
 } from './orderRequestRoutes.js'
 
-// ---- Administración (PR 4-5) ----------------------
-export const ordersSettingsGet      = stub('manage_connect')       // GET  /orders/settings
-export const ordersSettingsPut      = stub('manage_connect')       // PUT  /orders/settings
+// Configuración comercial por sede (PR-04)
+export { ordersSettingsGet, ordersSettingsPut } from './orderSettingsRoutes.js'
+
+// ---- Pendientes ----------------------
 export const ordersInvoiceConvert   = stub('manage_orders')        // POST /orders/requests/:id/invoice-conversions (PR 8, fuera del piloto)

@@ -125,7 +125,7 @@ export const test = base.extend({
       const method = req.method()
       let body
       try { body = req.postDataJSON() } catch { body = undefined }
-      log.push({ method, path, query: Object.fromEntries(url.searchParams), body })
+      log.push({ method, path, query: Object.fromEntries(url.searchParams), body, headers: req.headers() })
 
       const handler = handlers.find(h => h.method === method && (h.path instanceof RegExp ? h.path.test(path) : h.path === path))
       let status = 200
