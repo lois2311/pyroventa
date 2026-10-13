@@ -1,0 +1,140 @@
+{
+  "baseline_commit": "d12884f",
+  "invariants": [
+    "invoicesCreate, invoicesPay y cuadre de caja intactos (ver PROTECTED en scripts/verify-pedidos.js)",
+    "Sin descuentos ni reservas de inventario en pedidos",
+    "tenant_id en toda tabla y consulta de pedidos",
+    "SQL solo como archivos .sql de migración; nunca ejecutado desde el agente"
+  ],
+  "features": [
+    {
+      "id": "PR-01",
+      "title": "Esquema DDL aditivo, roles y stubs de API",
+      "status": "completed",
+      "commit": "38a83c3",
+      "tables": [
+        "order_settings",
+        "delivery_zones"
+      ]
+    },
+    {
+      "id": "PR-02",
+      "title": "Catálogo público y cotizador autoritativo",
+      "status": "completed"
+    },
+    {
+      "id": "PR-03",
+      "title": "Solicitudes, clientes, direcciones y pagos",
+      "status": "completed",
+      "tables": [
+        "order_customers",
+        "customer_addresses",
+        "order_requests",
+        "order_request_items",
+        "payment_records"
+      ]
+    },
+    {
+      "id": "PR-04",
+      "title": "Interfaz administrativa y formulario",
+      "status": "completed"
+    },
+    {
+      "id": "PR-05",
+      "title": "Eventos, outbox y worker",
+      "status": "completed",
+      "tables": [
+        "integration_events",
+        "connect_outbox"
+      ],
+      "commit": "00d77b0"
+    },
+    {
+      "id": "PR-06",
+      "title": "Adaptador de WhatsApp y bandeja",
+      "status": "completed",
+      "blocked_by": "decisión de proveedor",
+      "tables": [
+        "whatsapp_channels",
+        "conversations",
+        "messages"
+      ],
+      "commit": "7ef7b45"
+    },
+    {
+      "id": "PR-07",
+      "title": "Domicilios y vista móvil del repartidor",
+      "status": "completed",
+      "tables": [
+        "deliveries"
+      ],
+      "commit": "b2432d6"
+    },
+    {
+      "id": "PR-08",
+      "title": "Pruebas integrales, observabilidad y lanzamiento",
+      "status": "completed",
+      "commit": "33278cc"
+    },
+    {
+      "id": "PR-09",
+      "title": "Mejoras comerciales y expansión (incluye conversión a factura POS)",
+      "status": "pending",
+      "blocked_by": "validación del piloto con datos reales (dependencia externa; requiere aprobación)"
+    }
+  ],
+  "master_plan": "docs/PLAN_MAESTRO_VENDRA_PEDIDOS.md",
+  "agent_rule": "Leer el plan maestro (sección 12) antes de cada fase/PR. Un PR a la vez, sin adelantar fases. Parar ante decisiones pendientes que afecten datos, seguridad o POS.",
+  "pending_decisions": [
+    {
+      "d": "Proveedor de WhatsApp",
+      "before": "PR-06"
+    },
+    {
+      "d": "Conversión a factura",
+      "before": "fuera del piloto"
+    },
+    {
+      "d": "Retención de mensajes de WhatsApp y evidencias de pago",
+      "before": "producción (PR-08)"
+    }
+  ],
+  "decisions_resolved": [
+    {
+      "d": "Tarifa y cobertura (PR-02)",
+      "r": "delivery_zones con una sola zona activa por sede = tarifa fija del piloto"
+    },
+    {
+      "d": "Despacho (PR-03)",
+      "r": "accepted (comercial) != ready_for_dispatch (logística); aceptar no autoriza despacho"
+    },
+    {
+      "d": "Worker del outbox",
+      "r": "Supabase pg_cron + pg_net llamando a /internal/outbox/run con CRON_SECRET (ver docs/WORKER_OUTBOX.md)"
+    },
+    {
+      "d": "Retención de eventos",
+      "r": "integration_events y connect_outbox: 30 días procesados/ignorados/entregados, 90 días fallidos. Mensajes y evidencias: pendiente"
+    },
+    {
+      "d": "Proveedor WhatsApp",
+      "r": "Adaptador abstracto con implementación Meta Cloud API"
+    },
+    {
+      "d": "Acceso de domiciliarios",
+      "r": "Usuarios internos de sellers con rol driver, login por PIN asignado a su punto (seller_locations); sin tabla de domiciliarios aparte"
+    },
+    {
+      "d": "Autorización de despacho",
+      "r": "Crear la entrega (asignar domiciliario) a un pedido accepted es la autorización; accepted solo no despacha"
+    }
+  ],
+  "known_gaps": [
+    "Webhook de WhatsApp sin probar en Vercel real",
+    "Plantillas aprobadas de WhatsApp (fuera de ventana de 24 h)",
+    "Pantalla de alta de canales y zonas múltiples",
+    "Cerrar/archivar conversaciones y cancelar pedidos",
+    "Retención de mensajes y evidencias de pago",
+    "Conversión a factura POS (PR-09)"
+  ]
+}

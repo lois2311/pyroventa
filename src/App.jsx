@@ -20,6 +20,9 @@ const VendedorPage   = lazy(() => import('./pages/VendedorPage.jsx'))
 const SetupPasswordPage = lazy(() => import('./pages/SetupPasswordPage.jsx'))
 const CajaPage       = lazy(() => import('./pages/CajaPage.jsx'))
 const AdminPage      = lazy(() => import('./pages/AdminPage.jsx'))
+const DomiciliosPage = lazy(() => import('./pages/DomiciliosPage.jsx'))
+const PedidoPublicoPage = lazy(() => import('./pages/PedidoPublicoPage.jsx'))
+const PedidoEstadoPage = lazy(() => import('./pages/PedidoPublicoPage.jsx').then(m => ({ default: m.PedidoEstadoPage })))
 const SuperDashboard = lazy(() => import('./pages/SuperDashboard.jsx'))
 
 // ---- Guard por acción (roles.js) ---------------------------
@@ -72,6 +75,10 @@ export default function App() {
           <Routes>
             <Route path="/c/:slug" element={<TenantEntry />} />
             <Route path="/login" element={<LoginPage />} />
+
+            {/* Vendra Pedidos: formulario público del cliente (sin sesión) */}
+            <Route path="/pedir/:slug" element={<PedidoPublicoPage />} />
+            <Route path="/pedir/:slug/pedido/:token" element={<PedidoEstadoPage />} />
             <Route path="/auth/establecer-clave/:token" element={<SetupPasswordPage />} />
 
             <Route path="/vender" element={
@@ -83,6 +90,13 @@ export default function App() {
             <Route path="/caja" element={
               <RequireCan action="charge" needsLocation>
                 <CajaPage />
+              </RequireCan>
+            } />
+
+            {/* Vendra Pedidos: vista móvil del domiciliario (también la abre el operador de su punto) */}
+            <Route path="/domicilios" element={
+              <RequireCan action="update_delivery" needsLocation>
+                <DomiciliosPage />
               </RequireCan>
             } />
 

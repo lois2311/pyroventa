@@ -53,7 +53,7 @@ export async function sellersGet(req, res) {
   if (error) return res.status(500).json({ error: error.message })
   const isOwner = auth.seller.role === 'owner'
   const rows = (data || []).filter(u => {
-    if (!isOwner && !['seller', 'cashier'].includes(u.role)) return false
+    if (!isOwner && !['seller', 'cashier', 'driver'].includes(u.role)) return false
     const locs = (u.seller_locations || []).map(sl => sl.location_id)
     if (location_id) return locs.includes(location_id)
     return isOwner || locs.some(l => locationInScope(auth.scope, l))

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList, ShieldCheck, Printer, Package,
+  BarChart3, Users, Monitor, MapPin, PartyPopper, ClipboardList, ShieldCheck, Printer, Package, ShoppingBag, SlidersHorizontal, MessageSquare,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore.js'
 import { useApi }       from '../hooks/useApi.js'
@@ -21,6 +21,9 @@ const TABS = [
   { id: 'locaciones', label: 'Puntos',     icon: MapPin,        action: 'manage_locations',  load: () => import('./admin/PuntosTab.jsx') },
   { id: 'productos',  label: 'Productos',  icon: PartyPopper,   action: 'manage_catalog',    load: () => import('./admin/ProductosTab.jsx') },
   { id: 'inventario', label: 'Inventario', icon: Package,       action: 'restock',           load: () => import('../components/InventarioTab.jsx'), requiresInventory: true },
+  { id: 'pedidos',    label: 'Pedidos',    icon: ShoppingBag,   action: 'manage_orders',     load: () => import('./admin/pedidos/PedidosTab.jsx') },
+  { id: 'conversaciones', label: 'Conversaciones', icon: MessageSquare, action: 'manage_conversations', load: () => import('./admin/pedidos/ConversacionesTab.jsx') },
+  { id: 'pedidos-config', label: 'Config. pedidos', icon: SlidersHorizontal, action: 'manage_connect', load: () => import('./admin/pedidos/PedidosConfigTab.jsx') },
   { id: 'impresion',  label: 'Impresora',  icon: Printer,       action: 'configure_printer', load: () => import('../components/PrinterConfigTab.jsx') },
   { id: 'auditoria',  label: 'Auditoría',  icon: ShieldCheck,   action: 'view_reports',      load: () => import('../components/PriceAuditTab.jsx') },
   { id: 'historial',  label: 'Historial',  icon: ClipboardList, action: 'view_reports',      load: () => import('./admin/HistorialTab.jsx') },
@@ -95,6 +98,9 @@ export default function AdminPage() {
     locaciones: { locations, onChanged: locationsQ.refetch, isOwner },
     productos:  { hasInventory },
     inventario: { locations, isOwner },
+    pedidos:    { locations, isOwner },
+    conversaciones: { locations, isOwner },
+    'pedidos-config': { locations, isOwner },
     impresion:  { locations, isOwner },
     auditoria:  { locations, isOwner },
     historial:  { locations },

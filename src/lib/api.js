@@ -23,12 +23,13 @@ function wait(ms, signal) {
 }
 
 /**
+ * `options.headers` (opcional): cabeceras extra, p. ej. Idempotency-Key en Vendra Pedidos.
  * `options.signal` (opcional): AbortSignal externo. Lo usa useApi para cancelar
  * el pedido anterior al cambiar filtros o al desmontar; un pedido cancelado
  * lanza un error con `canceled = true` y no se reintenta.
  */
 async function request(method, path, body, options = {}) {
-  const { retries = MAX_RETRIES, timeout = REQUEST_TIMEOUT, skipAuthRedirect = false, signal } = options
+  const { retries = MAX_RETRIES, timeout = REQUEST_TIMEOUT, skipAuthRedirect = false, signal, headers: extraHeaders } = options
   const token = localStorage.getItem('pv_token')
 
   let lastError = null
@@ -47,6 +48,7 @@ async function request(method, path, body, options = {}) {
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...extraHeaders, // p. ej. Idempotency-Key en Vendra Pedidos
         },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,

@@ -38,12 +38,27 @@ describe('can', () => {
   })
 })
 
-describe('assignableRoles', () => {
-  it('owner asigna los cuatro roles', () => {
-    expect(assignableRoles('owner')).toEqual(['seller', 'cashier', 'admin', 'owner'])
+describe('Vendra Pedidos', () => {
+  it('el domiciliario no vende, cobra ni administra pedidos', () => {
+    for (const a of ['sell', 'charge', 'refund', 'manage_orders', 'manage_deliveries', 'manage_connect']) {
+      expect(can('driver', a)).toBe(false)
+    }
+    expect(can('driver', 'update_delivery')).toBe(true)
   })
-  it('admin solo vendedor y cajero', () => {
-    expect(assignableRoles('admin')).toEqual(['seller', 'cashier'])
+  it('permisos de pedidos por rol', () => {
+    expect(can('seller', 'manage_orders')).toBe(false)
+    expect(can('cashier', 'manage_orders')).toBe(true)
+    expect(can('cashier', 'manage_deliveries')).toBe(false)
+    expect(can('admin', 'manage_connect')).toBe(true)
+  })
+})
+
+describe('assignableRoles', () => {
+  it('owner asigna todos los roles, incluido el domiciliario (entra con PIN)', () => {
+    expect(assignableRoles('owner')).toEqual(['seller', 'cashier', 'admin', 'owner', 'driver'])
+  })
+  it('admin: vendedor, cajero y domiciliario de su punto', () => {
+    expect(assignableRoles('admin')).toEqual(['seller', 'cashier', 'driver'])
   })
   it('cajero y vendedor nada', () => {
     expect(assignableRoles('cashier')).toEqual([])
