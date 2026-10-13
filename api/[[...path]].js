@@ -91,12 +91,7 @@ import {
   ordersPaymentVerify,
   ordersInvoiceConvert,
 } from './_lib/routes/ordersRoutes.js'
-import {
-  whatsappWebhookVerify,
-  whatsappWebhookPost,
-  conversationsList,
-  messageSend,
-} from './_lib/routes/whatsappRoutes.js'
+import { conversationsList, conversationMessages, messageSend } from './_lib/routes/conversationRoutes.js'
 import { deliveryCreate, deliveryStatus } from './_lib/routes/deliveryRoutes.js'
 import { outboxRun } from './_lib/routes/workerRoutes.js'
 
@@ -240,15 +235,15 @@ async function route(req, res) {
     if (segments[2] && segments[3] === 'quote'    && segments.length === 4 && method === 'POST') return publicQuotePost(req, res, segments[2])
     if (segments[2] && segments[3] === 'requests' && segments.length === 4 && method === 'POST') return publicRequestCreate(req, res, segments[2])
   }
-  if (segments[0] === 'integrations' && segments[1] === 'whatsapp' && segments[2] && segments[3] === 'webhook' && segments.length === 4) {
-    if (method === 'GET')  return whatsappWebhookVerify(req, res, segments[2])
-    if (method === 'POST') return whatsappWebhookPost(req, res, segments[2])
-  }
+  // El webhook de WhatsApp (/integrations/whatsapp/*) lo sirve api/integrations/whatsapp/[provider]/webhook.js (cuerpo crudo para la firma)
   if (segments[0] === 'orders') {
     if (route === '/orders/settings' && method === 'GET') return ordersSettingsGet(req, res)
     if (route === '/orders/settings' && method === 'PUT') return ordersSettingsPut(req, res)
     if (route === '/orders/conversations' && method === 'GET') return conversationsList(req, res)
-    if (segments[1] === 'conversations' && segments[2] && segments[3] === 'messages' && segments.length === 4 && method === 'POST') return messageSend(req, res, segments[2])
+    if (segments[1] === 'conversations' && segments[2] && segments[3] === 'messages' && segments.length === 4) {
+      if (method === 'GET')  return conversationMessages(req, res, segments[2])
+      if (method === 'POST') return messageSend(req, res, segments[2])
+    }
     if (route === '/orders/requests' && method === 'GET') return ordersRequestsList(req, res)
     if (segments[1] === 'requests' && segments[2] && segments.length === 3 && method === 'GET') return ordersRequestGet(req, res, segments[2])
     if (segments[1] === 'requests' && segments[2] && segments.length === 4 && method === 'POST') {

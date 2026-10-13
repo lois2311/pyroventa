@@ -42,16 +42,17 @@
     {
       "id": "PR-05",
       "title": "Eventos, outbox y worker",
-      "status": "in_progress",
+      "status": "completed",
       "tables": [
         "integration_events",
         "connect_outbox"
-      ]
+      ],
+      "commit": "00d77b0"
     },
     {
       "id": "PR-06",
       "title": "Adaptador de WhatsApp y bandeja",
-      "status": "pending",
+      "status": "in_progress",
       "blocked_by": "decisión de proveedor",
       "tables": [
         "whatsapp_channels",
@@ -94,16 +95,12 @@
       "before": "PR-07"
     },
     {
-      "d": "Retención de mensajes y evidencias",
-      "before": "PR-05"
-    },
-    {
-      "d": "Worker y mecanismo de ejecución",
-      "before": "PR-05"
-    },
-    {
       "d": "Conversión a factura",
       "before": "fuera del piloto"
+    },
+    {
+      "d": "Retención de mensajes de WhatsApp y evidencias de pago",
+      "before": "producción (PR-08)"
     }
   ],
   "decisions_resolved": [
@@ -114,6 +111,18 @@
     {
       "d": "Despacho (PR-03)",
       "r": "accepted (comercial) != ready_for_dispatch (logística); aceptar no autoriza despacho"
+    },
+    {
+      "d": "Worker del outbox",
+      "r": "Supabase pg_cron + pg_net llamando a /internal/outbox/run con CRON_SECRET (ver docs/WORKER_OUTBOX.md)"
+    },
+    {
+      "d": "Retención de eventos",
+      "r": "integration_events y connect_outbox: 30 días procesados/ignorados/entregados, 90 días fallidos. Mensajes y evidencias: pendiente"
+    },
+    {
+      "d": "Proveedor WhatsApp",
+      "r": "Adaptador abstracto con implementación Meta Cloud API"
     }
   ]
 }

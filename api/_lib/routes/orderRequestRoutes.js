@@ -23,7 +23,7 @@ const notFound = (res) => res.status(404).json({ error: 'Pedidos no disponibles'
 const check = ({ error }) => { if (error) throw error }
 
 /** Idempotency-Key obligatorio; responde 400 y devuelve null si falta o es inválido. */
-function idemKey(req, res) {
+export function idemKey(req, res) {
   const key = String(req.headers?.['idempotency-key'] || '').trim()
   if (!IDEMPOTENCY_RE.test(key)) {
     res.status(400).json({ error: 'Idempotency-Key requerido (8-128 caracteres: letras, números, - y _)' })

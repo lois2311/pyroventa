@@ -1,6 +1,16 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/[[...path]]" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/integrations/whatsapp/:provider/webhook",
+      "destination": "/api/integrations/whatsapp/:provider/webhook"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[[...path]]"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

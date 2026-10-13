@@ -40,9 +40,9 @@ for (const t of allowed) if (!created.has(t)) fail(`Falta la tabla ${t} (PR acti
 
 // 3. El código de pedidos no importa facturación, caja ni inventario
 const PEDIDOS_FILES = [
-  'ordersRoutes.js', 'orderRequestRoutes.js', 'orderSettingsRoutes.js', 'whatsappRoutes.js', 'deliveryRoutes.js', 'workerRoutes.js',
+  'ordersRoutes.js', 'orderRequestRoutes.js', 'orderSettingsRoutes.js', 'whatsappRoutes.js', 'deliveryRoutes.js', 'workerRoutes.js', 'conversationRoutes.js',
 ].map(f => `api/_lib/routes/${f}`).concat(
-  ['quoteService.js', 'publicCatalogService.js'].map(f => `api/_lib/services/${f}`).concat(['api/_lib/orderRules.js', 'api/_lib/services/outboxService.js', 'api/_lib/events/backoff.js', 'api/_lib/events/inbox.js', 'api/_lib/events/orderEvents.js', 'api/_lib/events/handlers.js']),
+  ['quoteService.js', 'publicCatalogService.js'].map(f => `api/_lib/services/${f}`).concat(['api/_lib/orderRules.js', 'api/_lib/services/outboxService.js', 'api/_lib/events/backoff.js', 'api/_lib/events/inbox.js', 'api/_lib/events/orderEvents.js', 'api/_lib/events/handlers.js', 'api/_lib/events/whatsappHandlers.js', 'api/_lib/events/retention.js', 'api/_lib/services/conversationService.js', 'api/_lib/adapters/whatsappAdapter.js', 'api/integrations/whatsapp/[provider]/webhook.js']),
 ).filter(existsSync)
 for (const f of PEDIDOS_FILES) {
   const src = readFileSync(f, 'utf8')

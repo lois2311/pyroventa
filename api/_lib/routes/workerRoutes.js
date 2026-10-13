@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { processBatch } from '../services/outboxService.js'
 import { handlers } from '../events/handlers.js'
+import { purgeExpired } from '../events/retention.js'
 
 // =====================================================
 // Disparador del worker del outbox: GET|POST /internal/outbox/run
@@ -19,7 +20,10 @@ export async function outboxRun(req, res) {
   if (!given || !timingSafeEqual(digest(given), digest(secret))) return res.status(401).json({ error: 'No autorizado' })
 
   const summary = await processBatch({ handlers })
+  // Retención: una vez por hora (los primeros 5 min), aunque el planificador llame cada minuto; no debe tumbar el worker
+  let purged
+  if (new Date().getUTCMinutes() < 5) purged = await purgeExpired().catch(() => null)
   // Solo conteos: nunca payloads, teléfonos ni tokens en logs
-  console.info(JSON.stringify({ event: 'outbox.run', ...summary }))
+  console.info(JSON.stringify({ event: 'outbox.run', ...summary, ...(purged && { purged }) }))
   return res.json(summary)
 }
