@@ -89,6 +89,7 @@ const USERS = {
   owner:   { id: 'o1', name: 'Laura Perez', role: 'owner' },
   seller:  { id: 's1', name: 'Carlos Rodríguez', role: 'seller' },
   cashier: { id: 'c1', name: 'María López', role: 'cashier' },
+  driver:  { id: 'd1', name: 'Luis Domi', role: 'driver' },
 }
 
 /**

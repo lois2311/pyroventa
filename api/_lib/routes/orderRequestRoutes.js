@@ -5,6 +5,7 @@ import { clientIp } from '../loginLock.js'
 import { rejectIfRateLimited } from '../rateLimit.js'
 import { resolvePublicOrderContext, fetchLocationCatalog, fetchActiveZones, toPresentationMap } from '../services/publicCatalogService.js'
 import { emitOrderEvent, ORDER_EVENTS } from '../events/orderEvents.js'
+import { listOrderDeliveries } from '../services/deliveryService.js'
 import { parseQuoteRequest, buildQuote, DEFAULT_TTL_MINUTES } from '../services/quoteService.js'
 import {
   ORDER_STATUSES, IDEMPOTENCY_RE, PUBLIC_TOKEN_RE,
@@ -172,12 +173,13 @@ async function loadOrder(auth, id, res) {
 async function orderDetail(order) {
   const t = order.tenant_id
   const one = (table, id) => id ? supabaseAdmin.from(table).select('*').eq('id', id).eq('tenant_id', t).maybeSingle() : { data: null }
-  const [{ data: customer }, { data: address }, { data: items }, payment, { data: settings }] = await Promise.all([
+  const [{ data: customer }, { data: address }, { data: items }, payment, { data: settings }, deliveries] = await Promise.all([
     one('customers', order.customer_id),
     one('customer_addresses', order.address_id),
     supabaseAdmin.from('order_request_items').select('*').eq('tenant_id', t).eq('order_request_id', order.id),
     paymentOf(t, order.id),
     supabaseAdmin.from('order_settings').select('accept_policy').eq('tenant_id', t).eq('location_id', order.location_id).maybeSingle(),
+    listOrderDeliveries(t, order.id), // historial logístico, separado del estado comercial
   ])
   const { idempotency_key: _k, history, ...rest } = order
   const timeline = [...(history || [])]
@@ -186,7 +188,7 @@ async function orderDetail(order) {
   }
   timeline.sort((a, b) => String(a.at).localeCompare(String(b.at)))
   // accept_policy: la UI replica evaluateAcceptance para avisar antes de intentar aceptar (el servidor decide igual)
-  return { ...rest, customer, address, items: items || [], payment, timeline, accept_policy: settings?.accept_policy || 'require_verified' }
+  return { ...rest, customer, address, items: items || [], payment, timeline, deliveries, accept_policy: settings?.accept_policy || 'require_verified' }
 }
 
 // GET /orders/requests?location_id=&status=

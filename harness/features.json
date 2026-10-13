@@ -52,21 +52,20 @@
     {
       "id": "PR-06",
       "title": "Adaptador de WhatsApp y bandeja",
-      "status": "in_progress",
+      "status": "completed",
       "blocked_by": "decisión de proveedor",
       "tables": [
         "whatsapp_channels",
         "conversations",
         "messages"
-      ]
+      ],
+      "commit": "7ef7b45"
     },
     {
       "id": "PR-07",
       "title": "Domicilios y vista móvil del repartidor",
-      "status": "pending",
-      "blocked_by": "decisión: acceso de domiciliarios + autorización de despacho",
+      "status": "completed",
       "tables": [
-        "delivery_agents",
         "deliveries"
       ]
     },
@@ -89,10 +88,6 @@
     {
       "d": "Proveedor de WhatsApp",
       "before": "PR-06"
-    },
-    {
-      "d": "Acceso de domiciliarios",
-      "before": "PR-07"
     },
     {
       "d": "Conversión a factura",
@@ -123,6 +118,14 @@
     {
       "d": "Proveedor WhatsApp",
       "r": "Adaptador abstracto con implementación Meta Cloud API"
+    },
+    {
+      "d": "Acceso de domiciliarios",
+      "r": "Usuarios internos de sellers con rol driver, login por PIN asignado a su punto (seller_locations); sin tabla de domiciliarios aparte"
+    },
+    {
+      "d": "Autorización de despacho",
+      "r": "Crear la entrega (asignar domiciliario) a un pedido accepted es la autorización; accepted solo no despacha"
     }
   ]
 }

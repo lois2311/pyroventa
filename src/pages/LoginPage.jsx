@@ -246,6 +246,12 @@ export default function LoginPage() {
       await login(data.seller, data.location, data.tenant, data.token)
       saveMode('cashier')
 
+      // El domiciliario solo usa su vista de entregas
+      if (data.seller.role === 'driver') {
+        navigate('/domicilios')
+        return
+      }
+
       // Si es cajero o admin yendo a caja → pedir selección de caja
       if (data.seller.role === 'cashier') {
         setStep('register')

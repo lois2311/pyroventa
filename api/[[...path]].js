@@ -92,7 +92,7 @@ import {
   ordersInvoiceConvert,
 } from './_lib/routes/ordersRoutes.js'
 import { conversationsList, conversationMessages, messageSend } from './_lib/routes/conversationRoutes.js'
-import { deliveryCreate, deliveryStatus } from './_lib/routes/deliveryRoutes.js'
+import { deliveryCreate, deliveriesList, deliveryStatus, driversList } from './_lib/routes/deliveryRoutes.js'
 import { outboxRun } from './_lib/routes/workerRoutes.js'
 
 // =====================================================
@@ -244,6 +244,8 @@ async function route(req, res) {
       if (method === 'GET')  return conversationMessages(req, res, segments[2])
       if (method === 'POST') return messageSend(req, res, segments[2])
     }
+    if (route === '/orders/deliveries' && method === 'GET') return deliveriesList(req, res)
+    if (route === '/orders/drivers' && method === 'GET') return driversList(req, res)
     if (route === '/orders/requests' && method === 'GET') return ordersRequestsList(req, res)
     if (segments[1] === 'requests' && segments[2] && segments.length === 3 && method === 'GET') return ordersRequestGet(req, res, segments[2])
     if (segments[1] === 'requests' && segments[2] && segments.length === 4 && method === 'POST') {

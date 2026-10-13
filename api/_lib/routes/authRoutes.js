@@ -29,12 +29,13 @@ export async function authLogin(req, res) {
   const lockKey = `pin:${tenant.id}:${clientIp(req)}`
   if (await rejectIfLocked(supabaseAdmin, lockKey, res)) return
 
-  // Solo vendedores y cajeros entran con PIN; admin y owner usan /auth/admin-login
+  // Vendedores, cajeros y domiciliarios entran con PIN; admin y owner usan /auth/admin-login.
+  // seller_locations!inner + eq(location_id): el domiciliario solo entra al punto al que está asignado.
   const { data: sellers, error } = await supabaseAdmin
     .from('sellers')
     .select('id, name, role, active, seller_locations!inner(location_id)')
     .eq('tenant_id', tenant.id)
-    .eq('pin', pin).eq('active', true).in('role', ['seller', 'cashier'])
+    .eq('pin', pin).eq('active', true).in('role', ['seller', 'cashier', 'driver'])
     .eq('seller_locations.location_id', location_id)
 
   if (error) return res.status(500).json({ error: 'Error interno del servidor' })

@@ -49,8 +49,7 @@ export function can(role, action) {
 
 /** Roles que `actorRole` puede asignar al crear o editar usuarios. */
 export function assignableRoles(actorRole) {
-  // ponytail: 'driver' aún no se asigna: falta su login (decisión pendiente: cuenta Vendra vs credencial limitada)
-  if (actorRole === 'owner') return ROLES.filter(r => r !== 'driver')
-  if (actorRole === 'admin') return ['seller', 'cashier']
+  if (actorRole === 'owner') return [...ROLES]
+  if (actorRole === 'admin') return ['seller', 'cashier', 'driver']
   return []
 }

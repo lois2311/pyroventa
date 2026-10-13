@@ -30,6 +30,12 @@ const TEXTS = {
   [ORDER_EVENTS.paymentRejected]: (o) => `No pudimos verificar tu transferencia del pedido #${code(o)}. Escríbenos para revisarla.`,
 }
 
+const DELIVERY_TEXTS = {
+  picked_up:       (o) => `Tu pedido #${code(o)} ya va en camino.`,
+  delivered:       (o) => `Tu pedido #${code(o)} fue entregado. ¡Gracias por tu compra!`,
+  delivery_failed: (o) => `No pudimos entregar tu pedido #${code(o)}. Te contactaremos para coordinar una nueva entrega.`,
+}
+
 const one = async (table, tenantId, filters) => {
   let q = supabaseAdmin.from(table).select('*').eq('tenant_id', tenantId)
   for (const [col, val] of Object.entries(filters)) q = q.eq(col, val)
@@ -83,7 +89,16 @@ export async function deliverMessage(row, messageId, { fetchImpl, now = new Date
 export const sendOutboundMessage = (row, deps) => deliverMessage(row, row.payload?.message_id, deps)
 
 /** Aviso al cliente por un cambio de estado de su pedido, dentro de la conversación que ya tiene con el negocio. */
-export const orderNotification = (eventType) => async (row, deps = {}) => {
+export const orderNotification = (eventType) => (row, deps) => notifyCustomer(row, deps, TEXTS[eventType])
+
+/** order.delivery_status_changed: payload { delivery_id, status }. */
+export const deliveryNotification = (row, deps) => {
+  const text = DELIVERY_TEXTS[row.payload?.status]
+  if (!text) throw new PermanentError('Estado de entrega sin aviso')
+  return notifyCustomer(row, deps, text)
+}
+
+async function notifyCustomer(row, deps = {}, textFor) {
   const tenantId = row.tenant_id
   const order = await one('order_requests', tenantId, { id: row.aggregate_id })
   if (!order) throw new PermanentError('Pedido inexistente')
@@ -104,7 +119,7 @@ export const orderNotification = (eventType) => async (row, deps = {}) => {
   const key = `outbox:${row.id}`
   const ins = await supabaseAdmin.from('messages').insert({
     tenant_id: tenantId, conversation_id: conversation.id, direction: 'outbound', type: 'text',
-    body: TEXTS[eventType](order), status: 'queued', idempotency_key: key,
+    body: textFor(order), status: 'queued', idempotency_key: key,
   }).select('id').maybeSingle()
   if (ins.error && ins.error.code !== UNIQUE_VIOLATION) throw ins.error
   const message = ins.data || await one('messages', tenantId, { idempotency_key: key })

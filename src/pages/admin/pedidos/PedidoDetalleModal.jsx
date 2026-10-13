@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { Check, ExternalLink, X } from 'lucide-react'
+import { Bike, Check, ExternalLink, X } from 'lucide-react'
 import { api } from '../../../lib/api.js'
 import { formatCOP, formatDate } from '../../../lib/format.js'
 import { useApi } from '../../../hooks/useApi.js'
-import { ROLE_LABELS } from '../../../../api/_lib/roles.js'
+import { ROLE_LABELS, can } from '../../../../api/_lib/roles.js'
+import { useAuthStore } from '../../../store/authStore.js'
 import { evaluateAcceptance } from '../../../../api/_lib/orderRules.js'
 import Modal from '../../../components/Modal.jsx'
 import ErrorNotice from '../../../components/ErrorNotice.jsx'
 import { useConfirm } from '../../../components/ConfirmDialog.jsx'
 import { useToast } from '../../../components/Toast.jsx'
 import { FormError } from '../shared.jsx'
-import { MONO, PAYMENT_METHOD_LABEL, StatusBadge, PaymentBadge, shortId, useActionKeys } from './shared.jsx'
+import AsignarDomicilioModal from './AsignarDomicilioModal.jsx'
+import { MONO, Badge, PAYMENT_METHOD_LABEL, StatusBadge, PaymentBadge, shortId, useActionKeys } from './shared.jsx'
 
 const TIMELINE_LABEL = {
   created: 'Pedido recibido',
@@ -21,6 +23,12 @@ const TIMELINE_LABEL = {
 }
 
 const OPEN_STATES = ['submitted', 'under_review']
+const DELIVERY_STATUS = {
+  assigned: { label: 'Por recoger', tone: 'yellow' }, picked_up: { label: 'En camino', tone: 'blue' },
+  delivered: { label: 'Entregado', tone: 'green' }, delivery_failed: { label: 'No entregado', tone: 'red' },
+  ready_for_dispatch: { label: 'Listo', tone: 'gray' },
+}
+const ACTIVE_DELIVERY = ['ready_for_dispatch', 'assigned', 'picked_up']
 const idemHeaders = (key) => ({ headers: { 'Idempotency-Key': key } })
 
 // ===========================================================
@@ -36,6 +44,8 @@ export default function PedidoDetalleModal({ orderId, onClose, onChanged }) {
   const keys = useActionKeys()
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState('')
+  const [assigning, setAssigning] = useState(false)
+  const role = useAuthStore(s => s.seller?.role)
 
   const run = async (action, fn, doneMsg) => {
     if (busy) return // evita doble clic
@@ -119,6 +129,9 @@ export default function PedidoDetalleModal({ orderId, onClose, onChanged }) {
       onClose={onClose}
       footer={footer}
     >
+      {assigning && o && (
+        <AsignarDomicilioModal order={o} onClose={() => setAssigning(false)} onAssigned={() => { q.refetch(); onChanged?.() }} />
+      )}
       <div className="space-y-4">
         <ErrorNotice error={q.error} title="No se pudo cargar el pedido" onRetry={q.refetch} />
         {q.loading && !o && <div className="skeleton h-48 rounded-lg" role="status" aria-label="Cargando pedido" />}
@@ -181,6 +194,10 @@ export default function PedidoDetalleModal({ orderId, onClose, onChanged }) {
               </Section>
             </div>
 
+            {(o.status === 'accepted' || o.deliveries?.length > 0) && o.fulfillment === 'delivery' && (
+              <DeliverySection order={o} canAssign={can(role, 'manage_deliveries')} onAssign={() => setAssigning(true)} />
+            )}
+
             <Section title="Historial">
               <ol className="space-y-3">
                 {o.timeline.map((e, i) => (
@@ -223,5 +240,39 @@ function Row({ label, value, strong = false }) {
       <dt className={strong ? 'font-semibold text-white' : 'text-gray-400'}>{label}</dt>
       <dd className={`${MONO} ${strong ? 'text-base font-semibold text-white' : 'text-gray-300'}`}>{value}</dd>
     </div>
+  )
+}
+
+/** Logística: separada del estado comercial. Aceptar no despacha; asignar un domiciliario sí. */
+function DeliverySection({ order, canAssign, onAssign }) {
+  const latest = order.deliveries?.[0]
+  const active = latest && ACTIVE_DELIVERY.includes(latest.status)
+  const s = latest && (DELIVERY_STATUS[latest.status] || { label: latest.status, tone: 'gray' })
+  const canAssignNow = canAssign && order.status === 'accepted' && !active && latest?.status !== 'delivered'
+  return (
+    <Section title="Domicilio">
+      {latest ? (
+        <div className="space-y-1 text-sm">
+          <p className="flex flex-wrap items-center gap-2">
+            <Badge tone={s.tone}>{s.label}</Badge>
+            {latest.driver?.name && <span className="text-white">{latest.driver.name}</span>}
+          </p>
+          <p className={`${MONO} text-xs text-gray-400`}>
+            Asignado {formatDate(latest.assigned_at)}
+            {latest.picked_up_at && ` · Recogido ${formatDate(latest.picked_up_at)}`}
+            {latest.delivered_at && ` · Entregado ${formatDate(latest.delivered_at)}`}
+          </p>
+          {latest.failure_reason && <p className="text-red-400"><span className="text-gray-400">Novedad: </span>{latest.failure_reason}</p>}
+          {order.deliveries.length > 1 && <p className="text-xs text-gray-400">{order.deliveries.length - 1} entrega(s) anterior(es) para este pedido.</p>}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-400">Aceptar el pedido no autoriza el despacho. Asigna un domiciliario para enviarlo.</p>
+      )}
+      {canAssignNow && (
+        <button type="button" className="btn-outline mt-3" onClick={onAssign}>
+          <Bike className="h-4 w-4" aria-hidden="true" /> {latest ? 'Reasignar domicilio' : 'Asignar domiciliario'}
+        </button>
+      )}
+    </Section>
   )
 }

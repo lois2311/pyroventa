@@ -54,11 +54,11 @@ describe('Vendra Pedidos', () => {
 })
 
 describe('assignableRoles', () => {
-  it('owner asigna los cuatro roles de punto (driver pendiente de login)', () => {
-    expect(assignableRoles('owner')).toEqual(['seller', 'cashier', 'admin', 'owner'])
+  it('owner asigna todos los roles, incluido el domiciliario (entra con PIN)', () => {
+    expect(assignableRoles('owner')).toEqual(['seller', 'cashier', 'admin', 'owner', 'driver'])
   })
-  it('admin solo vendedor y cajero', () => {
-    expect(assignableRoles('admin')).toEqual(['seller', 'cashier'])
+  it('admin: vendedor, cajero y domiciliario de su punto', () => {
+    expect(assignableRoles('admin')).toEqual(['seller', 'cashier', 'driver'])
   })
   it('cajero y vendedor nada', () => {
     expect(assignableRoles('cashier')).toEqual([])
